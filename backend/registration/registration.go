@@ -1,0 +1,259 @@
+// Service registration orchestrates new user registration.
+package registration
+
+import (
+	"bytes"
+	"context"
+	"embed"
+	"errors"
+	htmltemplate "html/template"
+	"net"
+	"net/mail"
+	"strings"
+	texttemplate "text/template"
+	"time"
+
+	mailssvc "encore.app/mails"
+	profilessvc "encore.app/profiles"
+	"encore.dev/beta/errs"
+	"encore.dev/storage/sqldb"
+	"encore.dev/types/uuid"
+)
+
+//go:embed mails/*.tmpl
+var mailTemplates embed.FS
+
+var db = sqldb.NewDatabase("registration", sqldb.DatabaseConfig{
+	Migrations: "./migrations",
+})
+
+var profilesDB = sqldb.Named("profiles")
+
+const (
+	welcomeTokenTTL = 24 * time.Hour
+	frontendBaseURL = "http://localhost:9000/#"
+)
+
+type RegisterParams struct {
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url"`
+	Password    string `json:"password" encore:"sensitive"`
+}
+
+type RegisterResponse struct {
+	Profile *profilessvc.Profile `json:"profile"`
+}
+
+type WelcomeResponse struct {
+	Email     string    `json:"email"`
+	Confirmed bool      `json:"confirmed"`
+	UsedAt    time.Time `json:"used_at"`
+}
+
+type EmailAvailabilityResponse struct {
+	Email     string `json:"email"`
+	Available bool   `json:"available"`
+	MXValid   bool   `json:"mx_valid"`
+}
+
+// CheckEmail reports whether an email can be used for a new registration.
+//
+//encore:api public method=GET path=/registration/email/:email
+func CheckEmail(ctx context.Context, email string) (*EmailAvailabilityResponse, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "email is required"}
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "invalid email"}
+	}
+	email = parsed.Address
+
+	domain, ok := emailDomain(email)
+	if !ok {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "invalid email domain"}
+	}
+	mxValid, err := hasValidMX(domain)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to check email domain")
+	}
+
+	var exists bool
+	err = profilesDB.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM user_profiles WHERE email = $1)
+	`, email).Scan(&exists)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to check email")
+	}
+
+	return &EmailAvailabilityResponse{Email: email, Available: !exists, MXValid: mxValid}, nil
+}
+
+// Register creates a new user and records the welcome transactional email.
+//
+//encore:api public method=POST path=/registration
+func Register(ctx context.Context, p *RegisterParams) (*RegisterResponse, error) {
+	profile, err := profilessvc.Insert(ctx, &profilessvc.RegisterParams{
+		Email:       p.Email,
+		DisplayName: p.DisplayName,
+		AvatarURL:   p.AvatarURL,
+		Password:    p.Password,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := createWelcomeToken(ctx, profile)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to create welcome token")
+	}
+
+	mail, err := welcomeMail(profile, token)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to render welcome email")
+	}
+	if _, err := mailssvc.SendTransactional(ctx, mail); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to queue welcome email")
+	}
+
+	return &RegisterResponse{Profile: profile}, nil
+}
+
+// ConfirmWelcome validates the welcome email token.
+//
+//encore:api public method=POST path=/registration/welcome/:token
+func ConfirmWelcome(ctx context.Context, token uuid.UUID) (*WelcomeResponse, error) {
+	var email string
+	var expiresAt time.Time
+	var usedAt *time.Time
+	err := db.QueryRow(ctx, `
+		SELECT email, expires_at, used_at FROM welcome_tokens WHERE token = $1
+	`, token).Scan(&email, &expiresAt, &usedAt)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "welcome token not found"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to load welcome token")
+	}
+	if usedAt != nil {
+		return &WelcomeResponse{Email: email, Confirmed: true, UsedAt: *usedAt}, nil
+	}
+	if time.Now().After(expiresAt) {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "welcome token has expired"}
+	}
+
+	var confirmedAt time.Time
+	err = db.QueryRow(ctx, `
+		UPDATE welcome_tokens SET used_at = NOW() WHERE token = $1
+		RETURNING used_at
+	`, token).Scan(&confirmedAt)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to confirm welcome token")
+	}
+	return &WelcomeResponse{Email: email, Confirmed: true, UsedAt: confirmedAt}, nil
+}
+
+func createWelcomeToken(ctx context.Context, profile *profilessvc.Profile) (uuid.UUID, error) {
+	token, err := uuid.NewV4()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	_, err = db.Exec(ctx, `
+		INSERT INTO welcome_tokens (token, user_id, email, expires_at)
+		VALUES ($1, $2, $3, $4)
+	`, token, profile.UserID, profile.Email, time.Now().Add(welcomeTokenTTL))
+	return token, err
+}
+
+func emailDomain(email string) (string, bool) {
+	_, domain, ok := strings.Cut(email, "@")
+	domain = strings.TrimSpace(strings.TrimSuffix(domain, "."))
+	return domain, ok && domain != ""
+}
+
+func hasValidMX(domain string) (bool, error) {
+	records, err := net.LookupMX(domain)
+	if err != nil {
+		if dnsErr, ok := err.(*net.DNSError); ok && dnsErr.IsNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	for _, record := range records {
+		if strings.TrimSpace(record.Host) != "." {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func welcomeMail(profile *profilessvc.Profile, token uuid.UUID) (*mailssvc.TransactionalMailParams, error) {
+	name := profile.DisplayName
+	if name == "" {
+		name = profile.Email
+	}
+
+	data := welcomeMailData{
+		Name:       name,
+		Email:      profile.Email,
+		UserID:     profile.UserID.String(),
+		WelcomeURL: frontendBaseURL + "/welcome?token=" + token.String(),
+	}
+
+	subject, err := renderTextTemplate("mails/welcome_subject.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+	textBody, err := renderTextTemplate("mails/welcome_text.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+	htmlBody, err := renderHTMLTemplate("mails/welcome_html.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mailssvc.TransactionalMailParams{
+		To:       profile.Email,
+		Subject:  subject,
+		TextBody: textBody,
+		HTMLBody: htmlBody,
+		Metadata: map[string]string{
+			"kind":    "welcome",
+			"user_id": profile.UserID.String(),
+		},
+	}, nil
+}
+
+type welcomeMailData struct {
+	Name       string
+	Email      string
+	UserID     string
+	WelcomeURL string
+}
+
+func renderTextTemplate(name string, data welcomeMailData) (string, error) {
+	tmpl, err := texttemplate.ParseFS(mailTemplates, name)
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, data); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.String()), nil
+}
+
+func renderHTMLTemplate(name string, data welcomeMailData) (string, error) {
+	tmpl, err := htmltemplate.ParseFS(mailTemplates, name)
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, data); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.String()), nil
+}

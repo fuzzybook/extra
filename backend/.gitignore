@@ -2,6 +2,8 @@
 /.encore
 encore.gen.go
 encore.gen.cue
+/encore.gen
+.secrets.local.cue
 .secrets.local.cue
 
 # Go

@@ -1,0 +1,2 @@
+ALTER TABLE user_profiles DROP COLUMN bio;
+ALTER TABLE user_profiles ADD COLUMN is_artist BOOLEAN NOT NULL DEFAULT FALSE;
