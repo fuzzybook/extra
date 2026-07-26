@@ -28,8 +28,7 @@
           dense
           icon="edit"
           :aria-label="t('actions.editProfile')"
-          to="/profile"
-          @click.stop
+          @click.stop.prevent="editProfile"
         >
           <q-tooltip>{{ t('actions.editProfile') }}</q-tooltip>
         </q-btn>
@@ -66,6 +65,10 @@ const profileName = computed(() => {
 async function logout() {
   profilesStore.logout();
   await router.push('/');
+}
+
+async function editProfile() {
+  await router.push({ path: '/profile', query: { mode: 'edit' } });
 }
 </script>
 

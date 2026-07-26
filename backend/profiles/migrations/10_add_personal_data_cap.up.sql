@@ -1,0 +1,1 @@
+ALTER TABLE personal_data ADD COLUMN cap TEXT NOT NULL DEFAULT '';

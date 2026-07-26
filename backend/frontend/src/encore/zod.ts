@@ -6,6 +6,7 @@ export const AdminPersonalDataParamsSchema = z.object({
   first_name: z.string().min(2).max(32),
   last_name: z.string().min(2).max(32),
   address: z.string().min(5).max(32),
+  cap: z.string(),
   city: z.string().min(2).max(32),
   country: z.string(),
 });
@@ -47,6 +48,7 @@ export const ProfilesPersonalDataParamsSchema = z.object({
   first_name: z.string(),
   last_name: z.string(),
   address: z.string(),
+  cap: z.string(),
   city: z.string(),
   country: z.string(),
 });
@@ -68,4 +70,12 @@ export const RegistrationRegisterParamsSchema = z.object({
   display_name: z.string().min(2).max(32),
   avatar_url: z.string(),
   password: z.string().min(8),
+});
+
+export const RegistrationPasswordResetConfirmParamsSchema = z.object({
+  password: z.string(),
+});
+
+export const RegistrationPasswordResetRequestParamsSchema = z.object({
+  email: z.string(),
 });

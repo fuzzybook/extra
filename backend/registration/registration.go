@@ -13,6 +13,7 @@ import (
 	texttemplate "text/template"
 	"time"
 
+	authsvc "encore.app/auth"
 	mailssvc "encore.app/mails"
 	profilessvc "encore.app/profiles"
 	"encore.dev/beta/errs"
@@ -30,8 +31,9 @@ var db = sqldb.NewDatabase("registration", sqldb.DatabaseConfig{
 var profilesDB = sqldb.Named("profiles")
 
 const (
-	welcomeTokenTTL = 24 * time.Hour
-	frontendBaseURL = "http://localhost:9000/#"
+	welcomeTokenTTL       = 24 * time.Hour
+	passwordResetTokenTTL = time.Hour
+	frontendBaseURL       = "http://localhost:9000/#"
 )
 
 type RegisterParams struct {
@@ -49,6 +51,23 @@ type WelcomeResponse struct {
 	Email     string    `json:"email"`
 	Confirmed bool      `json:"confirmed"`
 	UsedAt    time.Time `json:"used_at"`
+}
+
+type PasswordResetRequestParams struct {
+	Email string `json:"email"`
+}
+
+type PasswordResetRequestResponse struct {
+	EmailSent bool `json:"email_sent"`
+}
+
+type PasswordResetConfirmParams struct {
+	Password string `json:"password" encore:"sensitive"`
+}
+
+type PasswordResetConfirmResponse struct {
+	Email string `json:"email"`
+	Reset bool   `json:"reset"`
 }
 
 type EmailAvailabilityResponse struct {
@@ -155,6 +174,92 @@ func ConfirmWelcome(ctx context.Context, token uuid.UUID) (*WelcomeResponse, err
 	return &WelcomeResponse{Email: email, Confirmed: true, UsedAt: confirmedAt}, nil
 }
 
+// RequestPasswordReset creates a reset token and queues an email when the account exists.
+//
+//encore:api public method=POST path=/registration/password-reset
+func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*PasswordResetRequestResponse, error) {
+	email, err := normalizeEmail(p.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	var profile profilessvc.Profile
+	err = profilesDB.QueryRow(ctx, `
+		SELECT user_id, email, display_name, avatar_url, role, status, is_artist, created_at, updated_at
+		FROM user_profiles
+		WHERE email = $1
+	`, email).Scan(
+		&profile.UserID,
+		&profile.Email,
+		&profile.DisplayName,
+		&profile.AvatarURL,
+		&profile.Role,
+		&profile.Status,
+		&profile.IsArtist,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+	)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return &PasswordResetRequestResponse{EmailSent: true}, nil
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to load profile")
+	}
+
+	token, err := createPasswordResetToken(ctx, &profile)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to create password reset token")
+	}
+
+	mail, err := passwordResetMail(&profile, token)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to render password reset email")
+	}
+	if _, err := mailssvc.SendTransactional(ctx, mail); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to queue password reset email")
+	}
+
+	return &PasswordResetRequestResponse{EmailSent: true}, nil
+}
+
+// ConfirmPasswordReset validates a reset token and changes the account password.
+//
+//encore:api public method=POST path=/registration/password-reset/:token
+func ConfirmPasswordReset(ctx context.Context, token uuid.UUID, p *PasswordResetConfirmParams) (*PasswordResetConfirmResponse, error) {
+	var userID uuid.UUID
+	var email string
+	var expiresAt time.Time
+	var usedAt *time.Time
+	err := db.QueryRow(ctx, `
+		SELECT user_id, email, expires_at, used_at FROM password_reset_tokens WHERE token = $1
+	`, token).Scan(&userID, &email, &expiresAt, &usedAt)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "password reset token not found"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to load password reset token")
+	}
+	if usedAt != nil {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "password reset token already used"}
+	}
+	if time.Now().After(expiresAt) {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "password reset token has expired"}
+	}
+
+	if err := authsvc.SetUserPassword(ctx, userID, &authsvc.SetUserPasswordParams{UserID: userID, Password: p.Password}); err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(ctx, `
+		UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1
+	`, token)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to consume password reset token")
+	}
+
+	return &PasswordResetConfirmResponse{Email: email, Reset: true}, nil
+}
+
 func createWelcomeToken(ctx context.Context, profile *profilessvc.Profile) (uuid.UUID, error) {
 	token, err := uuid.NewV4()
 	if err != nil {
@@ -165,6 +270,30 @@ func createWelcomeToken(ctx context.Context, profile *profilessvc.Profile) (uuid
 		VALUES ($1, $2, $3, $4)
 	`, token, profile.UserID, profile.Email, time.Now().Add(welcomeTokenTTL))
 	return token, err
+}
+
+func createPasswordResetToken(ctx context.Context, profile *profilessvc.Profile) (uuid.UUID, error) {
+	token, err := uuid.NewV4()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	_, err = db.Exec(ctx, `
+		INSERT INTO password_reset_tokens (token, user_id, email, expires_at)
+		VALUES ($1, $2, $3, $4)
+	`, token, profile.UserID, profile.Email, time.Now().Add(passwordResetTokenTTL))
+	return token, err
+}
+
+func normalizeEmail(email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return "", &errs.Error{Code: errs.InvalidArgument, Message: "email is required"}
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil {
+		return "", &errs.Error{Code: errs.InvalidArgument, Message: "invalid email"}
+	}
+	return parsed.Address, nil
 }
 
 func emailDomain(email string) (string, bool) {
@@ -234,7 +363,52 @@ type welcomeMailData struct {
 	WelcomeURL string
 }
 
-func renderTextTemplate(name string, data welcomeMailData) (string, error) {
+func passwordResetMail(profile *profilessvc.Profile, token uuid.UUID) (*mailssvc.TransactionalMailParams, error) {
+	name := profile.DisplayName
+	if name == "" {
+		name = profile.Email
+	}
+
+	data := passwordResetMailData{
+		Name:             name,
+		Email:            profile.Email,
+		UserID:           profile.UserID.String(),
+		PasswordResetURL: frontendBaseURL + "/password-reset?token=" + token.String(),
+	}
+
+	subject, err := renderTextTemplate("mails/password_reset_subject.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+	textBody, err := renderTextTemplate("mails/password_reset_text.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+	htmlBody, err := renderHTMLTemplate("mails/password_reset_html.tmpl", data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mailssvc.TransactionalMailParams{
+		To:       profile.Email,
+		Subject:  subject,
+		TextBody: textBody,
+		HTMLBody: htmlBody,
+		Metadata: map[string]string{
+			"kind":    "password_reset",
+			"user_id": profile.UserID.String(),
+		},
+	}, nil
+}
+
+type passwordResetMailData struct {
+	Name             string
+	Email            string
+	UserID           string
+	PasswordResetURL string
+}
+
+func renderTextTemplate(name string, data any) (string, error) {
 	tmpl, err := texttemplate.ParseFS(mailTemplates, name)
 	if err != nil {
 		return "", err
@@ -246,7 +420,7 @@ func renderTextTemplate(name string, data welcomeMailData) (string, error) {
 	return strings.TrimSpace(out.String()), nil
 }
 
-func renderHTMLTemplate(name string, data welcomeMailData) (string, error) {
+func renderHTMLTemplate(name string, data any) (string, error) {
 	tmpl, err := htmltemplate.ParseFS(mailTemplates, name)
 	if err != nil {
 		return "", err

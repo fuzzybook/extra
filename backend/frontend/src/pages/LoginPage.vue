@@ -16,16 +16,34 @@
             :label="t('fields.email')"
             type="email"
             autocomplete="email"
+            outlined
             :rules="[(val) => !!val || t('fields.email')]"
           />
 
-          <q-input
-            v-model="password"
-            :label="t('fields.password')"
-            type="password"
-            autocomplete="current-password"
-            :rules="[(val) => !!val || t('fields.password')]"
-          />
+          <div class="column q-gutter-xs">
+            <div class="text-right">
+              <router-link to="/password-reset" class="text-primary text-caption text-no-decoration">
+                {{ t('login.forgotPassword') }}
+              </router-link>
+            </div>
+
+            <q-input
+              v-model="password"
+              :label="t('fields.password')"
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="current-password"
+              outlined
+              :rules="[(val) => !!val || t('fields.password')]"
+            >
+              <template v-slot:append>
+                <q-icon
+                  :name="showPassword ? 'visibility_off' : 'visibility'"
+                  class="cursor-pointer"
+                  @click="showPassword = !showPassword"
+                />
+              </template>
+            </q-input>
+          </div>
 
           <q-banner v-if="store.error" class="bg-negative text-white" rounded>
             {{ store.error }}
@@ -57,6 +75,7 @@ import { useProfilesStore } from '@/stores/profiles-store';
 const { t } = useI18n();
 const email = ref('');
 const password = ref('');
+const showPassword = ref(false);
 
 const store = useProfilesStore();
 const router = useRouter();

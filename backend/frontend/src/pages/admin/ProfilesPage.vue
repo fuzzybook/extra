@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md">
+  <q-page class="q-pa-md" ref="profilesPage">
     <div class="row items-center q-mb-md">
       <div class="text-h5">{{ t('admin.profiles') }}</div>
       <q-space />
@@ -11,16 +11,20 @@
     </q-banner>
 
     <q-table
+      :style="{ height: `${profilesTableHeight}px` }"
+      class="sticky-header-table"
       :rows="adminStore.profiles"
       :columns="columns"
+      v-model:pagination="pagination"
       row-key="user_id"
       :loading="adminStore.loading"
       flat
       bordered
+      ref="profilesTable"
     >
       <template v-slot:body-cell-status="props">
         <q-td :props="props">
-          <q-badge :color="statusInfo(props.value).color">{{ statusLabel(props.value) }}</q-badge>
+          <ProfileStatusBadge :status="props.value" />
         </q-td>
       </template>
 
@@ -69,19 +73,54 @@
   </q-page>
 </template>
 
+<style lang="scss">
+.sticky-header-table {  /* height or max-height is important */
+
+  .q-table__top,
+  .q-table__bottom,
+  thead tr:first-child th {    /* bg color is important for th; just specify one */
+    background-color: #ffffff;
+  }
+  thead tr th {
+    position: sticky;
+    z-index: 1;
+  }
+  thead tr:first-child th {
+    top: 0;
+  }
+  /* this is when the loading indicator appears */
+  &.q-table--loading thead tr:last-child th {    /* height of all previous header rows */
+    top: 48px;
+  }
+  /* prevent scrolling behind sticky top row on focus */
+  tbody {    /* height of all previous header rows */
+    scroll-margin-top: 48px;
+  }
+}</style>
+
+
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QTableColumn } from 'quasar';
+import ProfileStatusBadge from '@/components/ProfileStatusBadge.vue';
 import { useAdminStore, type Profile } from '@/stores/admin-store';
-import { statusInfo } from '@/stores/profiles-store';
+import { useLayoutStore } from '@/stores/layout-store';
 import CreateProfileDialog from './dialogs/CreateProfileDialog.vue';
 import EditProfileDialog from './dialogs/EditProfileDialog.vue';
 import UpdateRoleDialog from './dialogs/UpdateRoleDialog.vue';
 import UpdateStatusDialog from './dialogs/UpdateStatusDialog.vue';
 
 const adminStore = useAdminStore();
+const layoutStore = useLayoutStore();
 const { t } = useI18n();
+
+const profilesPage = ref<ComponentPublicInstance | null>(null);
+const profilesTable = ref<ComponentPublicInstance | null>(null);
+const profilesTableHeight = ref(610);
+const pagination = ref({
+  rowsPerPage: 0,
+});
 
 const editDialogOpen = ref(false);
 const editingProfile = ref<Profile | null>(null);
@@ -138,14 +177,49 @@ const columns = computed<QTableColumn[]>(() => [
   },
 ]);
 
-function statusLabel(status: number) {
-  const key = `status.${status}`;
-  const translated = t(key);
-  return translated === key ? t('status.unknown', { status }) : translated;
+function getElement(component: ComponentPublicInstance | null) {
+  return component?.$el instanceof HTMLElement ? component.$el : null;
 }
 
-onMounted(() => {
+function updateProfilesTableHeight() {
+  const page = getElement(profilesPage.value);
+  const table = getElement(profilesTable.value);
+
+  if (!page || !table) {
+    return;
+  }
+
+  const pageRect = page.getBoundingClientRect();
+  const tableRect = table.getBoundingClientRect();
+  const pageStyle = window.getComputedStyle(page);
+  const pageMinHeight = parseFloat(pageStyle.minHeight);
+  const pageHeight = Number.isFinite(pageMinHeight) && pageMinHeight > 0 ? pageMinHeight : pageRect.height;
+  const pagePaddingBottom = parseFloat(pageStyle.paddingBottom) || 0;
+  const tableTopInPage = tableRect.top - pageRect.top;
+
+  profilesTableHeight.value = Math.max(0, Math.floor(pageHeight - tableTopInPage - pagePaddingBottom));
+}
+
+async function updateProfilesTableHeightAfterRender() {
+  await nextTick();
+  updateProfilesTableHeight();
+}
+
+onMounted(async () => {
   void adminStore.listProfiles();
   void adminStore.fetchSystemOptions();
+  layoutStore.startBodyResizeListener();
+  await updateProfilesTableHeightAfterRender();
+});
+
+watch(
+  () => [adminStore.error, layoutStore.bodyWidth, layoutStore.bodyHeight],
+  () => {
+    void updateProfilesTableHeightAfterRender();
+  },
+);
+
+onBeforeUnmount(() => {
+  layoutStore.stopBodyResizeListener();
 });
 </script>

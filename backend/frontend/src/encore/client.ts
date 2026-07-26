@@ -106,6 +106,7 @@ export namespace admin {
         "first_name": string
         "last_name": string
         address: string
+        cap: string
         city: string
         country: string
         "created_at": string
@@ -116,6 +117,7 @@ export namespace admin {
         "first_name": string
         "last_name": string
         address: string
+        cap: string
         city: string
         country: string
     }
@@ -388,6 +390,7 @@ export namespace profiles {
         "first_name": string
         "last_name": string
         address: string
+        cap: string
         city: string
         country: string
         "created_at": string
@@ -401,6 +404,7 @@ export namespace profiles {
         "first_name": string
         "last_name": string
         address: string
+        cap: string
         city: string
         country: string
     }
@@ -572,6 +576,23 @@ export namespace registration {
         profile: profiles.Profile
     }
 
+    export interface PasswordResetConfirmParams {
+        password: string
+    }
+
+    export interface PasswordResetConfirmResponse {
+        email: string
+        reset: boolean
+    }
+
+    export interface PasswordResetRequestParams {
+        email: string
+    }
+
+    export interface PasswordResetRequestResponse {
+        "email_sent": boolean
+    }
+
     export interface WelcomeResponse {
         email: string
         confirmed: boolean
@@ -584,8 +605,10 @@ export namespace registration {
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
             this.CheckEmail = this.CheckEmail.bind(this)
+            this.ConfirmPasswordReset = this.ConfirmPasswordReset.bind(this)
             this.ConfirmWelcome = this.ConfirmWelcome.bind(this)
             this.Register = this.Register.bind(this)
+            this.RequestPasswordReset = this.RequestPasswordReset.bind(this)
         }
 
         /**
@@ -595,6 +618,15 @@ export namespace registration {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/registration/email/${encodeURIComponent(email)}`)
             return await resp.json() as EmailAvailabilityResponse
+        }
+
+        /**
+         * ConfirmPasswordReset validates a reset token and changes the account password.
+         */
+        public async ConfirmPasswordReset(token: string, params: PasswordResetConfirmParams): Promise<PasswordResetConfirmResponse> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/registration/password-reset/${encodeURIComponent(token)}`, JSON.stringify(params))
+            return await resp.json() as PasswordResetConfirmResponse
         }
 
         /**
@@ -613,6 +645,15 @@ export namespace registration {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("POST", `/registration`, JSON.stringify(params))
             return await resp.json() as RegisterResponse
+        }
+
+        /**
+         * RequestPasswordReset creates a reset token and queues an email when the account exists.
+         */
+        public async RequestPasswordReset(params: PasswordResetRequestParams): Promise<PasswordResetRequestResponse> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/registration/password-reset`, JSON.stringify(params))
+            return await resp.json() as PasswordResetRequestResponse
         }
     }
 }

@@ -1,1 +1,19 @@
 /* app global css */
+
+.q-field input:-webkit-autofill,
+.q-field input:-webkit-autofill:hover,
+.q-field input:-webkit-autofill:focus,
+.q-field textarea:-webkit-autofill,
+.q-field textarea:-webkit-autofill:hover,
+.q-field textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: currentColor !important;
+  transition: background-color 999999s ease-out;
+}
+
+.q-field:has(input:-webkit-autofill) .q-field__control,
+.q-field:has(textarea:-webkit-autofill) .q-field__control {
+  background-color: #ffffff !important;
+}

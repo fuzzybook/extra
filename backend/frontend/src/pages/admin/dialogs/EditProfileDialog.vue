@@ -54,6 +54,12 @@
             :error-message="personalFormErrors.address"
           />
           <q-input
+            v-model="personalForm.cap"
+            :label="t('fields.cap')"
+            :error="Boolean(personalFormErrors.cap)"
+            :error-message="personalFormErrors.cap"
+          />
+          <q-input
             v-model="personalForm.city"
             :label="t('fields.city')"
             :error="Boolean(personalFormErrors.city)"
@@ -127,6 +133,7 @@ const personalForm = reactive<PersonalDataParams>({
   first_name: '',
   last_name: '',
   address: '',
+  cap: '',
   city: '',
   country: '',
 });
@@ -196,6 +203,7 @@ function resetPersonalForm(data?: PersonalDataParams) {
   personalForm.first_name = data?.first_name ?? '';
   personalForm.last_name = data?.last_name ?? '';
   personalForm.address = data?.address ?? '';
+  personalForm.cap = data?.cap ?? '';
   personalForm.city = data?.city ?? '';
   personalForm.country = data?.country ?? '';
   clearPersonalFormErrors();
@@ -234,6 +242,7 @@ function clearPersonalFormErrors() {
   personalFormErrors.first_name = '';
   personalFormErrors.last_name = '';
   personalFormErrors.address = '';
+  personalFormErrors.cap = '';
   personalFormErrors.city = '';
   personalFormErrors.country = '';
 }

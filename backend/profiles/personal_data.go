@@ -18,6 +18,7 @@ type PersonalData struct {
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
 	Address   string    `json:"address"`
+	Cap       string    `json:"cap"`
 	City      string    `json:"city"`
 	Country   string    `json:"country"`
 	CreatedAt time.Time `json:"created_at"`
@@ -29,6 +30,7 @@ type PersonalDataParams struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Address   string `json:"address"`
+	Cap       string `json:"cap"`
 	City      string `json:"city"`
 	Country   string `json:"country"`
 }
@@ -43,9 +45,9 @@ func GetPersonalData(ctx context.Context) (*PersonalData, error) {
 	}
 	pd := PersonalData{UserID: userID}
 	err = db.QueryRow(ctx, `
-		SELECT first_name, last_name, address, city, country, created_at, updated_at
+		SELECT first_name, last_name, address, cap, city, country, created_at, updated_at
 		FROM personal_data WHERE user_id = $1
-	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.City, &pd.Country, &pd.CreatedAt, &pd.UpdatedAt)
+	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.Cap, &pd.City, &pd.Country, &pd.CreatedAt, &pd.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "personal data not found"}
 	}
@@ -68,21 +70,23 @@ func UpsertPersonalData(ctx context.Context, p *PersonalDataParams) (*PersonalDa
 		FirstName: p.FirstName,
 		LastName:  p.LastName,
 		Address:   p.Address,
+		Cap:       p.Cap,
 		City:      p.City,
 		Country:   p.Country,
 	}
 	err = db.QueryRow(ctx, `
-		INSERT INTO personal_data (user_id, first_name, last_name, address, city, country)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO personal_data (user_id, first_name, last_name, address, cap, city, country)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (user_id) DO UPDATE
 		SET first_name = EXCLUDED.first_name,
 		    last_name = EXCLUDED.last_name,
 		    address = EXCLUDED.address,
+		    cap = EXCLUDED.cap,
 		    city = EXCLUDED.city,
 		    country = EXCLUDED.country,
 		    updated_at = NOW()
 		RETURNING created_at, updated_at
-	`, userID, p.FirstName, p.LastName, p.Address, p.City, p.Country).Scan(&pd.CreatedAt, &pd.UpdatedAt)
+	`, userID, p.FirstName, p.LastName, p.Address, p.Cap, p.City, p.Country).Scan(&pd.CreatedAt, &pd.UpdatedAt)
 	if isForeignKeyViolation(err) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}

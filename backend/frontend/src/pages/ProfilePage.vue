@@ -6,18 +6,156 @@
       {{ profilesStore.error }}
     </q-banner>
 
-    <q-card v-if="profilesStore.profile" flat bordered style="max-width: 480px">
-      <q-card-section class="q-gutter-md">
-        <AvatarUpload v-model="form.avatar_url" :uploader="profilesStore.uploadAvatar" />
-
-        <q-input v-model="form.display_name" :label="t('fields.displayName')" />
-
-        <div class="text-caption text-grey">
-          {{ profilesStore.profile.email }} · {{ profilesStore.profile.role }}
+    <q-card v-if="profilesStore.profile" flat bordered style="max-width: 560px">
+      <q-card-section class="row items-center q-gutter-sm">
+        <q-avatar size="48px">
+          <img v-if="profileForm.avatar_url" :src="profileForm.avatar_url" />
+          <q-icon v-else name="person" />
+        </q-avatar>
+        <div>
+          <div class="text-subtitle1">{{ profilesStore.profile.email }}</div>
+          <div class="text-subtitle1">{{ displayValue(profileForm.display_name) }}</div>
         </div>
       </q-card-section>
 
-      <q-card-actions align="right">
+      <q-tabs v-model="profileTab" align="left" class="text-primary" dense>
+        <q-tab name="profile" :label="t('admin.profile')" />
+        <q-tab name="personal" :label="t('admin.personalData')" />
+      </q-tabs>
+      <q-separator />
+
+      <q-tab-panels v-model="profileTab" animated>
+        <q-tab-panel name="profile" class="q-gutter-md">
+          <template v-if="isEditMode">
+            <AvatarUpload v-model="profileForm.avatar_url" :uploader="profilesStore.uploadAvatar" />
+            <div v-if="profileFormErrors.avatar_url" class="text-negative text-caption">
+              {{ profileFormErrors.avatar_url }}
+            </div>
+          </template>
+
+          <q-list v-else separator>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.displayName') }}</q-item-label>
+                <q-item-label>{{ displayValue(profileForm.display_name) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.email') }}</q-item-label>
+                <q-item-label>{{ profilesStore.profile.email }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.role') }}</q-item-label>
+                <q-item-label>{{ profilesStore.profile.role }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.status') }}</q-item-label>
+                <q-item-label>
+                  <ProfileStatusBadge :status="profilesStore.profile.status" />
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-tab-panel>
+
+        <q-tab-panel name="personal" class="q-gutter-md">
+          <template v-if="isEditMode">
+            <q-input
+              ref="firstNameInputRef"
+              v-model="personalForm.first_name"
+              :label="t('fields.firstName')"
+              :error="Boolean(personalFormErrors.first_name)"
+              :error-message="personalFormErrors.first_name"
+            />
+            <q-input
+              v-model="personalForm.last_name"
+              :label="t('fields.lastName')"
+              :error="Boolean(personalFormErrors.last_name)"
+              :error-message="personalFormErrors.last_name"
+            />
+            <q-input
+              v-model="personalForm.address"
+              :label="t('fields.address')"
+              :error="Boolean(personalFormErrors.address)"
+              :error-message="personalFormErrors.address"
+            />
+            <q-input
+              v-model="personalForm.cap"
+              :label="t('fields.cap')"
+              :error="Boolean(personalFormErrors.cap)"
+              :error-message="personalFormErrors.cap"
+            />
+            <q-input
+              v-model="personalForm.city"
+              :label="t('fields.city')"
+              :error="Boolean(personalFormErrors.city)"
+              :error-message="personalFormErrors.city"
+            />
+            <q-select
+              v-model="personalForm.country"
+              :options="filteredCountries"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              use-input
+              clearable
+              input-debounce="200"
+              :label="t('fields.country')"
+              :error="Boolean(personalFormErrors.country)"
+              :error-message="personalFormErrors.country"
+              @filter="filterCountries"
+            />
+          </template>
+
+          <q-list v-else separator>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.firstName') }}</q-item-label>
+                <q-item-label>{{ displayValue(personalForm.first_name) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.lastName') }}</q-item-label>
+                <q-item-label>{{ displayValue(personalForm.last_name) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.address') }}</q-item-label>
+                <q-item-label>{{ displayValue(personalForm.address) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.cap') }}</q-item-label>
+                <q-item-label>{{ displayValue(personalForm.cap) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.city') }}</q-item-label>
+                <q-item-label>{{ displayValue(personalForm.city) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>{{ t('fields.country') }}</q-item-label>
+                <q-item-label>{{ displayValue(countryLabel) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-tab-panel>
+      </q-tab-panels>
+
+      <q-card-actions v-if="isEditMode" align="right">
+        <q-btn flat :label="t('actions.cancel')" @click="cancelEdit" />
         <q-btn color="primary" :label="t('actions.save')" :loading="profilesStore.loading" @click="save" />
       </q-card-actions>
     </q-card>
@@ -29,31 +167,182 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useProfilesStore, type Profile } from '@/stores/profiles-store';
+import { useRoute, useRouter } from 'vue-router';
+import { countries } from '@/data/countries';
+import { ProfilesPersonalDataParamsSchema, ProfilesProfileParamsSchema } from '@/encore/zod';
+import { useProfilesStore, type PersonalDataParams, type Profile, type ProfileParams } from '@/stores/profiles-store';
 import AvatarUpload from '@/components/AvatarUpload.vue';
+import ProfileStatusBadge from '@/components/ProfileStatusBadge.vue';
 
 const { t } = useI18n();
 const profilesStore = useProfilesStore();
+const route = useRoute();
+const router = useRouter();
 
-const form = reactive({
+type CountryOption = { label: string; value: string };
+type ProfileTab = 'profile' | 'personal';
+type Focusable = { focus: () => void };
+
+const countryOptions: CountryOption[] = countries.map((c) => {
+  const [value, label] = Object.entries(c)[0] as [string, string];
+  return { label, value };
+});
+
+const filteredCountries = ref<CountryOption[]>(countryOptions);
+const profileTab = ref<ProfileTab>('profile');
+const isEditMode = computed(() => route.query.mode === 'edit');
+const countryLabel = computed(() => countryOptions.find((c) => c.value === personalForm.country)?.label ?? personalForm.country);
+const firstNameInputRef = ref<Focusable | null>(null);
+
+const profileForm = reactive<ProfileParams>({
   display_name: '',
   avatar_url: '',
 });
+const profileFormErrors = reactive<Partial<Record<keyof ProfileParams, string>>>({});
 
-function syncForm(profile: Profile | null) {
-  form.display_name = profile?.display_name ?? '';
-  form.avatar_url = profile?.avatar_url ?? '';
+const personalForm = reactive<PersonalDataParams>({
+  first_name: '',
+  last_name: '',
+  address: '',
+  cap: '',
+  city: '',
+  country: '',
+});
+const personalFormErrors = reactive<Partial<Record<keyof PersonalDataParams, string>>>({});
+
+watch(
+  () => profilesStore.profile,
+  (profile) => {
+    if (profile) {
+      void loadProfile(profile);
+    }
+  },
+  { immediate: true },
+);
+
+watch(profileTab, () => {
+  if (isEditMode.value) {
+    void focusFirstField();
+  }
+});
+
+watch(isEditMode, (editing) => {
+  if (editing) {
+    void focusFirstField();
+  } else if (profilesStore.profile) {
+    void loadProfile(profilesStore.profile);
+  }
+});
+
+function filterCountries(val: string, update: (cb: () => void) => void) {
+  update(() => {
+    const needle = val.toLowerCase();
+    filteredCountries.value = needle
+      ? countryOptions.filter(
+          (c) => c.label.toLowerCase().includes(needle) || c.value.toLowerCase().includes(needle),
+        )
+      : countryOptions;
+  });
 }
 
-watch(() => profilesStore.profile, syncForm, { immediate: true });
+async function loadProfile(profile: Profile) {
+  profileForm.display_name = profile.display_name;
+  profileForm.avatar_url = profile.avatar_url;
+  clearProfileFormErrors();
+  resetPersonalForm();
+
+  try {
+    const data = profilesStore.personalData ?? (await profilesStore.fetchPersonalData());
+    resetPersonalForm(data);
+  } catch {
+    // No personal data yet (404) - leave the form empty for creation.
+    profilesStore.error = null;
+  }
+}
 
 async function save() {
   try {
-    await profilesStore.update({ ...form });
+    if (profileTab.value === 'profile') {
+      const parsed = validateProfileForm();
+      if (!parsed) return;
+      await profilesStore.update(parsed);
+    } else {
+      const parsed = validatePersonalForm();
+      if (!parsed) return;
+      await profilesStore.savePersonalData(parsed);
+    }
+    await router.replace('/profile');
   } catch {
     // profilesStore.error already holds the failure message
+  }
+}
+
+async function cancelEdit() {
+  if (profilesStore.profile) {
+    await loadProfile(profilesStore.profile);
+  }
+  await router.replace('/profile');
+}
+
+function resetPersonalForm(data?: PersonalDataParams) {
+  personalForm.first_name = data?.first_name ?? '';
+  personalForm.last_name = data?.last_name ?? '';
+  personalForm.address = data?.address ?? '';
+  personalForm.cap = data?.cap ?? '';
+  personalForm.city = data?.city ?? '';
+  personalForm.country = data?.country ?? '';
+  clearPersonalFormErrors();
+}
+
+function validateProfileForm(): ProfileParams | null {
+  clearProfileFormErrors();
+  const result = ProfilesProfileParamsSchema.safeParse({ ...profileForm });
+  if (result.success) return result.data;
+
+  const fieldErrors = result.error.flatten().fieldErrors;
+  for (const key of Object.keys(fieldErrors) as (keyof ProfileParams)[]) {
+    profileFormErrors[key] = fieldErrors[key]?.[0] ?? '';
+  }
+  return null;
+}
+
+function clearProfileFormErrors() {
+  profileFormErrors.display_name = '';
+  profileFormErrors.avatar_url = '';
+}
+
+function validatePersonalForm(): PersonalDataParams | null {
+  clearPersonalFormErrors();
+  const result = ProfilesPersonalDataParamsSchema.safeParse({ ...personalForm });
+  if (result.success) return result.data;
+
+  const fieldErrors = result.error.flatten().fieldErrors;
+  for (const key of Object.keys(fieldErrors) as (keyof PersonalDataParams)[]) {
+    personalFormErrors[key] = fieldErrors[key]?.[0] ?? '';
+  }
+  return null;
+}
+
+function clearPersonalFormErrors() {
+  personalFormErrors.first_name = '';
+  personalFormErrors.last_name = '';
+  personalFormErrors.address = '';
+  personalFormErrors.cap = '';
+  personalFormErrors.city = '';
+  personalFormErrors.country = '';
+}
+
+function displayValue(value: string | number | null | undefined) {
+  const normalized = String(value ?? '').trim();
+  return normalized || '-';
+}
+
+async function focusFirstField() {
+  await nextTick();
+  if (profileTab.value === 'personal') {
+    firstNameInputRef.value?.focus();
   }
 }
 

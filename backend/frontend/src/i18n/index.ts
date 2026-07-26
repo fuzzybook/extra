@@ -48,6 +48,7 @@ const messages = {
       firstName: 'First name',
       lastName: 'Last name',
       address: 'Address',
+      cap: 'Postcode',
       city: 'City',
       country: 'Country',
       role: 'Role',
@@ -81,6 +82,16 @@ const messages = {
     login: {
       title: 'Log in',
       needAccount: 'Create an account',
+      forgotPassword: 'Forgot password',
+    },
+    passwordReset: {
+      title: 'Password reset',
+      newPasswordTitle: 'Choose a new password',
+      sendLink: 'Send reset link',
+      updatePassword: 'Update password',
+      backToLogin: 'Back to log in',
+      requestSent: 'If the email exists, we sent a password reset link.',
+      resetDone: 'Password updated. You can now log in.',
     },
     register: {
       title: 'Create account',
@@ -151,6 +162,7 @@ const messages = {
       firstName: 'Nome',
       lastName: 'Cognome',
       address: 'Indirizzo',
+      cap: 'CAP',
       city: 'Città',
       country: 'Paese',
       role: 'Ruolo',
@@ -184,6 +196,16 @@ const messages = {
     login: {
       title: 'Accedi',
       needAccount: 'Crea un account',
+      forgotPassword: 'Password dimenticata',
+    },
+    passwordReset: {
+      title: 'Recupero password',
+      newPasswordTitle: 'Scegli una nuova password',
+      sendLink: 'Invia link di recupero',
+      updatePassword: 'Aggiorna password',
+      backToLogin: 'Torna al login',
+      requestSent: 'Se l’email esiste, abbiamo inviato un link per reimpostare la password.',
+      resetDone: 'Password aggiornata. Ora puoi accedere.',
     },
     register: {
       title: 'Crea account',
@@ -254,6 +276,7 @@ const messages = {
       firstName: 'Prénom',
       lastName: 'Nom',
       address: 'Adresse',
+      cap: 'Code postal',
       city: 'Ville',
       country: 'Pays',
       role: 'Rôle',
@@ -287,6 +310,16 @@ const messages = {
     login: {
       title: 'Connexion',
       needAccount: 'Créer un compte',
+      forgotPassword: 'Mot de passe oublié',
+    },
+    passwordReset: {
+      title: 'Réinitialisation du mot de passe',
+      newPasswordTitle: 'Choisir un nouveau mot de passe',
+      sendLink: 'Envoyer le lien',
+      updatePassword: 'Mettre à jour le mot de passe',
+      backToLogin: 'Retour à la connexion',
+      requestSent: 'Si l’email existe, nous avons envoyé un lien de réinitialisation.',
+      resetDone: 'Mot de passe mis à jour. Vous pouvez maintenant vous connecter.',
     },
     register: {
       title: 'Créer un compte',
@@ -357,6 +390,7 @@ const messages = {
       firstName: 'Vorname',
       lastName: 'Nachname',
       address: 'Adresse',
+      cap: 'Postleitzahl',
       city: 'Stadt',
       country: 'Land',
       role: 'Rolle',
@@ -390,6 +424,16 @@ const messages = {
     login: {
       title: 'Anmelden',
       needAccount: 'Konto erstellen',
+      forgotPassword: 'Passwort vergessen',
+    },
+    passwordReset: {
+      title: 'Passwort zurücksetzen',
+      newPasswordTitle: 'Neues Passwort wählen',
+      sendLink: 'Link senden',
+      updatePassword: 'Passwort aktualisieren',
+      backToLogin: 'Zur Anmeldung',
+      requestSent: 'Wenn die E-Mail existiert, haben wir einen Link zum Zurücksetzen gesendet.',
+      resetDone: 'Passwort aktualisiert. Sie können sich jetzt anmelden.',
     },
     register: {
       title: 'Konto erstellen',
@@ -460,6 +504,7 @@ const messages = {
       firstName: 'Nombre',
       lastName: 'Apellido',
       address: 'Dirección',
+      cap: 'Código postal',
       city: 'Ciudad',
       country: 'País',
       role: 'Rol',
@@ -493,6 +538,16 @@ const messages = {
     login: {
       title: 'Iniciar sesión',
       needAccount: 'Crear una cuenta',
+      forgotPassword: 'Contraseña olvidada',
+    },
+    passwordReset: {
+      title: 'Recuperar contraseña',
+      newPasswordTitle: 'Elige una nueva contraseña',
+      sendLink: 'Enviar enlace',
+      updatePassword: 'Actualizar contraseña',
+      backToLogin: 'Volver al inicio de sesión',
+      requestSent: 'Si el email existe, enviamos un enlace para restablecer la contraseña.',
+      resetDone: 'Contraseña actualizada. Ahora puedes iniciar sesión.',
     },
     register: {
       title: 'Crear cuenta',
