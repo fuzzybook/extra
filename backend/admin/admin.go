@@ -198,6 +198,20 @@ func UpdateProfileRole(ctx context.Context, userID uuid.UUID, p *UpdateProfileRo
 	return &profile, nil
 }
 
+type UpdateProfilePasswordParams struct {
+	Password string `json:"password" encore:"sensitive"`
+}
+
+// UpdateProfilePassword sets the password of any user's profile.
+//
+//encore:api auth method=PUT path=/admin/profiles/:userID/password
+func UpdateProfilePassword(ctx context.Context, userID uuid.UUID, p *UpdateProfilePasswordParams) error {
+	if err := authsvc.SetUserPassword(ctx, userID, &authsvc.SetUserPasswordParams{UserID: userID, Password: p.Password}); err != nil {
+		return err
+	}
+	return nil
+}
+
 type UpdateProfileArtistParams struct {
 	IsArtist bool `json:"is_artist"`
 }

@@ -155,6 +155,10 @@ export namespace admin {
         "is_artist": boolean
     }
 
+    export interface UpdateProfilePasswordParams {
+        password: string
+    }
+
     export interface UpdateProfileRoleParams {
         role: string
     }
@@ -176,6 +180,7 @@ export namespace admin {
             this.ListProfiles = this.ListProfiles.bind(this)
             this.UpdateProfile = this.UpdateProfile.bind(this)
             this.UpdateProfileArtist = this.UpdateProfileArtist.bind(this)
+            this.UpdateProfilePassword = this.UpdateProfilePassword.bind(this)
             this.UpdateProfileRole = this.UpdateProfileRole.bind(this)
             this.UpdateProfileStatus = this.UpdateProfileStatus.bind(this)
             this.UpsertPersonalData = this.UpsertPersonalData.bind(this)
@@ -254,6 +259,13 @@ export namespace admin {
         }
 
         /**
+         * UpdateProfilePassword sets the password of any user's profile.
+         */
+        public async UpdateProfilePassword(userID: string, params: UpdateProfilePasswordParams): Promise<void> {
+            await this.baseClient.callTypedAPI("PUT", `/admin/profiles/${encodeURIComponent(userID)}/password`, JSON.stringify(params))
+        }
+
+        /**
          * UpdateProfileRole sets the role of any user's profile.
          */
         public async UpdateProfileRole(userID: string, params: UpdateProfileRoleParams): Promise<Profile> {
@@ -299,6 +311,7 @@ export namespace auth {
     }
 
     export interface SetPasswordParams {
+        "current_password": string
         password: string
     }
 

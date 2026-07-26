@@ -8,6 +8,7 @@ export type ProfileParams = AdminNS.ProfileParams;
 export type RegisterParams = AdminNS.RegisterParams;
 export type PersonalData = AdminNS.PersonalData;
 export type PersonalDataParams = AdminNS.PersonalDataParams;
+export type UpdateProfilePasswordParams = AdminNS.UpdateProfilePasswordParams;
 export type RoleOption = AuthNS.RoleOption;
 export type StatusOption = ProfilesNS.StatusOption;
 
@@ -101,6 +102,13 @@ export const useAdminStore = defineStore('admin', () => {
     });
   }
 
+  /** Updates the password of any user's profile. */
+  async function updateProfilePassword(userID: string, params: UpdateProfilePasswordParams): Promise<void> {
+    return withLoading(async () => {
+      await client.admin.UpdateProfilePassword(userID, params);
+    });
+  }
+
   /** Fetches the personal data of any user. Requires the caller to be logged in as an admin. */
   async function getPersonalData(userID: string): Promise<PersonalData> {
     return withLoading(async () => {
@@ -143,6 +151,7 @@ export const useAdminStore = defineStore('admin', () => {
     updateProfile,
     updateProfileRole,
     updateProfileStatus,
+    updateProfilePassword,
     getPersonalData,
     upsertPersonalData,
     uploadAvatar,

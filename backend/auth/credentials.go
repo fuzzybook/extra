@@ -2,10 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
+	"encore.dev/storage/sqldb"
 	"encore.dev/types/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterParams struct {
@@ -33,7 +36,8 @@ func Register(ctx context.Context, p *RegisterParams) error {
 }
 
 type SetPasswordParams struct {
-	Password string `json:"password" encore:"sensitive"`
+	CurrentPassword string `json:"current_password" encore:"sensitive"`
+	Password        string `json:"password" encore:"sensitive"`
 }
 
 type SetUserPasswordParams struct {
@@ -53,6 +57,21 @@ func SetPassword(ctx context.Context, p *SetPasswordParams) error {
 	if err != nil {
 		return errs.WrapCode(err, errs.Internal, "invalid user id")
 	}
+
+	var currentHash string
+	err = db.QueryRow(ctx, `
+		SELECT password_hash FROM credentials WHERE user_id = $1
+	`, userID).Scan(&currentHash)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return &errs.Error{Code: errs.NotFound, Message: "credentials not found"}
+	}
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to fetch credentials")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(currentHash), pepperedPassword(p.CurrentPassword)); err != nil {
+		return &errs.Error{Code: errs.Unauthenticated, Message: "invalid current password"}
+	}
+
 	hash, err := hashPassword(p.Password)
 	if err != nil {
 		return errs.WrapCode(err, errs.Internal, "failed to hash password")

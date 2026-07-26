@@ -27,6 +27,10 @@ export const AdminUpdateProfileArtistParamsSchema = z.object({
   is_artist: z.boolean(),
 });
 
+export const AdminUpdateProfilePasswordParamsSchema = z.object({
+  password: z.string(),
+});
+
 export const AdminUpdateProfileRoleParamsSchema = z.object({
   role: z.string(),
 });
@@ -36,6 +40,7 @@ export const AdminUpdateProfileStatusParamsSchema = z.object({
 });
 
 export const AuthSetPasswordParamsSchema = z.object({
+  current_password: z.string(),
   password: z.string(),
 });
 

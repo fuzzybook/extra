@@ -40,6 +40,7 @@ const messages = {
       editProfile: 'Edit profile',
       updateRole: 'Update role',
       updateStatus: 'Update status',
+      updatePassword: 'Update password',
     },
     fields: {
       email: 'Email',
@@ -77,6 +78,12 @@ const messages = {
     },
     profile: {
       title: 'My profile',
+      avatar: 'Avatar',
+      password: 'Password',
+      currentPassword: 'Current password',
+      newPassword: 'New password',
+      confirmNewPassword: 'Confirm new password',
+      passwordMismatch: 'Passwords do not match.',
       loginRequired: 'You must be logged in to view your profile.',
     },
     login: {
@@ -154,6 +161,7 @@ const messages = {
       editProfile: 'Modifica profilo',
       updateRole: 'Aggiorna ruolo',
       updateStatus: 'Aggiorna stato',
+      updatePassword: 'Aggiorna password',
     },
     fields: {
       email: 'Email',
@@ -191,6 +199,12 @@ const messages = {
     },
     profile: {
       title: 'Il mio profilo',
+      avatar: 'Avatar',
+      password: 'Password',
+      currentPassword: 'Password corrente',
+      newPassword: 'Nuova password',
+      confirmNewPassword: 'Conferma nuova password',
+      passwordMismatch: 'Le password non coincidono.',
       loginRequired: 'Devi effettuare l’accesso per visualizzare il profilo.',
     },
     login: {
@@ -268,6 +282,7 @@ const messages = {
       editProfile: 'Modifier le profil',
       updateRole: 'Modifier le rôle',
       updateStatus: 'Modifier le statut',
+      updatePassword: 'Modifier le mot de passe',
     },
     fields: {
       email: 'Email',
@@ -305,6 +320,12 @@ const messages = {
     },
     profile: {
       title: 'Mon profil',
+      avatar: 'Avatar',
+      password: 'Mot de passe',
+      currentPassword: 'Mot de passe actuel',
+      newPassword: 'Nouveau mot de passe',
+      confirmNewPassword: 'Confirmer le nouveau mot de passe',
+      passwordMismatch: 'Les mots de passe ne correspondent pas.',
       loginRequired: 'Vous devez être connecté pour voir votre profil.',
     },
     login: {
@@ -382,6 +403,7 @@ const messages = {
       editProfile: 'Profil bearbeiten',
       updateRole: 'Rolle ändern',
       updateStatus: 'Status ändern',
+      updatePassword: 'Passwort ändern',
     },
     fields: {
       email: 'E-Mail',
@@ -419,6 +441,12 @@ const messages = {
     },
     profile: {
       title: 'Mein Profil',
+      avatar: 'Avatar',
+      password: 'Passwort',
+      currentPassword: 'Aktuelles Passwort',
+      newPassword: 'Neues Passwort',
+      confirmNewPassword: 'Neues Passwort bestätigen',
+      passwordMismatch: 'Die Passwörter stimmen nicht überein.',
       loginRequired: 'Sie müssen angemeldet sein, um Ihr Profil zu sehen.',
     },
     login: {
@@ -496,6 +524,7 @@ const messages = {
       editProfile: 'Editar perfil',
       updateRole: 'Actualizar rol',
       updateStatus: 'Actualizar estado',
+      updatePassword: 'Actualizar contraseña',
     },
     fields: {
       email: 'Email',
@@ -533,6 +562,12 @@ const messages = {
     },
     profile: {
       title: 'Mi perfil',
+      avatar: 'Avatar',
+      password: 'Contraseña',
+      currentPassword: 'Contraseña actual',
+      newPassword: 'Nueva contraseña',
+      confirmNewPassword: 'Confirmar nueva contraseña',
+      passwordMismatch: 'Las contraseñas no coinciden.',
       loginRequired: 'Debes iniciar sesión para ver tu perfil.',
     },
     login: {

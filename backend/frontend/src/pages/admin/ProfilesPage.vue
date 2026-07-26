@@ -58,6 +58,9 @@
                 <q-item v-close-popup clickable @click="openStatusEdit(props.row)">
                   <q-item-section>{{ t('actions.updateStatus') }}</q-item-section>
                 </q-item>
+                <q-item v-close-popup clickable @click="openPasswordEdit(props.row)">
+                  <q-item-section>{{ t('actions.updatePassword') }}</q-item-section>
+                </q-item>
               </q-list>
             </q-menu>
           </q-btn>
@@ -68,6 +71,7 @@
     <EditProfileDialog v-model="editDialogOpen" :profile="editingProfile" />
     <UpdateRoleDialog v-model="roleDialogOpen" :profile="roleEditingProfile" />
     <UpdateStatusDialog v-model="statusDialogOpen" :profile="statusEditingProfile" />
+    <UpdatePasswordDialog v-model="passwordDialogOpen" :profile="passwordEditingProfile" />
     <CreateProfileDialog v-model="createDialogOpen" />
   </q-page>
 </template>
@@ -107,6 +111,7 @@ import { useLayoutStore } from '@/stores/layout-store';
 import { statusInfo } from '@/stores/profiles-store';
 import CreateProfileDialog from './dialogs/CreateProfileDialog.vue';
 import EditProfileDialog from './dialogs/EditProfileDialog.vue';
+import UpdatePasswordDialog from './dialogs/UpdatePasswordDialog.vue';
 import UpdateRoleDialog from './dialogs/UpdateRoleDialog.vue';
 import UpdateStatusDialog from './dialogs/UpdateStatusDialog.vue';
 
@@ -146,6 +151,14 @@ const statusEditingProfile = ref<Profile | null>(null);
 function openStatusEdit(profile: Profile) {
   statusEditingProfile.value = profile;
   statusDialogOpen.value = true;
+}
+
+const passwordDialogOpen = ref(false);
+const passwordEditingProfile = ref<Profile | null>(null);
+
+function openPasswordEdit(profile: Profile) {
+  passwordEditingProfile.value = profile;
+  passwordDialogOpen.value = true;
 }
 
 const columns = computed<QTableColumn[]>(() => [

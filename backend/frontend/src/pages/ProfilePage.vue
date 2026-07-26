@@ -19,21 +19,23 @@
       </q-card-section>
 
       <q-tabs v-model="profileTab" align="left" class="text-primary" dense>
+        <q-tab v-if="isEditMode" name="avatar" :label="t('profile.avatar')" />
         <q-tab name="profile" :label="t('admin.profile')" />
         <q-tab name="personal" :label="t('admin.personalData')" />
+        <q-tab v-if="isEditMode" name="password" :label="t('profile.password')" />
       </q-tabs>
       <q-separator />
 
       <q-tab-panels v-model="profileTab" animated>
-        <q-tab-panel name="profile" class="q-gutter-md">
-          <template v-if="isEditMode">
-            <AvatarUpload v-model="profileForm.avatar_url" :uploader="profilesStore.uploadAvatar" />
-            <div v-if="profileFormErrors.avatar_url" class="text-negative text-caption">
-              {{ profileFormErrors.avatar_url }}
-            </div>
-          </template>
+        <q-tab-panel v-if="isEditMode" name="avatar" class="q-gutter-md">
+          <AvatarUpload v-model="profileForm.avatar_url" :uploader="profilesStore.uploadAvatar" />
+          <div v-if="profileFormErrors.avatar_url" class="text-negative text-caption">
+            {{ profileFormErrors.avatar_url }}
+          </div>
+        </q-tab-panel>
 
-          <q-list v-else separator>
+        <q-tab-panel name="profile" class="q-gutter-md">
+          <q-list separator>
             <q-item>
               <q-item-section>
                 <q-item-label caption>{{ t('fields.displayName') }}</q-item-label>
@@ -152,6 +154,63 @@
             </q-item>
           </q-list>
         </q-tab-panel>
+
+        <q-tab-panel v-if="isEditMode" name="password" class="q-gutter-md">
+          <q-input
+            ref="currentPasswordInputRef"
+            v-model="passwordForm.current_password"
+            :label="t('profile.currentPassword')"
+            :type="showCurrentPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            :error="Boolean(passwordFormErrors.current_password)"
+            :error-message="passwordFormErrors.current_password"
+            outlined
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showCurrentPassword ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="showCurrentPassword = !showCurrentPassword"
+              />
+            </template>
+          </q-input>
+
+          <q-input
+            v-model="passwordForm.password"
+            :label="t('profile.newPassword')"
+            :type="showNewPassword ? 'text' : 'password'"
+            autocomplete="new-password"
+            :error="Boolean(passwordFormErrors.password)"
+            :error-message="passwordFormErrors.password"
+            outlined
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showNewPassword ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="showNewPassword = !showNewPassword"
+              />
+            </template>
+          </q-input>
+
+          <q-input
+            v-model="passwordConfirmation"
+            :label="t('profile.confirmNewPassword')"
+            :type="showPasswordConfirmation ? 'text' : 'password'"
+            autocomplete="new-password"
+            :error="Boolean(passwordConfirmationError)"
+            :error-message="passwordConfirmationError"
+            outlined
+          >
+            <template v-slot:append>
+              <q-icon
+                :name="showPasswordConfirmation ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="showPasswordConfirmation = !showPasswordConfirmation"
+              />
+            </template>
+          </q-input>
+        </q-tab-panel>
       </q-tab-panels>
 
       <q-card-actions v-if="isEditMode" align="right">
@@ -171,8 +230,14 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { countries } from '@/data/countries';
-import { ProfilesPersonalDataParamsSchema, ProfilesProfileParamsSchema } from '@/encore/zod';
-import { useProfilesStore, type PersonalDataParams, type Profile, type ProfileParams } from '@/stores/profiles-store';
+import { AuthSetPasswordParamsSchema, ProfilesPersonalDataParamsSchema, ProfilesProfileParamsSchema } from '@/encore/zod';
+import {
+  useProfilesStore,
+  type PersonalDataParams,
+  type Profile,
+  type ProfileParams,
+  type SetPasswordParams,
+} from '@/stores/profiles-store';
 import AvatarUpload from '@/components/AvatarUpload.vue';
 import ProfileStatusBadge from '@/components/ProfileStatusBadge.vue';
 
@@ -182,7 +247,7 @@ const route = useRoute();
 const router = useRouter();
 
 type CountryOption = { label: string; value: string };
-type ProfileTab = 'profile' | 'personal';
+type ProfileTab = 'avatar' | 'profile' | 'personal' | 'password';
 type Focusable = { focus: () => void };
 
 const countryOptions: CountryOption[] = countries.map((c) => {
@@ -195,6 +260,7 @@ const profileTab = ref<ProfileTab>('profile');
 const isEditMode = computed(() => route.query.mode === 'edit');
 const countryLabel = computed(() => countryOptions.find((c) => c.value === personalForm.country)?.label ?? personalForm.country);
 const firstNameInputRef = ref<Focusable | null>(null);
+const currentPasswordInputRef = ref<Focusable | null>(null);
 
 const profileForm = reactive<ProfileParams>({
   display_name: '',
@@ -211,6 +277,17 @@ const personalForm = reactive<PersonalDataParams>({
   country: '',
 });
 const personalFormErrors = reactive<Partial<Record<keyof PersonalDataParams, string>>>({});
+
+const passwordForm = reactive<SetPasswordParams>({
+  current_password: '',
+  password: '',
+});
+const passwordFormErrors = reactive<Partial<Record<keyof SetPasswordParams, string>>>({});
+const passwordConfirmation = ref('');
+const passwordConfirmationError = ref('');
+const showCurrentPassword = ref(false);
+const showNewPassword = ref(false);
+const showPasswordConfirmation = ref(false);
 
 watch(
   () => profilesStore.profile,
@@ -230,8 +307,11 @@ watch(profileTab, () => {
 
 watch(isEditMode, (editing) => {
   if (editing) {
+    profileTab.value = 'avatar';
+    resetPasswordForm();
     void focusFirstField();
   } else if (profilesStore.profile) {
+    profileTab.value = profileTab.value === 'avatar' || profileTab.value === 'password' ? 'profile' : profileTab.value;
     void loadProfile(profilesStore.profile);
   }
 });
@@ -264,14 +344,19 @@ async function loadProfile(profile: Profile) {
 
 async function save() {
   try {
-    if (profileTab.value === 'profile') {
+    if (profileTab.value === 'avatar') {
       const parsed = validateProfileForm();
       if (!parsed) return;
       await profilesStore.update(parsed);
-    } else {
+    } else if (profileTab.value === 'personal') {
       const parsed = validatePersonalForm();
       if (!parsed) return;
       await profilesStore.savePersonalData(parsed);
+    } else if (profileTab.value === 'password') {
+      const parsed = validatePasswordForm();
+      if (!parsed) return;
+      await profilesStore.setPassword(parsed);
+      resetPasswordForm();
     }
     await router.replace('/profile');
   } catch {
@@ -334,6 +419,41 @@ function clearPersonalFormErrors() {
   personalFormErrors.country = '';
 }
 
+function validatePasswordForm(): SetPasswordParams | null {
+  clearPasswordFormErrors();
+  const result = AuthSetPasswordParamsSchema.safeParse({ ...passwordForm });
+  if (!result.success) {
+    const fieldErrors = result.error.flatten().fieldErrors;
+    for (const key of Object.keys(fieldErrors) as (keyof SetPasswordParams)[]) {
+      passwordFormErrors[key] = fieldErrors[key]?.[0] ?? '';
+    }
+    return null;
+  }
+
+  if (passwordForm.password !== passwordConfirmation.value) {
+    passwordConfirmationError.value = t('profile.passwordMismatch');
+    return null;
+  }
+
+  return result.data;
+}
+
+function clearPasswordFormErrors() {
+  passwordFormErrors.current_password = '';
+  passwordFormErrors.password = '';
+  passwordConfirmationError.value = '';
+}
+
+function resetPasswordForm() {
+  passwordForm.current_password = '';
+  passwordForm.password = '';
+  passwordConfirmation.value = '';
+  showCurrentPassword.value = false;
+  showNewPassword.value = false;
+  showPasswordConfirmation.value = false;
+  clearPasswordFormErrors();
+}
+
 function displayValue(value: string | number | null | undefined) {
   const normalized = String(value ?? '').trim();
   return normalized || '-';
@@ -343,6 +463,8 @@ async function focusFirstField() {
   await nextTick();
   if (profileTab.value === 'personal') {
     firstNameInputRef.value?.focus();
+  } else if (profileTab.value === 'password') {
+    currentPasswordInputRef.value?.focus();
   }
 }
 

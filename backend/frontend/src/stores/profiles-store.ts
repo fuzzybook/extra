@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { LocalStorage } from 'quasar';
-import Client, { Local, profiles as ProfilesNS } from '@/encore/client';
+import Client, { Local, auth as AuthNS, profiles as ProfilesNS } from '@/encore/client';
 
 export type Profile = ProfilesNS.Profile;
 export type ProfileParams = ProfilesNS.ProfileParams;
@@ -11,6 +11,7 @@ export type LoginResponse = ProfilesNS.LoginResponse;
 export type Status = ProfilesNS.Status;
 export type PersonalData = ProfilesNS.PersonalData;
 export type PersonalDataParams = ProfilesNS.PersonalDataParams;
+export type SetPasswordParams = AuthNS.SetPasswordParams;
 
 /** Display info for each Status value, mirroring profiles/status.go. */
 export const STATUS_INFO: { label: string; color: string }[] = [
@@ -132,6 +133,13 @@ export const useProfilesStore = defineStore('profiles', () => {
     });
   }
 
+  /** Changes the authenticated caller's password after verifying the current one. */
+  async function setPassword(params: SetPasswordParams): Promise<void> {
+    return withLoading(async () => {
+      await client.auth.SetPassword(params);
+    });
+  }
+
   /** Uploads an avatar image and returns its public URL. */
   async function uploadAvatar(image: Blob): Promise<string> {
     return withLoading(async () => {
@@ -162,6 +170,7 @@ export const useProfilesStore = defineStore('profiles', () => {
     remove,
     fetchPersonalData,
     savePersonalData,
+    setPassword,
     uploadAvatar,
   };
 });
