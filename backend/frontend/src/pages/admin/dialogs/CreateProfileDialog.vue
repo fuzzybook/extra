@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useAdminStore, type RegisterParams } from '@/stores/admin-store';
 import AvatarUpload from '@/components/AvatarUpload.vue';
 
@@ -66,6 +67,7 @@ watch(open, (isOpen) => {
 async function save() {
   try {
     await adminStore.insertProfile({ ...createForm });
+    Notify.create({ type: 'positive', message: t('admin.notifications.profileCreated') });
     open.value = false;
   } catch {
     // adminStore.error already holds the failure message

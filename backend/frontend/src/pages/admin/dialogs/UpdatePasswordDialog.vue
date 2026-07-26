@@ -43,6 +43,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useAdminStore, type Profile } from '@/stores/admin-store';
 
 type Focusable = { focus: () => void };
@@ -82,6 +83,7 @@ async function save() {
 
   try {
     await adminStore.updateProfilePassword(props.profile.user_id, { password: password.value });
+    Notify.create({ type: 'positive', message: t('admin.notifications.passwordUpdated') });
     open.value = false;
   } catch {
     // adminStore.error already holds the failure message

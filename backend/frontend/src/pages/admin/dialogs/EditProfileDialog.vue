@@ -98,6 +98,7 @@
 <script setup lang="ts">
 import { nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useAdminStore, type PersonalDataParams, type Profile, type ProfileParams } from '@/stores/admin-store';
 import { countries } from '@/data/countries';
 import { AdminPersonalDataParamsSchema, AdminProfileParamsSchema } from '@/encore/zod';
@@ -188,10 +189,12 @@ async function save() {
       const parsed = validateEditForm();
       if (!parsed) return;
       await adminStore.updateProfile(props.profile.user_id, parsed);
+      Notify.create({ type: 'positive', message: t('admin.notifications.profileUpdated') });
     } else {
       const parsed = validatePersonalForm();
       if (!parsed) return;
       await adminStore.upsertPersonalData(props.profile.user_id, parsed);
+      Notify.create({ type: 'positive', message: t('admin.notifications.personalDataUpdated') });
     }
     open.value = false;
   } catch {

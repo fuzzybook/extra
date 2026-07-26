@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useAdminStore, type Profile } from '@/stores/admin-store';
 
 type Focusable = { focus: () => void };
@@ -63,6 +64,7 @@ async function save() {
   if (!props.profile) return;
   try {
     await adminStore.updateProfileRole(props.profile.user_id, selectedRole.value);
+    Notify.create({ type: 'positive', message: t('admin.notifications.roleUpdated') });
     open.value = false;
   } catch {
     // adminStore.error already holds the failure message

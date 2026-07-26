@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useAdminStore, type Profile } from '@/stores/admin-store';
 import type { Status } from '@/stores/profiles-store';
 
@@ -64,6 +65,7 @@ async function save() {
   if (!props.profile) return;
   try {
     await adminStore.updateProfileStatus(props.profile.user_id, selectedStatus.value);
+    Notify.create({ type: 'positive', message: t('admin.notifications.statusUpdated') });
     open.value = false;
   } catch {
     // adminStore.error already holds the failure message

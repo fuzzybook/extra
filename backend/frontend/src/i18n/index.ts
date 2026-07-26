@@ -75,6 +75,14 @@ const messages = {
         created: 'Created',
         updated: 'Updated',
       },
+      notifications: {
+        profileCreated: 'Profile created.',
+        profileUpdated: 'Profile updated.',
+        personalDataUpdated: 'Personal data updated.',
+        roleUpdated: 'Role updated.',
+        statusUpdated: 'Status updated.',
+        passwordUpdated: 'Password updated.',
+      },
     },
     profile: {
       title: 'My profile',
@@ -195,6 +203,14 @@ const messages = {
         artist: 'Artista',
         created: 'Creato',
         updated: 'Aggiornato',
+      },
+      notifications: {
+        profileCreated: 'Profilo creato.',
+        profileUpdated: 'Profilo aggiornato.',
+        personalDataUpdated: 'Dati personali aggiornati.',
+        roleUpdated: 'Ruolo aggiornato.',
+        statusUpdated: 'Stato aggiornato.',
+        passwordUpdated: 'Password aggiornata.',
       },
     },
     profile: {
@@ -317,6 +333,14 @@ const messages = {
         created: 'Créé',
         updated: 'Mis à jour',
       },
+      notifications: {
+        profileCreated: 'Profil créé.',
+        profileUpdated: 'Profil mis à jour.',
+        personalDataUpdated: 'Données personnelles mises à jour.',
+        roleUpdated: 'Rôle mis à jour.',
+        statusUpdated: 'Statut mis à jour.',
+        passwordUpdated: 'Mot de passe mis à jour.',
+      },
     },
     profile: {
       title: 'Mon profil',
@@ -438,6 +462,14 @@ const messages = {
         created: 'Erstellt',
         updated: 'Aktualisiert',
       },
+      notifications: {
+        profileCreated: 'Profil erstellt.',
+        profileUpdated: 'Profil aktualisiert.',
+        personalDataUpdated: 'Persönliche Daten aktualisiert.',
+        roleUpdated: 'Rolle aktualisiert.',
+        statusUpdated: 'Status aktualisiert.',
+        passwordUpdated: 'Passwort aktualisiert.',
+      },
     },
     profile: {
       title: 'Mein Profil',
@@ -558,6 +590,14 @@ const messages = {
         artist: 'Artista',
         created: 'Creado',
         updated: 'Actualizado',
+      },
+      notifications: {
+        profileCreated: 'Perfil creado.',
+        profileUpdated: 'Perfil actualizado.',
+        personalDataUpdated: 'Datos personales actualizados.',
+        roleUpdated: 'Rol actualizado.',
+        statusUpdated: 'Estado actualizado.',
+        passwordUpdated: 'Contraseña actualizada.',
       },
     },
     profile: {

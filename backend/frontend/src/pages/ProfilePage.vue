@@ -228,6 +228,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Notify } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { countries } from '@/data/countries';
 import { AuthSetPasswordParamsSchema, ProfilesPersonalDataParamsSchema, ProfilesProfileParamsSchema } from '@/encore/zod';
@@ -352,6 +353,7 @@ async function save() {
       const parsed = validatePersonalForm();
       if (!parsed) return;
       await profilesStore.savePersonalData(parsed);
+      Notify.create({ type: 'positive', message: t('admin.notifications.personalDataUpdated') });
     } else if (profileTab.value === 'password') {
       const parsed = validatePasswordForm();
       if (!parsed) return;
