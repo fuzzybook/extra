@@ -15,7 +15,6 @@
       class="sticky-header-table"
       :rows="adminStore.profiles"
       :columns="columns"
-      v-model:pagination="pagination"
       row-key="user_id"
       :loading="adminStore.loading"
       flat
@@ -24,7 +23,7 @@
     >
       <template v-slot:body-cell-status="props">
         <q-td :props="props">
-          <ProfileStatusBadge :status="props.value" />
+          <q-badge :color="statusInfo(props.value).color">{{ statusLabel(props.value) }}</q-badge>
         </q-td>
       </template>
 
@@ -103,9 +102,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QTableColumn } from 'quasar';
-import ProfileStatusBadge from '@/components/ProfileStatusBadge.vue';
 import { useAdminStore, type Profile } from '@/stores/admin-store';
 import { useLayoutStore } from '@/stores/layout-store';
+import { statusInfo } from '@/stores/profiles-store';
 import CreateProfileDialog from './dialogs/CreateProfileDialog.vue';
 import EditProfileDialog from './dialogs/EditProfileDialog.vue';
 import UpdateRoleDialog from './dialogs/UpdateRoleDialog.vue';
@@ -118,9 +117,6 @@ const { t } = useI18n();
 const profilesPage = ref<ComponentPublicInstance | null>(null);
 const profilesTable = ref<ComponentPublicInstance | null>(null);
 const profilesTableHeight = ref(610);
-const pagination = ref({
-  rowsPerPage: 0,
-});
 
 const editDialogOpen = ref(false);
 const editingProfile = ref<Profile | null>(null);
@@ -177,6 +173,12 @@ const columns = computed<QTableColumn[]>(() => [
   },
 ]);
 
+function statusLabel(status: number) {
+  const key = `status.${status}`;
+  const translated = t(key);
+  return translated === key ? t('status.unknown', { status }) : translated;
+}
+
 function getElement(component: ComponentPublicInstance | null) {
   return component?.$el instanceof HTMLElement ? component.$el : null;
 }
@@ -189,15 +191,12 @@ function updateProfilesTableHeight() {
     return;
   }
 
-  const pageRect = page.getBoundingClientRect();
   const tableRect = table.getBoundingClientRect();
   const pageStyle = window.getComputedStyle(page);
-  const pageMinHeight = parseFloat(pageStyle.minHeight);
-  const pageHeight = Number.isFinite(pageMinHeight) && pageMinHeight > 0 ? pageMinHeight : pageRect.height;
   const pagePaddingBottom = parseFloat(pageStyle.paddingBottom) || 0;
-  const tableTopInPage = tableRect.top - pageRect.top;
+  const availableHeight = window.innerHeight - tableRect.top - pagePaddingBottom;
 
-  profilesTableHeight.value = Math.max(0, Math.floor(pageHeight - tableTopInPage - pagePaddingBottom));
+  profilesTableHeight.value = Math.max(0, Math.floor(availableHeight));
 }
 
 async function updateProfilesTableHeightAfterRender() {
