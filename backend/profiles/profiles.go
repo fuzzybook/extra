@@ -232,10 +232,6 @@ func requireSelf(userID uuid.UUID) error {
 	return nil
 }
 
-func normalizeProfileName(value string) string {
-	return normalizeText(value)
-}
-
 // isUniqueViolation reports whether err is a Postgres unique constraint violation.
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
