@@ -4,6 +4,9 @@ package profiles
 import (
 	"context"
 	"errors"
+	"net/mail"
+	"net/url"
+	"strings"
 	"time"
 
 	authsvc "encore.app/auth"
@@ -17,6 +20,8 @@ import (
 var db = sqldb.NewDatabase("profiles", sqldb.DatabaseConfig{
 	Migrations: "./migrations",
 })
+
+var authDB = sqldb.Named("auth")
 
 type Profile struct {
 	UserID      uuid.UUID `json:"user_id"`
@@ -42,11 +47,74 @@ type RegisterParams struct {
 	Password    string `json:"password" encore:"sensitive"`
 }
 
+func (p *RegisterParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "register params are required"}
+	}
+	email, err := normalizeEmailValue(p.Email)
+	if err != nil {
+		return err
+	}
+	p.Email = email
+	name := normalizeText(p.DisplayName)
+	if name == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "display name is required"}
+	}
+	p.DisplayName = name
+	if p.AvatarURL != "" {
+		if _, err := url.ParseRequestURI(p.AvatarURL); err != nil {
+			return &errs.Error{Code: errs.InvalidArgument, Message: "avatar url is invalid"}
+		}
+	}
+	return authsvc.ValidatePassword(p.Password)
+}
+
+func (p *ProfileParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "profile params are required"}
+	}
+	name := normalizeText(p.DisplayName)
+	if name == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "display name is required"}
+	}
+	if p.AvatarURL != "" {
+		if _, err := url.ParseRequestURI(p.AvatarURL); err != nil {
+			return &errs.Error{Code: errs.InvalidArgument, Message: "avatar url is invalid"}
+		}
+	}
+	p.DisplayName = name
+	return nil
+}
+
+func normalizeEmailValue(email string) (string, error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		return "", &errs.Error{Code: errs.InvalidArgument, Message: "email is required"}
+	}
+	parsed, err := mail.ParseAddress(email)
+	if err != nil {
+		return "", &errs.Error{Code: errs.InvalidArgument, Message: "invalid email"}
+	}
+	return strings.TrimSpace(strings.ToLower(parsed.Address)), nil
+}
+
+func normalizeText(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	parts := strings.Fields(value)
+	return strings.Join(parts, " ")
+}
+
 // Insert registers a new profile with a server-generated UUID v4, delegating
 // credential setup to the auth service.
 //
 //encore:api public method=POST path=/profiles
 func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	userID, err := uuid.NewV4()
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to generate profile id")
@@ -73,6 +141,9 @@ func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
 //
 //encore:api auth method=PUT path=/profiles
 func Update(ctx context.Context, p *ProfileParams) (*Profile, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	uid, ok := auth.UserID()
 	if !ok {
 		return nil, &errs.Error{Code: errs.PermissionDenied, Message: "cannot act on another user's profile"}
@@ -159,6 +230,10 @@ func requireSelf(userID uuid.UUID) error {
 		return &errs.Error{Code: errs.PermissionDenied, Message: "cannot act on another user's profile"}
 	}
 	return nil
+}
+
+func normalizeProfileName(value string) string {
+	return normalizeText(value)
 }
 
 // isUniqueViolation reports whether err is a Postgres unique constraint violation.

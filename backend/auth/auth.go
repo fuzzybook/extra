@@ -29,6 +29,7 @@ var secrets struct {
 }
 
 const sessionTTL = 7 * 24 * time.Hour
+const minPasswordLength = 8
 
 type AuthParams struct {
 	SessionCookie *http.Cookie `cookie:"session"`
@@ -96,13 +97,63 @@ func sessionToken(p *AuthParams) (uuid.UUID, bool) {
 // pepper secret using SHA-256, producing a fixed-size digest. This both mixes
 // in the pepper and keeps the input to bcrypt within its 72-byte limit
 // regardless of the original password's length.
-func pepperedPassword(password string) []byte {
+func pepperedPassword(password string) ([]byte, error) {
+	if strings.TrimSpace(secrets.PasswordPepper) == "" {
+		return nil, &errs.Error{Code: errs.Internal, Message: "password pepper is not configured"}
+	}
 	sum := sha256.Sum256([]byte(password + secrets.PasswordPepper))
-	return sum[:]
+	return sum[:], nil
+}
+
+func validatePassword(password string) error {
+	if strings.TrimSpace(password) == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "password is required"}
+	}
+	if len(password) < minPasswordLength {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "password must be at least 8 characters long"}
+	}
+	return nil
+}
+
+// ValidatePassword exposes the shared password rules to other services.
+func ValidatePassword(password string) error {
+	return validatePassword(password)
+}
+
+func authenticatedUserID() (uuid.UUID, error) {
+	uid, ok := auth.UserID()
+	if !ok {
+		return uuid.Nil, &errs.Error{Code: errs.Unauthenticated, Message: "missing auth"}
+	}
+	return parseUserID(uid)
+}
+
+func parseUserID(uid auth.UID) (uuid.UUID, error) {
+	userID, err := uuid.FromString(string(uid))
+	if err != nil {
+		return uuid.Nil, errs.WrapCode(err, errs.Internal, "invalid user id")
+	}
+	return userID, nil
+}
+
+func verifyPassword(hash, password string) error {
+	peppered, err := pepperedPassword(password)
+	if err != nil {
+		return err
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), peppered)
+}
+
+func isPasswordReuse(currentHash, newPassword string) bool {
+	return verifyPassword(currentHash, newPassword) == nil
 }
 
 func hashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword(pepperedPassword(password), bcrypt.DefaultCost)
+	peppered, err := pepperedPassword(password)
+	if err != nil {
+		return "", err
+	}
+	hash, err := bcrypt.GenerateFromPassword(peppered, bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}

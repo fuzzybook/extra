@@ -9,6 +9,7 @@ import (
 	htmltemplate "html/template"
 	"net"
 	"net/mail"
+	"os"
 	"strings"
 	texttemplate "text/template"
 	"time"
@@ -31,10 +32,18 @@ var db = sqldb.NewDatabase("registration", sqldb.DatabaseConfig{
 var profilesDB = sqldb.Named("profiles")
 
 const (
-	welcomeTokenTTL       = 24 * time.Hour
-	passwordResetTokenTTL = time.Hour
-	frontendBaseURL       = "http://localhost:9000/#"
+	welcomeTokenTTL        = 24 * time.Hour
+	passwordResetTokenTTL  = time.Hour
+	defaultFrontendBaseURL = "http://localhost:9000/#"
 )
+
+var frontendBaseURL = defaultFrontendBaseURL
+
+func init() {
+	if value := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")); value != "" {
+		frontendBaseURL = value
+	}
+}
 
 type RegisterParams struct {
 	Email       string `json:"email"`
@@ -57,12 +66,27 @@ type PasswordResetRequestParams struct {
 	Email string `json:"email"`
 }
 
+func (p *PasswordResetRequestParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "password reset request is required"}
+	}
+	_, err := normalizeEmail(p.Email)
+	return err
+}
+
 type PasswordResetRequestResponse struct {
 	EmailSent bool `json:"email_sent"`
 }
 
 type PasswordResetConfirmParams struct {
 	Password string `json:"password" encore:"sensitive"`
+}
+
+func (p *PasswordResetConfirmParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "password reset confirm params are required"}
+	}
+	return authsvc.ValidatePassword(p.Password)
 }
 
 type PasswordResetConfirmResponse struct {
@@ -114,6 +138,18 @@ func CheckEmail(ctx context.Context, email string) (*EmailAvailabilityResponse, 
 //
 //encore:api public method=POST path=/registration
 func Register(ctx context.Context, p *RegisterParams) (*RegisterResponse, error) {
+	if p == nil {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "register params are required"}
+	}
+	if err := (&profilessvc.RegisterParams{
+		Email:       p.Email,
+		DisplayName: p.DisplayName,
+		AvatarURL:   p.AvatarURL,
+		Password:    p.Password,
+	}).Validate(); err != nil {
+		return nil, err
+	}
+	pruneExpiredTokens(ctx)
 	profile, err := profilessvc.Insert(ctx, &profilessvc.RegisterParams{
 		Email:       p.Email,
 		DisplayName: p.DisplayName,
@@ -178,10 +214,14 @@ func ConfirmWelcome(ctx context.Context, token uuid.UUID) (*WelcomeResponse, err
 //
 //encore:api public method=POST path=/registration/password-reset
 func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*PasswordResetRequestResponse, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	email, err := normalizeEmail(p.Email)
 	if err != nil {
 		return nil, err
 	}
+	pruneExpiredTokens(ctx)
 
 	var profile profilessvc.Profile
 	err = profilesDB.QueryRow(ctx, `
@@ -226,6 +266,9 @@ func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*
 //
 //encore:api public method=POST path=/registration/password-reset/:token
 func ConfirmPasswordReset(ctx context.Context, token uuid.UUID, p *PasswordResetConfirmParams) (*PasswordResetConfirmResponse, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	var userID uuid.UUID
 	var email string
 	var expiresAt time.Time
@@ -285,7 +328,7 @@ func createPasswordResetToken(ctx context.Context, profile *profilessvc.Profile)
 }
 
 func normalizeEmail(email string) (string, error) {
-	email = strings.TrimSpace(email)
+	email = strings.TrimSpace(strings.ToLower(email))
 	if email == "" {
 		return "", &errs.Error{Code: errs.InvalidArgument, Message: "email is required"}
 	}
@@ -293,7 +336,12 @@ func normalizeEmail(email string) (string, error) {
 	if err != nil {
 		return "", &errs.Error{Code: errs.InvalidArgument, Message: "invalid email"}
 	}
-	return parsed.Address, nil
+	return strings.TrimSpace(strings.ToLower(parsed.Address)), nil
+}
+
+func pruneExpiredTokens(ctx context.Context) {
+	_, _ = db.Exec(ctx, `DELETE FROM welcome_tokens WHERE expires_at < NOW() OR used_at IS NOT NULL`)
+	_, _ = db.Exec(ctx, `DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used_at IS NOT NULL`)
 }
 
 func emailDomain(email string) (string, bool) {

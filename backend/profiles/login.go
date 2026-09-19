@@ -3,7 +3,6 @@ package profiles
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"encore.app/auth"
@@ -34,12 +33,6 @@ var loginRequests = pubsub.TopicRef[pubsub.Publisher[*auth.LoginRequested]](auth
 // auth.LoginRequests) and waits for the matching auth.LoginCompleted reply
 // on auth.LoginResults before responding to the caller.
 //
-// NOTE: the wait is implemented with an in-process registry keyed by request
-// ID, so the instance that publishes the request must be the one that
-// receives the reply. That holds for local development (a single instance)
-// but not for a horizontally scaled deployment, which would need a shared
-// mechanism instead (e.g. a results table polled with retry_until).
-//
 //encore:api public method=POST path=/auth/login
 func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 	var userID uuid.UUID
@@ -58,9 +51,6 @@ func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to generate request id")
 	}
 
-	wait := loginWaiters.register(requestID)
-	defer loginWaiters.cancel(requestID)
-
 	if _, err := loginRequests.Publish(ctx, &auth.LoginRequested{
 		RequestID: requestID,
 		UserID:    userID,
@@ -69,64 +59,47 @@ func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to publish login request")
 	}
 
-	select {
-	case result := <-wait:
-		if !result.OK {
-			return nil, &errs.Error{Code: errs.Unauthenticated, Message: "invalid credentials"}
+	result, err := pollLoginResult(ctx, func(ctx context.Context) (*auth.LoginCompleted, error) {
+		var ok bool
+		var token uuid.UUID
+		var expiresAt time.Time
+		err := authDB.QueryRow(ctx, `
+			SELECT ok, token, expires_at FROM login_results WHERE request_id = $1
+		`, requestID).Scan(&ok, &token, &expiresAt)
+		if errors.Is(err, sqldb.ErrNoRows) {
+			return nil, sqldb.ErrNoRows
 		}
-		return &LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt}, nil
-	case <-time.After(loginTimeout):
-		return nil, &errs.Error{Code: errs.DeadlineExceeded, Message: "login timed out"}
-	case <-ctx.Done():
-		return nil, ctx.Err()
+		if err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to read login result")
+		}
+		return &auth.LoginCompleted{RequestID: requestID, OK: ok, Token: token, ExpiresAt: expiresAt}, nil
+	}, loginTimeout, 50*time.Millisecond)
+	if err != nil {
+		return nil, err
 	}
-}
-
-var _ = pubsub.NewSubscription(
-	auth.LoginResults, "deliver-to-waiting-login",
-	pubsub.SubscriptionConfig[*auth.LoginCompleted]{
-		Handler: func(ctx context.Context, ev *auth.LoginCompleted) error {
-			loginWaiters.deliver(ev)
-			return nil
-		},
-	},
-)
-
-// loginWaiters lets the synchronous Login handler above wait for the
-// asynchronous LoginCompleted reply that matches its RequestID.
-var loginWaiters = newWaiterRegistry()
-
-type waiterRegistry struct {
-	mu      sync.Mutex
-	waiting map[uuid.UUID]chan *auth.LoginCompleted
-}
-
-func newWaiterRegistry() *waiterRegistry {
-	return &waiterRegistry{waiting: make(map[uuid.UUID]chan *auth.LoginCompleted)}
-}
-
-func (r *waiterRegistry) register(id uuid.UUID) <-chan *auth.LoginCompleted {
-	ch := make(chan *auth.LoginCompleted, 1)
-	r.mu.Lock()
-	r.waiting[id] = ch
-	r.mu.Unlock()
-	return ch
-}
-
-func (r *waiterRegistry) cancel(id uuid.UUID) {
-	r.mu.Lock()
-	delete(r.waiting, id)
-	r.mu.Unlock()
-}
-
-func (r *waiterRegistry) deliver(ev *auth.LoginCompleted) {
-	r.mu.Lock()
-	ch, ok := r.waiting[ev.RequestID]
-	if ok {
-		delete(r.waiting, ev.RequestID)
+	if !result.OK {
+		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "invalid credentials"}
 	}
-	r.mu.Unlock()
-	if ok {
-		ch <- ev
+	return &LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt}, nil
+}
+
+func pollLoginResult(ctx context.Context, fetch func(context.Context) (*auth.LoginCompleted, error), timeout, interval time.Duration) (*auth.LoginCompleted, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		result, err := fetch(ctx)
+		if err == nil {
+			return result, nil
+		}
+		if !errors.Is(err, sqldb.ErrNoRows) {
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			return nil, &errs.Error{Code: errs.DeadlineExceeded, Message: "login timed out"}
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
 	}
 }

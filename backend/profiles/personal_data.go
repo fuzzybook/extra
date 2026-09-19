@@ -3,6 +3,7 @@ package profiles
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"encore.dev/beta/auth"
@@ -35,6 +36,28 @@ type PersonalDataParams struct {
 	Country   string `json:"country"`
 }
 
+func (p *PersonalDataParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "personal data params are required"}
+	}
+	p.FirstName = normalizeText(p.FirstName)
+	p.LastName = normalizeText(p.LastName)
+	p.Address = normalizeText(p.Address)
+	p.City = normalizeText(p.City)
+	p.Country = strings.ToUpper(strings.TrimSpace(p.Country))
+	p.Cap = strings.TrimSpace(p.Cap)
+	if p.FirstName == "" || p.LastName == "" || p.Address == "" || p.City == "" || p.Country == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "all personal data fields are required"}
+	}
+	if len(p.Cap) < 4 || len(p.Cap) > 10 {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "postal code is invalid"}
+	}
+	if len(p.Country) != 2 {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "country must be a 2-letter code"}
+	}
+	return nil
+}
+
 // GetPersonalData returns the authenticated user's own personal data.
 //
 //encore:api auth method=GET path=/profiles/personal-data
@@ -61,6 +84,9 @@ func GetPersonalData(ctx context.Context) (*PersonalData, error) {
 //
 //encore:api auth method=PUT path=/profiles/personal-data
 func UpsertPersonalData(ctx context.Context, p *PersonalDataParams) (*PersonalData, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
 	userID, err := authedUserID()
 	if err != nil {
 		return nil, err

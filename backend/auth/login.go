@@ -7,15 +7,25 @@ import (
 
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
+	"encore.dev/cron"
 	"encore.dev/pubsub"
 	"encore.dev/storage/sqldb"
 	"encore.dev/types/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginParams struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Password string    `json:"password" encore:"sensitive"`
+}
+
+func (p *LoginParams) Validate() error {
+	if p == nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "login params are required"}
+	}
+	if p.UserID == uuid.Nil {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "user id is required"}
+	}
+	return validatePassword(p.Password)
 }
 
 type LoginResponse struct {
@@ -41,7 +51,7 @@ func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to fetch credentials")
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), pepperedPassword(p.Password)); err != nil {
+	if err := verifyPassword(hash, p.Password); err != nil {
 		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "invalid credentials"}
 	}
 
@@ -57,6 +67,42 @@ func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to create session")
 	}
 	return &LoginResponse{Token: token, ExpiresAt: expiresAt}, nil
+}
+
+var _ = cron.NewJob("cleanup-expired-sessions", cron.JobConfig{
+	Title:    "Cleanup expired sessions",
+	Every:    1 * cron.Hour,
+	Endpoint: CleanupExpiredSessions,
+})
+
+var _ = cron.NewJob("cleanup-older-login-results", cron.JobConfig{
+	Title:    "Cleanup stale login results",
+	Every:    6 * cron.Hour,
+	Endpoint: CleanupLoginResults,
+})
+
+// CleanupExpiredSessions removes expired sessions from the database.
+//
+//encore:api private
+func CleanupExpiredSessions(ctx context.Context) error {
+	_, err := db.Exec(ctx, `DELETE FROM sessions WHERE expires_at <= NOW()`)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to purge expired sessions")
+	}
+	return nil
+}
+
+// CleanupLoginResults removes stale async auth correlation rows that are no longer needed.
+//
+//encore:api private
+func CleanupLoginResults(ctx context.Context) error {
+	_, err := db.Exec(ctx, `
+		DELETE FROM login_results WHERE created_at < NOW() - INTERVAL '24 hours'
+	`)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to purge stale login results")
+	}
+	return nil
 }
 
 // Logout revokes the session used to authenticate the current request.
@@ -114,6 +160,25 @@ func handleLoginRequested(ctx context.Context, ev *LoginRequested) error {
 		result.Token = resp.Token
 		result.ExpiresAt = resp.ExpiresAt
 	}
+	if err := storeLoginResult(ctx, result); err != nil {
+		return err
+	}
 	_, err := LoginResults.Publish(ctx, result)
 	return err
+}
+
+func storeLoginResult(ctx context.Context, result *LoginCompleted) error {
+	_, err := db.Exec(ctx, `
+		INSERT INTO login_results (request_id, ok, token, expires_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (request_id) DO UPDATE SET
+			ok = EXCLUDED.ok,
+			token = EXCLUDED.token,
+			expires_at = EXCLUDED.expires_at,
+			updated_at = NOW()
+	`, result.RequestID, result.OK, result.Token, result.ExpiresAt)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to store login result")
+	}
+	return nil
 }
