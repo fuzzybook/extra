@@ -18,6 +18,7 @@ go.work
 go.work.sum
 
 # Environment files
+/videochat/setup-livekit.txt
 .env
 .env.development.local
 .env.test.local
