@@ -1,12 +1,7 @@
 {
     "mcpServers": {
         "encore-local": {
-            "args": [
-                "mcp",
-                "run",
-                "--app=q55oi"
-            ],
-            "command": "encore"
+            "url": "http://127.0.0.1:9900/sse?appID=q55oi"
         }
     }
 }
