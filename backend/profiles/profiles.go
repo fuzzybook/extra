@@ -23,16 +23,49 @@ var db = sqldb.NewDatabase("profiles", sqldb.DatabaseConfig{
 
 var authDB = sqldb.Named("auth")
 
+const (
+	MemberTypeBroadcaster = "broadcaster"
+	MemberTypeVisitor     = "visitor"
+	MemberTypeAffiliate   = "affiliate"
+	MemberTypeAdvertiser  = "advertiser"
+	MemberTypeAdmin       = "admin"
+)
+
+type MemberTypeOption struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+func MemberTypes() []MemberTypeOption {
+	return []MemberTypeOption{
+		{Name: "Broadcaster", Value: MemberTypeBroadcaster},
+		{Name: "Visitor", Value: MemberTypeVisitor},
+		{Name: "Affiliate", Value: MemberTypeAffiliate},
+		{Name: "Advertiser", Value: MemberTypeAdvertiser},
+		{Name: "Admin", Value: MemberTypeAdmin},
+	}
+}
+
+func IsValidMemberType(value string) bool {
+	switch value {
+	case MemberTypeBroadcaster, MemberTypeVisitor, MemberTypeAffiliate, MemberTypeAdvertiser, MemberTypeAdmin:
+		return true
+	default:
+		return false
+	}
+}
+
 type Profile struct {
-	UserID      uuid.UUID `json:"user_id"`
-	Email       string    `json:"email"`
-	DisplayName string    `json:"display_name"`
-	AvatarURL   string    `json:"avatar_url"`
-	IsArtist    bool      `json:"is_artist"`
-	Role        string    `json:"role"`
-	Status      Status    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	UserID      uuid.UUID  `json:"user_id"`
+	Email       string     `json:"email"`
+	DisplayName string     `json:"display_name"`
+	AvatarURL   string     `json:"avatar_url"`
+	MemberType  string     `json:"member_type"`
+	Broadcaster *uuid.UUID `json:"broadcaster"`
+	Role        string     `json:"role"`
+	Status      Status     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type ProfileParams struct {
@@ -123,8 +156,8 @@ func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
 	err = db.QueryRow(ctx, `
 		INSERT INTO user_profiles (user_id, email, display_name, avatar_url)
 		VALUES ($1, $2, $3, $4)
-		RETURNING role, status, is_artist, created_at, updated_at
-	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING role, status, member_type, broadcaster, created_at, updated_at
+	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if isUniqueViolation(err) {
 		return nil, &errs.Error{Code: errs.AlreadyExists, Message: "email already registered"}
 	}
@@ -160,8 +193,8 @@ func Update(ctx context.Context, p *ProfileParams) (*Profile, error) {
 		UPDATE user_profiles
 		SET display_name = $2, avatar_url = $3, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, role, status, is_artist, created_at, updated_at
-	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, role, status, member_type, broadcaster, created_at, updated_at
+	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -186,8 +219,8 @@ func Get(ctx context.Context) (*Profile, error) {
 	}
 	p := Profile{UserID: userID}
 	err = db.QueryRow(ctx, `
-		SELECT email, display_name, avatar_url, role, status, is_artist, created_at, updated_at FROM user_profiles WHERE user_id = $1
-	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.IsArtist, &p.CreatedAt, &p.UpdatedAt)
+		SELECT email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at FROM user_profiles WHERE user_id = $1
+	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}

@@ -225,7 +225,7 @@ func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*
 
 	var profile profilessvc.Profile
 	err = profilesDB.QueryRow(ctx, `
-		SELECT user_id, email, display_name, avatar_url, role, status, is_artist, created_at, updated_at
+		SELECT user_id, email, display_name, avatar_url, role, status, member_type, created_at, updated_at
 		FROM user_profiles
 		WHERE email = $1
 	`, email).Scan(
@@ -235,7 +235,7 @@ func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*
 		&profile.AvatarURL,
 		&profile.Role,
 		&profile.Status,
-		&profile.IsArtist,
+		&profile.MemberType,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
 	)

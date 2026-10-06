@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"encore.dev/beta/errs"
@@ -345,4 +346,221 @@ func UpdatePromo(ctx context.Context, id int64, p *UpdatePromoParams) (*Promo, e
 	}
 
 	return &promo, nil
+}
+
+// PromoLeftGroup raggruppa le promozioni di PromoLeft per sezione ordinata.
+type PromoLeftGroup struct {
+	Week        []*Promo `json:"week"`
+	Raccomended []*Promo `json:"raccomended"`
+	Discover    []*Promo `json:"discover"`
+}
+
+// PromoRight1Group raggruppa le promozioni di PromoRight1 per sezione ordinata.
+type PromoRight1Group struct {
+	Show    []*Promo `json:"show"`
+	Service []*Promo `json:"service"`
+}
+
+// PromoRight2Group raggruppa le promozioni di PromoRight2 per sezione ordinata.
+type PromoRight2Group struct {
+	Top      []*Promo `json:"top"`
+	Selected []*Promo `json:"selected"`
+}
+
+// WeekPromoBySection contiene i tre tipi di promo suddivisi per sezioni ordinate.
+type WeekPromoBySection struct {
+	PromoLeft   PromoLeftGroup   `json:"promo_left"`
+	PromoRight1 PromoRight1Group `json:"promo_right1"`
+	PromoRight2 PromoRight2Group `json:"promo_right2"`
+}
+
+// WeekPromoResponse rappresenta il payload JSON restituito dall'endpoint GetWeekPromo.
+type WeekPromoResponse struct {
+	Week        int                 `json:"week"`
+	Year        int                 `json:"year"`
+	PromoLeft   []*Promo            `json:"promo_left"`
+	PromoRight1 []*Promo            `json:"promo_right1"`
+	PromoRight2 []*Promo            `json:"promo_right2"`
+	BySection   *WeekPromoBySection `json:"by_section"`
+}
+
+// GetWeekPromoParams definisce i parametri query opzionali per GetWeekPromo.
+type GetWeekPromoParams struct {
+	Year int `json:"year,omitempty" query:"year"`
+}
+
+// GetWeekPromoQueryParams definisce i parametri di query per GetCurrentWeekPromo.
+type GetWeekPromoQueryParams struct {
+	Week int `json:"week,omitempty" query:"week"`
+	Year int `json:"year,omitempty" query:"year"`
+}
+
+// getSectionOrder ritorna la priorità numerica della sezione basata sull'ordine delle costanti in promo.go.
+func getSectionOrder(pos PromoPosition, section string) int {
+	switch pos {
+	case PromoLeft:
+		switch PromoLeftSections(section) {
+		case PromoLeftWeek:
+			return 1
+		case PromoLeftRaccomended:
+			return 2
+		case PromoLeftDiscover:
+			return 3
+		}
+	case PromoRight1:
+		switch PromoRight1Sections(section) {
+		case PromoRight1Show:
+			return 1
+		case PromoRight1Service:
+			return 2
+		}
+	case PromoRight2:
+		switch PromoRight2Sections(section) {
+		case PromoRight2Top:
+			return 1
+		case PromoRight2Selected:
+			return 2
+		}
+	}
+	return 99
+}
+
+// isPromoActiveInWeek verifica se una promozione è valida per la settimana e l'anno specificati.
+func isPromoActiveInWeek(p *Promo, targetYear int, targetWeek int) bool {
+	if targetYear > 0 && p.Year > 0 && p.Year != targetYear {
+		return false
+	}
+	// Se l'array settimane è vuoto, la promozione è attiva per tutto l'anno
+	if len(p.Weeks) == 0 {
+		return true
+	}
+	for _, w := range p.Weeks {
+		if w == targetWeek {
+			return true
+		}
+	}
+	return false
+}
+
+// buildWeekPromoResponse costruisce la risposta con i tre tipi di promo ordinati per sezione.
+func buildWeekPromoResponse(ctx context.Context, week int, year int) (*WeekPromoResponse, error) {
+	if week < 1 || week > 53 {
+		return nil, &errs.Error{
+			Code:    errs.InvalidArgument,
+			Message: "settimana non valida: deve essere compresa tra 1 e 53",
+		}
+	}
+	if year <= 0 {
+		nowYear, _ := time.Now().ISOWeek()
+		year = nowYear
+	}
+
+	allPromos, err := queryPromos(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &WeekPromoResponse{
+		Week:        week,
+		Year:        year,
+		PromoLeft:   make([]*Promo, 0),
+		PromoRight1: make([]*Promo, 0),
+		PromoRight2: make([]*Promo, 0),
+		BySection: &WeekPromoBySection{
+			PromoLeft: PromoLeftGroup{
+				Week:        make([]*Promo, 0),
+				Raccomended: make([]*Promo, 0),
+				Discover:    make([]*Promo, 0),
+			},
+			PromoRight1: PromoRight1Group{
+				Show:    make([]*Promo, 0),
+				Service: make([]*Promo, 0),
+			},
+			PromoRight2: PromoRight2Group{
+				Top:      make([]*Promo, 0),
+				Selected: make([]*Promo, 0),
+			},
+		},
+	}
+
+	for _, p := range allPromos {
+		if !isPromoActiveInWeek(p, year, week) {
+			continue
+		}
+		switch p.Position {
+		case PromoLeft:
+			resp.PromoLeft = append(resp.PromoLeft, p)
+			switch PromoLeftSections(p.Section) {
+			case PromoLeftWeek:
+				resp.BySection.PromoLeft.Week = append(resp.BySection.PromoLeft.Week, p)
+			case PromoLeftRaccomended:
+				resp.BySection.PromoLeft.Raccomended = append(resp.BySection.PromoLeft.Raccomended, p)
+			case PromoLeftDiscover:
+				resp.BySection.PromoLeft.Discover = append(resp.BySection.PromoLeft.Discover, p)
+			}
+		case PromoRight1:
+			resp.PromoRight1 = append(resp.PromoRight1, p)
+			switch PromoRight1Sections(p.Section) {
+			case PromoRight1Show:
+				resp.BySection.PromoRight1.Show = append(resp.BySection.PromoRight1.Show, p)
+			case PromoRight1Service:
+				resp.BySection.PromoRight1.Service = append(resp.BySection.PromoRight1.Service, p)
+			}
+		case PromoRight2:
+			resp.PromoRight2 = append(resp.PromoRight2, p)
+			switch PromoRight2Sections(p.Section) {
+			case PromoRight2Top:
+				resp.BySection.PromoRight2.Top = append(resp.BySection.PromoRight2.Top, p)
+			case PromoRight2Selected:
+				resp.BySection.PromoRight2.Selected = append(resp.BySection.PromoRight2.Selected, p)
+			}
+		}
+	}
+
+	sortPromosBySection := func(promos []*Promo, pos PromoPosition) {
+		sort.SliceStable(promos, func(i, j int) bool {
+			ordI := getSectionOrder(pos, promos[i].Section)
+			ordJ := getSectionOrder(pos, promos[j].Section)
+			if ordI != ordJ {
+				return ordI < ordJ
+			}
+			return promos[i].ID < promos[j].ID
+		})
+	}
+
+	sortPromosBySection(resp.PromoLeft, PromoLeft)
+	sortPromosBySection(resp.PromoRight1, PromoRight1)
+	sortPromosBySection(resp.PromoRight2, PromoRight2)
+
+	return resp, nil
+}
+
+// GetWeekPromo ritorna un JSON con i tre tipi di promo (PromoLeft, PromoRight1, PromoRight2)
+// filtrati per la settimana e l'anno specificati, ordinati per le sezioni dichiarate in promo.go.
+//
+//encore:api public method=GET path=/promo/week/:week
+func GetWeekPromo(ctx context.Context, week int, params *GetWeekPromoParams) (*WeekPromoResponse, error) {
+	year := 0
+	if params != nil {
+		year = params.Year
+	}
+	return buildWeekPromoResponse(ctx, week, year)
+}
+
+// GetCurrentWeekPromo ritorna le promozioni della settimana (con settimana e anno opzionali via query ?week=W&year=Y).
+//
+//encore:api public method=GET path=/promo/week
+func GetCurrentWeekPromo(ctx context.Context, params *GetWeekPromoQueryParams) (*WeekPromoResponse, error) {
+	nowYear, nowWeek := time.Now().ISOWeek()
+	week := nowWeek
+	year := nowYear
+	if params != nil {
+		if params.Week > 0 {
+			week = params.Week
+		}
+		if params.Year > 0 {
+			year = params.Year
+		}
+	}
+	return buildWeekPromoResponse(ctx, week, year)
 }

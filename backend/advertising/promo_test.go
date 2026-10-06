@@ -212,3 +212,56 @@ func TestUpdatePromoParamsValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSectionOrder(t *testing.T) {
+	// PromoLeft order: week (1), raccomended (2), discover (3)
+	if ord := getSectionOrder(PromoLeft, string(PromoLeftWeek)); ord != 1 {
+		t.Errorf("expected 1 for PromoLeftWeek, got %d", ord)
+	}
+	if ord := getSectionOrder(PromoLeft, string(PromoLeftRaccomended)); ord != 2 {
+		t.Errorf("expected 2 for PromoLeftRaccomended, got %d", ord)
+	}
+	if ord := getSectionOrder(PromoLeft, string(PromoLeftDiscover)); ord != 3 {
+		t.Errorf("expected 3 for PromoLeftDiscover, got %d", ord)
+	}
+	if ord := getSectionOrder(PromoLeft, "unknown"); ord != 99 {
+		t.Errorf("expected 99 for unknown PromoLeft section, got %d", ord)
+	}
+
+	// PromoRight1 order: show (1), service (2)
+	if ord := getSectionOrder(PromoRight1, string(PromoRight1Show)); ord != 1 {
+		t.Errorf("expected 1 for PromoRight1Show, got %d", ord)
+	}
+	if ord := getSectionOrder(PromoRight1, string(PromoRight1Service)); ord != 2 {
+		t.Errorf("expected 2 for PromoRight1Service, got %d", ord)
+	}
+
+	// PromoRight2 order: top (1), selected (2)
+	if ord := getSectionOrder(PromoRight2, string(PromoRight2Top)); ord != 1 {
+		t.Errorf("expected 1 for PromoRight2Top, got %d", ord)
+	}
+	if ord := getSectionOrder(PromoRight2, string(PromoRight2Selected)); ord != 2 {
+		t.Errorf("expected 2 for PromoRight2Selected, got %d", ord)
+	}
+}
+
+func TestIsPromoActiveInWeek(t *testing.T) {
+	// All year (empty weeks)
+	allYear := &Promo{Year: 2026, Weeks: []int{}}
+	if !isPromoActiveInWeek(allYear, 2026, 10) {
+		t.Errorf("expected all-year promo to be active in week 10")
+	}
+	if isPromoActiveInWeek(allYear, 2025, 10) {
+		t.Errorf("expected promo for year 2026 to not match year 2025")
+	}
+
+	// Specific weeks
+	specificWeeks := &Promo{Year: 2026, Weeks: []int{10, 11, 12}}
+	if !isPromoActiveInWeek(specificWeeks, 2026, 11) {
+		t.Errorf("expected promo to be active in week 11")
+	}
+	if isPromoActiveInWeek(specificWeeks, 2026, 13) {
+		t.Errorf("expected promo to NOT be active in week 13")
+	}
+}
+

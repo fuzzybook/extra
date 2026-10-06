@@ -15,13 +15,15 @@ import (
 )
 
 var profilesDB = sqldb.Named("profiles")
+var broadcastersDB = sqldb.Named("broadcasters")
 
 type Profile struct {
 	UserID      uuid.UUID          `json:"user_id"`
 	Email       string             `json:"email"`
 	DisplayName string             `json:"display_name"`
 	AvatarURL   string             `json:"avatar_url"`
-	IsArtist    bool               `json:"is_artist"`
+	MemberType  string             `json:"member_type"`
+	Broadcaster *uuid.UUID         `json:"broadcaster"`
 	Role        string             `json:"role"`
 	Status      profilessvc.Status `json:"status"`
 	CreatedAt   time.Time          `json:"created_at"`
@@ -49,7 +51,7 @@ type ListProfilesResponse struct {
 //encore:api auth method=GET path=/admin/profiles
 func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 	rows, err := profilesDB.Query(ctx, `
-		SELECT user_id, email, display_name, avatar_url, role, status, is_artist, created_at, updated_at
+		SELECT user_id, email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at
 		FROM user_profiles
 		ORDER BY user_id
 	`)
@@ -61,7 +63,7 @@ func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 	profiles := []*Profile{}
 	for rows.Next() {
 		var p Profile
-		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.IsArtist, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "failed to scan profile")
 		}
 		profiles = append(profiles, &p)
@@ -78,8 +80,8 @@ func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 func GetProfile(ctx context.Context, userID uuid.UUID) (*Profile, error) {
 	p := Profile{UserID: userID}
 	err := profilesDB.QueryRow(ctx, `
-		SELECT email, display_name, avatar_url, role, status, is_artist, created_at, updated_at FROM user_profiles WHERE user_id = $1
-	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.IsArtist, &p.CreatedAt, &p.UpdatedAt)
+		SELECT email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at FROM user_profiles WHERE user_id = $1
+	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -102,8 +104,8 @@ func InsertProfile(ctx context.Context, p *RegisterParams) (*Profile, error) {
 	err = profilesDB.QueryRow(ctx, `
 		INSERT INTO user_profiles (user_id, email, display_name, avatar_url)
 		VALUES ($1, $2, $3, $4)
-		RETURNING role, status, is_artist, created_at, updated_at
-	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING role, status, member_type, broadcaster, created_at, updated_at
+	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if isUniqueViolation(err) {
 		return nil, &errs.Error{Code: errs.AlreadyExists, Message: "email already registered"}
 	}
@@ -125,8 +127,8 @@ func UpdateProfile(ctx context.Context, userID uuid.UUID, p *ProfileParams) (*Pr
 		UPDATE user_profiles
 		SET display_name = $2, avatar_url = $3, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, role, status, is_artist, created_at, updated_at
-	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, role, status, member_type, broadcaster, created_at, updated_at
+	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -156,8 +158,8 @@ func UpdateProfileStatus(ctx context.Context, userID uuid.UUID, p *UpdateProfile
 		UPDATE user_profiles
 		SET status = $2, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, display_name, avatar_url, role, is_artist, created_at, updated_at
-	`, userID, p.Status).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Role, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, display_name, avatar_url, role, member_type, broadcaster, created_at, updated_at
+	`, userID, p.Status).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Role, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -187,8 +189,8 @@ func UpdateProfileRole(ctx context.Context, userID uuid.UUID, p *UpdateProfileRo
 		UPDATE user_profiles
 		SET role = $2, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, display_name, avatar_url, status, is_artist, created_at, updated_at
-	`, userID, p.Role).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Status, &profile.IsArtist, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, display_name, avatar_url, status, member_type, broadcaster, created_at, updated_at
+	`, userID, p.Role).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -212,27 +214,122 @@ func UpdateProfilePassword(ctx context.Context, userID uuid.UUID, p *UpdateProfi
 	return nil
 }
 
-type UpdateProfileArtistParams struct {
-	IsArtist bool `json:"is_artist"`
+type UpdateProfileMemberTypeParams struct {
+	MemberType string `json:"member_type"`
 }
 
-// UpdateProfileArtist sets the artist flag of any user's profile.
+func (p *UpdateProfileMemberTypeParams) Validate() error {
+	if !profilessvc.IsValidMemberType(p.MemberType) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "invalid member type"}
+	}
+	return nil
+}
+
+// UpdateProfileMemberType sets the member type of any user's profile.
+// If changing away from broadcaster, disables broadcaster and sets used=false.
+// If changing to broadcaster, creates broadcaster with used=true and enabled=false.
 //
-//encore:api auth method=PUT path=/admin/profiles/:userID/artist
-func UpdateProfileArtist(ctx context.Context, userID uuid.UUID, p *UpdateProfileArtistParams) (*Profile, error) {
-	profile := Profile{UserID: userID, IsArtist: p.IsArtist}
+//encore:api auth method=PUT path=/admin/profiles/:userID/member-type
+func UpdateProfileMemberType(ctx context.Context, userID uuid.UUID, p *UpdateProfileMemberTypeParams) (*Profile, error) {
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+
+	profile := Profile{UserID: userID}
+	var (
+		currentMemberType  string
+		currentBroadcaster *uuid.UUID
+	)
+
 	err := profilesDB.QueryRow(ctx, `
-		UPDATE user_profiles
-		SET is_artist = $2, updated_at = NOW()
+		SELECT email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at
+		FROM user_profiles
 		WHERE user_id = $1
-		RETURNING email, display_name, avatar_url, role, status, created_at, updated_at
-	`, userID, p.IsArtist).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Role, &profile.Status, &profile.CreatedAt, &profile.UpdatedAt)
+	`, userID).Scan(
+		&profile.Email,
+		&profile.DisplayName,
+		&profile.AvatarURL,
+		&profile.Role,
+		&profile.Status,
+		&currentMemberType,
+		&currentBroadcaster,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+	)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
 	if err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "failed to update profile artist flag")
+		return nil, errs.WrapCode(err, errs.Internal, "failed to fetch profile")
 	}
+
+	targetBroadcasterID := currentBroadcaster
+
+	if currentMemberType == profilessvc.MemberTypeBroadcaster && p.MemberType != profilessvc.MemberTypeBroadcaster {
+		// Moving AWAY from broadcaster:
+		// "se è broadcaster e si vuole cambiarlo chiede conferma e se affermativa si disabilita e set used false al broadcaster"
+		_, err := broadcastersDB.Exec(ctx, `
+			UPDATE broadcasters
+			SET enabled = FALSE, used = FALSE, updated_at = NOW()
+			WHERE user_id = $1
+		`, userID)
+		if err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to disable broadcaster")
+		}
+		targetBroadcasterID = nil
+	} else if currentMemberType != profilessvc.MemberTypeBroadcaster && p.MemberType == profilessvc.MemberTypeBroadcaster {
+		// Moving TO broadcaster:
+		// "se invece il nuovo tipo si crea il broadcaster con used true enabled false"
+		var existingID uuid.UUID
+		err := broadcastersDB.QueryRow(ctx, `SELECT id FROM broadcasters WHERE user_id = $1`, userID).Scan(&existingID)
+		if err == nil {
+			_, err = broadcastersDB.Exec(ctx, `
+				UPDATE broadcasters
+				SET used = TRUE, enabled = FALSE, updated_at = NOW()
+				WHERE id = $1
+			`, existingID)
+			if err != nil {
+				return nil, errs.WrapCode(err, errs.Internal, "failed to update broadcaster status")
+			}
+			targetBroadcasterID = &existingID
+		} else if errors.Is(err, sqldb.ErrNoRows) {
+			newID, err := uuid.NewV4()
+			if err != nil {
+				return nil, errs.WrapCode(err, errs.Internal, "failed to generate broadcaster id")
+			}
+			now := time.Now()
+			_, err = broadcastersDB.Exec(ctx, `
+				INSERT INTO broadcasters (
+					id, user_id, display_name, category, category_color, bio, certified,
+					availability, phone, services, languages, attributes, hours, photos,
+					enabled, used, created_at, updated_at
+				) VALUES (
+					$1, $2, $3, 'General', '#63f18eff', '', FALSE,
+					'available', '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+					FALSE, TRUE, $4, $4
+				)
+			`, newID, userID, profile.DisplayName, now)
+			if err != nil {
+				return nil, errs.WrapCode(err, errs.Internal, "failed to create broadcaster record")
+			}
+			targetBroadcasterID = &newID
+		} else {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to check existing broadcaster")
+		}
+	}
+
+	err = profilesDB.QueryRow(ctx, `
+		UPDATE user_profiles
+		SET member_type = $2, broadcaster = $3, updated_at = NOW()
+		WHERE user_id = $1
+		RETURNING updated_at
+	`, userID, p.MemberType, targetBroadcasterID).Scan(&profile.UpdatedAt)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to update profile member type")
+	}
+
+	profile.MemberType = p.MemberType
+	profile.Broadcaster = targetBroadcasterID
 	return &profile, nil
 }
 
