@@ -29,6 +29,7 @@ type Room struct {
 	NumParticipants uint32 `json:"num_participants"`
 	MaxParticipants uint32 `json:"max_participants"`
 	CreationTime    int64  `json:"creation_time"`
+	AvatarURL       string `json:"avatar_url,omitempty"`
 }
 
 type ListRoomsResponse struct {
@@ -109,22 +110,67 @@ func ListRooms(ctx context.Context) (*ListRoomsResponse, error) {
 
 func configuredBroadcastRooms(ctx context.Context) ([]*Room, error) {
 	rows, err := profilesDB.Query(ctx, `
-		SELECT user_id::text, room_name
-		FROM personal_setup
-		WHERE can_broadcast = TRUE AND room_name <> ''
-		ORDER BY room_name, user_id
+		SELECT 
+			p.user_id::text, 
+			p.display_name, 
+			p.avatar_url,
+			COALESCE(s.room_name, '') as room_name, 
+			COALESCE(s.can_broadcast, FALSE) as can_broadcast,
+			p.member_type
+		FROM user_profiles p
+		LEFT JOIN personal_setup s ON s.user_id = p.user_id
+		WHERE (s.can_broadcast = TRUE AND s.room_name <> '')
+		   OR (p.member_type = 'broadcaster')
+		ORDER BY p.display_name, p.user_id
 	`)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to list configured broadcast rooms")
 	}
 	defer rows.Close()
+
 	rooms := make([]*Room, 0)
+	usedNames := make(map[string]bool)
+
 	for rows.Next() {
-		room := &Room{Mode: "broadcast"}
-		if err := rows.Scan(&room.OwnerID, &room.Name); err != nil {
+		var (
+			userID       string
+			displayName  string
+			avatarURL    string
+			roomName     string
+			canBroadcast bool
+			memberType   string
+		)
+		if err := rows.Scan(&userID, &displayName, &avatarURL, &roomName, &canBroadcast, &memberType); err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "failed to read configured broadcast room")
 		}
-		room.DisplayName = room.Name
+
+		finalRoomName := roomName
+		finalDisplayName := roomName
+
+		if finalRoomName == "" {
+			if validateRoomName(displayName) == nil && !usedNames[displayName] {
+				finalRoomName = displayName
+			} else if len(userID) >= 8 {
+				finalRoomName = "broadcaster-" + userID[:8]
+			} else {
+				finalRoomName = "broadcaster-" + userID
+			}
+			finalDisplayName = displayName
+		}
+
+		if finalDisplayName == "" {
+			finalDisplayName = finalRoomName
+		}
+
+		usedNames[finalRoomName] = true
+
+		room := &Room{
+			Mode:        "broadcast",
+			OwnerID:     userID,
+			Name:        finalRoomName,
+			DisplayName: finalDisplayName,
+			AvatarURL:   avatarURL,
+		}
 		rooms = append(rooms, room)
 	}
 	if err := rows.Err(); err != nil {
@@ -137,12 +183,24 @@ func mergeBroadcastRooms(active, configured []*Room) []*Room {
 	type ownerTitle struct{ owner, title string }
 	names := make(map[string]bool, len(active))
 	titles := make(map[ownerTitle]bool, len(active))
+	avatarMap := make(map[string]string)
+
+	for _, room := range configured {
+		if room.OwnerID != "" && room.AvatarURL != "" {
+			avatarMap[room.OwnerID] = room.AvatarURL
+		}
+	}
+
 	for _, room := range active {
 		names[room.Name] = true
 		titles[ownerTitle{room.OwnerID, room.DisplayName}] = true
+		titles[ownerTitle{room.OwnerID, room.Name}] = true
+		if room.AvatarURL == "" && room.OwnerID != "" {
+			room.AvatarURL = avatarMap[room.OwnerID]
+		}
 	}
 	for _, room := range configured {
-		if !names[room.Name] && !titles[ownerTitle{room.OwnerID, room.Name}] {
+		if !names[room.Name] && !titles[ownerTitle{room.OwnerID, room.Name}] && !titles[ownerTitle{room.OwnerID, room.DisplayName}] {
 			active = append(active, room)
 		}
 	}

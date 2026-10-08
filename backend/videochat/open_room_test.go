@@ -127,3 +127,50 @@ func TestOpenRoomCreatesAndReusesConfiguredRoom(t *testing.T) {
 		t.Fatalf("disabled room was created: %v", err)
 	}
 }
+
+func TestOpenRoomBroadcasterUser(t *testing.T) {
+	useTestProfilesDB(t)
+	ctx := context.Background()
+	const broadcasterID = "00000000-0000-4000-8000-000000000020"
+	if _, err := profilesDB.Exec(ctx, `INSERT INTO user_profiles (user_id, display_name, email, member_type) VALUES ($1, 'Live Artist', 'artist@example.invalid', 'broadcaster')`, broadcasterID); err != nil {
+		t.Fatal(err)
+	}
+
+	var createdRoom *livekit.CreateRoomRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/twirp/livekit.RoomService/ListRooms":
+			payload, _ := proto.Marshal(&livekit.ListRoomsResponse{Rooms: nil})
+			w.Header().Set("Content-Type", "application/protobuf")
+			_, _ = w.Write(payload)
+		case "/twirp/livekit.RoomService/CreateRoom":
+			body, _ := io.ReadAll(r.Body)
+			var req livekit.CreateRoomRequest
+			_ = proto.Unmarshal(body, &req)
+			createdRoom = &req
+			room := &livekit.Room{Sid: "sid-artist", Name: req.Name, Metadata: req.Metadata}
+			payload, _ := proto.Marshal(room)
+			w.Header().Set("Content-Type", "application/protobuf")
+			_, _ = w.Write(payload)
+		}
+	}))
+	defer server.Close()
+	original := secrets
+	defer func() { secrets = original; et.OverrideAuthInfo("", nil) }()
+	secrets.LiveKitURL, secrets.LiveKitAPIKey, secrets.LiveKitAPISecret = server.URL, "test-key", "test-secret"
+	et.OverrideAuthInfo("viewer", &authsvc.AuthData{Role: "user"})
+
+	room, err := OpenRoom(ctx, "Live Artist")
+	if err != nil {
+		t.Fatalf("unexpected error opening broadcaster room: %v", err)
+	}
+	if room.OwnerID != broadcasterID {
+		t.Fatalf("expected owner %s, got %s", broadcasterID, room.OwnerID)
+	}
+	if room.Name != "Live Artist" {
+		t.Fatalf("expected name 'Live Artist', got %s", room.Name)
+	}
+	if createdRoom == nil || createdRoom.Name != "Live Artist" {
+		t.Fatalf("expected createdRoom to be 'Live Artist', got %+v", createdRoom)
+	}
+}

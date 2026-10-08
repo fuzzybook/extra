@@ -97,3 +97,49 @@ func TestMergeBroadcastRoomsMatchesTechnicalName(t *testing.T) {
 		t.Fatal("empty list must stay an empty JSON array")
 	}
 }
+
+func TestListRoomsIncludesBroadcasterUsers(t *testing.T) {
+	useTestProfilesDB(t)
+	ctx := context.Background()
+	const broadcasterID = "00000000-0000-4000-8000-000000000010"
+	if _, err := profilesDB.Exec(ctx, `INSERT INTO user_profiles (user_id, display_name, email, member_type, avatar_url) VALUES ($1, 'DJ Broadcaster', 'dj@example.invalid', 'broadcaster', 'https://example.com/dj.jpg')`, broadcasterID); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := proto.Marshal(&livekit.ListRoomsResponse{Rooms: []*livekit.Room{}})
+		if err != nil {
+			t.Error(err)
+		}
+		w.Header().Set("Content-Type", "application/protobuf")
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+	original := secrets
+	defer func() { secrets = original; et.OverrideAuthInfo("", nil) }()
+	secrets.LiveKitURL, secrets.LiveKitAPIKey, secrets.LiveKitAPISecret = server.URL, "test-key", "test-secret"
+	et.OverrideAuthInfo("viewer", &authsvc.AuthData{Role: "user"})
+
+	result, err := ListRooms(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, room := range result.Rooms {
+		if room.OwnerID == broadcasterID {
+			found = true
+			if room.Active {
+				t.Errorf("broadcaster room without live stream should be inactive")
+			}
+			if room.DisplayName != "DJ Broadcaster" {
+				t.Errorf("expected display name 'DJ Broadcaster', got %q", room.DisplayName)
+			}
+			if room.AvatarURL != "https://example.com/dj.jpg" {
+				t.Errorf("expected avatar_url 'https://example.com/dj.jpg', got %q", room.AvatarURL)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected broadcaster user to be included in rooms list: %+v", result.Rooms)
+	}
+}

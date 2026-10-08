@@ -50,18 +50,42 @@ func OpenRoom(ctx context.Context, roomName string) (*Room, error) {
 	}
 
 	// Multiple enabled owners with the same name are ambiguous: do not pick one.
-	var owner string
-	var count int
-	err = tx.QueryRow(ctx, `SELECT COUNT(*), COALESCE(MIN(user_id::text), '') FROM personal_setup WHERE can_broadcast = TRUE AND room_name = $1`, roomName).Scan(&count, &owner)
+	rows, err := tx.Query(ctx, `
+		SELECT DISTINCT p.user_id::text
+		FROM user_profiles p
+		LEFT JOIN personal_setup s ON s.user_id = p.user_id
+		WHERE (s.can_broadcast = TRUE AND s.room_name = $1)
+		   OR (p.member_type = 'broadcaster' AND (
+		        s.room_name = $1 
+		        OR p.display_name = $1 
+		        OR p.user_id::text = $1
+		        OR $1 = ('broadcaster-' || SUBSTRING(p.user_id::text, 1, 8))
+		        OR $1 = (p.display_name || '-' || SUBSTRING(p.user_id::text, 1, 8))
+		   ))
+	`, roomName)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to fetch configured room")
 	}
-	if count == 0 {
+	defer rows.Close()
+
+	var owners []string
+	for rows.Next() {
+		var o string
+		if err := rows.Scan(&o); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to read configured room owner")
+		}
+		owners = append(owners, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to fetch configured room")
+	}
+	if len(owners) == 0 {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "no enabled broadcast setup for this room"}
 	}
-	if count != 1 {
+	if len(owners) > 1 {
 		return nil, &errs.Error{Code: errs.FailedPrecondition, Message: "room name is configured for more than one owner"}
 	}
+	owner := owners[0]
 	for _, room := range result.Rooms {
 		if metadata, ok := readBroadcast(room); ok && metadata.OwnerID == owner && metadata.DisplayName == roomName {
 			return roomResponse(room), nil
