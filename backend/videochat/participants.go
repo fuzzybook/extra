@@ -10,10 +10,11 @@ import (
 )
 
 type Participant struct {
-	SID      string `json:"sid"`
-	Identity string `json:"identity"`
-	Name     string `json:"name"`
-	State    string `json:"state"`
+	SID       string `json:"sid"`
+	Identity  string `json:"identity"`
+	Name      string `json:"name"`
+	State     string `json:"state"`
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 type ListParticipantsResponse struct {
@@ -43,10 +44,44 @@ func ListParticipants(ctx context.Context, roomName string) (*ListParticipantsRe
 	if err != nil {
 		return nil, liveKitError(err)
 	}
+
+	identities := make([]string, 0, len(result.Participants))
+	for _, p := range result.Participants {
+		identities = append(identities, p.Identity)
+	}
+
+	avatars := make(map[string]string)
+	names := make(map[string]string)
+	if len(identities) > 0 {
+		rows, err := profilesDB.Query(ctx, `
+			SELECT user_id::text, display_name, avatar_url
+			FROM user_profiles
+			WHERE user_id::text = ANY($1)
+		`, identities)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var uid, dName, av string
+				if err := rows.Scan(&uid, &dName, &av); err == nil {
+					avatars[uid] = av
+					names[uid] = dName
+				}
+			}
+		}
+	}
+
 	response := &ListParticipantsResponse{Participants: make([]*Participant, 0, len(result.Participants))}
 	for _, p := range result.Participants {
+		displayName := p.Name
+		if d, ok := names[p.Identity]; ok && d != "" {
+			displayName = d
+		}
 		response.Participants = append(response.Participants, &Participant{
-			SID: p.Sid, Identity: p.Identity, Name: p.Name, State: p.State.String(),
+			SID:       p.Sid,
+			Identity:  p.Identity,
+			Name:      displayName,
+			State:     p.State.String(),
+			AvatarURL: avatars[p.Identity],
 		})
 	}
 	return response, nil

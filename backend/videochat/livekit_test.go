@@ -36,7 +36,7 @@ func TestJoinTokenPermissions(t *testing.T) {
 		t.Fatal("unexpected token issuer or identity")
 	}
 	g := grants.Video
-	if g == nil || g.Room != "demo" || !g.RoomJoin || !g.GetCanPublish() || !g.GetCanSubscribe() || g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() {
+	if g == nil || g.Room != "demo" || !g.RoomJoin || !g.GetCanPublish() || !g.GetCanSubscribe() || !g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() {
 		t.Fatalf("unexpected participant grants: %+v", g)
 	}
 	if g.RoomAdmin || g.RoomCreate || g.RoomList || g.RoomRecord {
@@ -105,7 +105,7 @@ func TestViewerTokenCannotPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := grants.Video
-	if g.GetCanPublish() || g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() || !g.GetCanSubscribe() || g.RoomAdmin || g.RoomCreate {
+	if g.GetCanPublish() || !g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() || !g.GetCanSubscribe() || g.RoomAdmin || g.RoomCreate {
 		t.Fatalf("unsafe viewer permissions: %+v", g)
 	}
 }

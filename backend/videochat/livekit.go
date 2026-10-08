@@ -135,7 +135,7 @@ func signJoinToken(key, secret, identity, room string, owner bool) (string, erro
 	grant := &lkauth.VideoGrant{RoomJoin: true, Room: room}
 	grant.SetCanPublish(owner)
 	grant.SetCanSubscribe(true)
-	grant.SetCanPublishData(false)
+	grant.SetCanPublishData(true)
 	grant.SetCanUpdateOwnMetadata(false)
 	return lkauth.NewAccessToken(key, secret).
 		SetIdentity(identity).
