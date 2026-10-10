@@ -42,7 +42,7 @@ func AddChatLog(ctx context.Context, id string, p *AddChatLogParams) (*ChatLogEn
 	}
 
 	msgType := strings.ToUpper(strings.TrimSpace(p.Type))
-	if msgType == "" {
+	if msgType == "" || msgType == "ADMIN_ALERT" {
 		msgType = "MESSAGE"
 	} else if msgType == "ALERT" {
 		msgType = "ALLERT"
