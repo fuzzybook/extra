@@ -42,9 +42,11 @@ func OpenRoom(ctx context.Context, roomName string) (*Room, error) {
 	}
 	for _, room := range result.Rooms {
 		if room.Name == roomName {
-			if _, ok := readBroadcast(room); !ok {
+			metadata, ok := readBroadcast(room)
+			if !ok {
 				return nil, &errs.Error{Code: errs.FailedPrecondition, Message: "room name is already used by an unmanaged room"}
 			}
+			_ = logBroadcastSession(ctx, metadata.OwnerID, room.Sid, room.Name, "OPEN")
 			return roomResponse(room), nil
 		}
 	}
@@ -88,6 +90,7 @@ func OpenRoom(ctx context.Context, roomName string) (*Room, error) {
 	owner := owners[0]
 	for _, room := range result.Rooms {
 		if metadata, ok := readBroadcast(room); ok && metadata.OwnerID == owner && metadata.DisplayName == roomName {
+			_ = logBroadcastSession(ctx, metadata.OwnerID, room.Sid, room.Name, "OPEN")
 			return roomResponse(room), nil
 		}
 	}
@@ -95,9 +98,14 @@ func OpenRoom(ctx context.Context, roomName string) (*Room, error) {
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to encode room metadata")
 	}
-	room, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName, Metadata: string(metadata)})
+	room, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{
+		Name:         roomName,
+		Metadata:     string(metadata),
+		EmptyTimeout: 300,
+	})
 	if err != nil {
 		return nil, liveKitError(err)
 	}
+	_ = logBroadcastSession(ctx, owner, room.Sid, room.Name, "OPEN")
 	return roomResponse(room), nil
 }

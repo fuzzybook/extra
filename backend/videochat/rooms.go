@@ -73,6 +73,7 @@ func CreateRoom(ctx context.Context, p *CreateRoomParams) (*Room, error) {
 	if err != nil {
 		return nil, liveKitError(err)
 	}
+	_ = logBroadcastSession(ctx, string(uid), room.Sid, room.Name, "OPEN")
 	return roomResponse(room), nil
 }
 
@@ -95,11 +96,15 @@ func ListRooms(ctx context.Context) (*ListRoomsResponse, error) {
 		return nil, liveKitError(err)
 	}
 	response := &ListRoomsResponse{Rooms: make([]*Room, 0, len(result.Rooms))}
+	activeSIDs := make(map[string]bool, len(result.Rooms))
 	for _, room := range result.Rooms {
-		if _, ok := readBroadcast(room); ok {
+		if metadata, ok := readBroadcast(room); ok {
+			activeSIDs[room.Sid] = true
+			_ = logBroadcastSession(ctx, metadata.OwnerID, room.Sid, room.Name, "OPEN")
 			response.Rooms = append(response.Rooms, roomResponse(room))
 		}
 	}
+	syncClosedSessions(ctx, activeSIDs)
 	configured, err := configuredBroadcastRooms(ctx)
 	if err != nil {
 		return nil, err
@@ -223,9 +228,22 @@ func DeleteRoom(ctx context.Context, roomName string) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
-	if err := requireRoomOwner(ctx, client, roomName); err != nil {
+	room, err := getOwnedBroadcast(ctx, client, roomName)
+	if err != nil {
 		return err
 	}
-	_, err = client.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: roomName})
-	return liveKitError(err)
+	metadata, _ := readBroadcast(room)
+	ownerID := metadata.OwnerID
+	if ownerID == "" {
+		uid, _ := auth.UserID()
+		ownerID = string(uid)
+	}
+
+	_, err = client.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: room.Name})
+	if err != nil {
+		return liveKitError(err)
+	}
+
+	_ = logBroadcastSession(ctx, ownerID, room.Sid, room.Name, "CLOSE")
+	return nil
 }

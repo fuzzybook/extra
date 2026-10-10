@@ -38,10 +38,11 @@ func CreateToken(ctx context.Context, p *TokenParams) (*TokenResponse, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
-	_, metadata, err := findBroadcast(ctx, client, p.RoomName)
+	room, metadata, err := findBroadcast(ctx, client, p.RoomName)
 	if err != nil {
 		return nil, err
 	}
+	_ = logBroadcastSession(ctx, metadata.OwnerID, room.Sid, room.Name, "OPEN")
 	token, err := signJoinToken(secrets.LiveKitAPIKey, secrets.LiveKitAPISecret, string(uid), p.RoomName, metadata.OwnerID == string(uid))
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to generate LiveKit token")

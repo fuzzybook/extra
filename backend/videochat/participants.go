@@ -37,10 +37,11 @@ func ListParticipants(ctx context.Context, roomName string) (*ListParticipantsRe
 	}
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
-	if err := requireRoomOwner(ctx, client, roomName); err != nil {
+	room, err := getOwnedBroadcast(ctx, client, roomName)
+	if err != nil {
 		return nil, err
 	}
-	result, err := client.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: roomName})
+	result, err := client.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: room.Name})
 	if err != nil {
 		return nil, liveKitError(err)
 	}
@@ -107,13 +108,14 @@ func RemoveParticipant(ctx context.Context, roomName, identity string) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
-	if err := requireRoomOwner(ctx, client, roomName); err != nil {
+	room, err := getOwnedBroadcast(ctx, client, roomName)
+	if err != nil {
 		return err
 	}
 	uid, _ := auth.UserID()
 	if identity == string(uid) {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "owner cannot remove themselves; leave or close the room instead"}
 	}
-	_, err = client.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: roomName, Identity: identity})
+	_, err = client.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: room.Name, Identity: identity})
 	return liveKitError(err)
 }

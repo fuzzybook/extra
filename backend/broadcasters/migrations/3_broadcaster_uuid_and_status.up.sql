@@ -6,6 +6,6 @@ ALTER TABLE broadcasters RENAME COLUMN new_id TO id;
 ALTER TABLE broadcasters ALTER COLUMN id SET NOT NULL;
 ALTER TABLE broadcasters ADD PRIMARY KEY (id);
 
-ALTER TABLE broadcasters ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE broadcasters ADD COLUMN used BOOLEAN NOT NULL DEFAULT FALSE;
-UPDATE broadcasters SET used = TRUE, enabled = TRUE;
+-- enabled column already added in previous migration
+-- used column already added in previous migration
+-- data update for enabled/used columns moved to previous migration

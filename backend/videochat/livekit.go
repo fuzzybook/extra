@@ -101,34 +101,54 @@ func readBroadcast(room *livekit.Room) (broadcastMetadata, bool) {
 	return metadata, err == nil && metadata.Mode == "broadcast" && metadata.OwnerID != "" && metadata.DisplayName != ""
 }
 
-func findBroadcast(ctx context.Context, client *lksdk.RoomServiceClient, name string) (*livekit.Room, broadcastMetadata, error) {
-	result, err := client.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{name}})
-	if err != nil {
-		return nil, broadcastMetadata{}, liveKitError(err)
+func findBroadcast(ctx context.Context, client *lksdk.RoomServiceClient, nameOrID string) (*livekit.Room, broadcastMetadata, error) {
+	// Prima prova la ricerca filtrata per nome esatto
+	result, err := client.ListRooms(ctx, &livekit.ListRoomsRequest{Names: []string{nameOrID}})
+	if err == nil {
+		for _, room := range result.Rooms {
+			if room.Name == nameOrID || room.Sid == nameOrID {
+				if metadata, ok := readBroadcast(room); ok {
+					return room, metadata, nil
+				}
+			}
+		}
 	}
-	for _, room := range result.Rooms {
-		if room.Name == name {
-			if metadata, ok := readBroadcast(room); ok {
-				return room, metadata, nil
+
+	// Se nameOrID è un SID LiveKit (RM_...), cerca su tutte le room
+	if strings.HasPrefix(nameOrID, "RM_") {
+		result, err = client.ListRooms(ctx, &livekit.ListRoomsRequest{})
+		if err != nil {
+			return nil, broadcastMetadata{}, liveKitError(err)
+		}
+		for _, room := range result.Rooms {
+			if room.Sid == nameOrID || room.Name == nameOrID {
+				if metadata, ok := readBroadcast(room); ok {
+					return room, metadata, nil
+				}
 			}
 		}
 	}
 	return nil, broadcastMetadata{}, &errs.Error{Code: errs.NotFound, Message: "broadcast room not found"}
 }
 
-func requireRoomOwner(ctx context.Context, client *lksdk.RoomServiceClient, name string) error {
+func getOwnedBroadcast(ctx context.Context, client *lksdk.RoomServiceClient, nameOrID string) (*livekit.Room, error) {
 	uid, ok := auth.UserID()
 	if !ok {
-		return &errs.Error{Code: errs.Unauthenticated, Message: "must be logged in"}
+		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "must be logged in"}
 	}
-	_, metadata, err := findBroadcast(ctx, client, name)
+	room, metadata, err := findBroadcast(ctx, client, nameOrID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if metadata.OwnerID != string(uid) {
-		return &errs.Error{Code: errs.PermissionDenied, Message: "room owner required"}
+		return nil, &errs.Error{Code: errs.PermissionDenied, Message: "room owner required"}
 	}
-	return nil
+	return room, nil
+}
+
+func requireRoomOwner(ctx context.Context, client *lksdk.RoomServiceClient, nameOrID string) error {
+	_, err := getOwnedBroadcast(ctx, client, nameOrID)
+	return err
 }
 
 func signJoinToken(key, secret, identity, room string, owner bool) (string, error) {
