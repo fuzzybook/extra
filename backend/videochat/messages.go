@@ -9,8 +9,58 @@ import (
 
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
+	"encore.dev/pubsub"
 	"encore.dev/types/uuid"
 )
+
+// RoomEvent rappresenta un evento (messaggio o comando) della videochat distribuito via Pub/Sub.
+type RoomEvent struct {
+	EventID         string    `json:"event_id"`
+	RoomName        string    `json:"room_name"`
+	Type            string    `json:"type"` // "chat.message", "command.alert", "command.mute", "command.clear"
+	SenderUserID    string    `json:"sender_user_id"`
+	SenderName      string    `json:"sender_name"`
+	SenderAvatar    string    `json:"sender_avatar,omitempty"`
+	Body            string    `json:"body"`
+	TargetID        string    `json:"target_id,omitempty"`
+	ClientMessageID string    `json:"client_message_id,omitempty"`
+	OccurredAt      time.Time `json:"occurred_at"`
+}
+
+// RoomEvents è il topic Pub/Sub Encore per tutti gli eventi e comandi della videochat.
+// Permette in modo disaccoppiato l'elaborazione asincrona, moderazione, filtri e audit dei messaggi.
+var RoomEvents = pubsub.NewTopic[*RoomEvent]("videochat-room-events", pubsub.TopicConfig{
+	DeliveryGuarantee: pubsub.AtLeastOnce,
+})
+
+// Subscription per elaborare e filtrare i messaggi e comandi della stanza.
+var _ = pubsub.NewSubscription(
+	RoomEvents, "filter-and-process-room-events",
+	pubsub.SubscriptionConfig[*RoomEvent]{
+		Handler: handleRoomEvent,
+	},
+)
+
+// handleRoomEvent è il punto di estensione centrale per il filtraggio e la gestione dei messaggi e comandi.
+func handleRoomEvent(ctx context.Context, ev *RoomEvent) error {
+	// 1. Filtraggio e moderazione (es. profanity filter, spam detection)
+	if ev.Type == "chat.message" {
+		_ = sanitizeMessageBody(ev.Body)
+	}
+
+	// 2. Gestione comandi di sistema/moderazione
+	if strings.HasPrefix(ev.Type, "command.") {
+		// Log o esecuzione di azioni di moderazione/audit
+	}
+
+	return nil
+}
+
+// sanitizeMessageBody normalizza e prepara il testo per futuri filtri di moderazione.
+func sanitizeMessageBody(raw string) string {
+	cleaned := strings.TrimSpace(raw)
+	return cleaned
+}
 
 type ChatMessage struct {
 	ID              string    `json:"id"`
@@ -38,7 +88,21 @@ type ListMessagesResponse struct {
 	Messages []*ChatMessage `json:"messages"`
 }
 
-// SendMessage invia e memorizza un messaggio di chat nella stanza in modo sicuro e idempotente.
+type SendCommandParams struct {
+	Command  string `json:"command"` // 'alert' | 'mute' | 'clear' | 'filter'
+	TargetID string `json:"target_id,omitempty"`
+	Payload  string `json:"payload,omitempty"`
+}
+
+type RoomCommandResponse struct {
+	EventID    string    `json:"event_id"`
+	RoomName   string    `json:"room_name"`
+	Command    string    `json:"command"`
+	Success    bool      `json:"success"`
+	OccurredAt time.Time `json:"occurred_at"`
+}
+
+// SendMessage invia e memorizza un messaggio di chat nella stanza, pubblicando l'evento su Pub/Sub.
 //
 //encore:api auth method=POST path=/videochat/rooms/:roomName/messages
 func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*ChatMessage, error) {
@@ -127,6 +191,19 @@ func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*C
 		return nil, errs.WrapCode(err, errs.Internal, "failed to save chat message")
 	}
 
+	// Pubblica l'evento sul topic Pub/Sub Encore per consentire il filtraggio e la gestione asincrona
+	_, _ = RoomEvents.Publish(ctx, &RoomEvent{
+		EventID:         created.ID,
+		RoomName:        created.RoomName,
+		Type:            "chat.message",
+		SenderUserID:    created.SenderUserID,
+		SenderName:      created.SenderName,
+		SenderAvatar:    created.SenderAvatar,
+		Body:            created.Body,
+		ClientMessageID: created.ClientMessageID,
+		OccurredAt:      created.CreatedAt,
+	})
+
 	return &created, nil
 }
 
@@ -174,4 +251,52 @@ func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (
 	}
 
 	return &ListMessagesResponse{Messages: list}, nil
+}
+
+// SendCommand pubblica un comando amministrativo o di moderazione sul topic Pub/Sub della stanza.
+//
+//encore:api auth method=POST path=/videochat/rooms/:roomName/commands
+func SendCommand(ctx context.Context, roomName string, p *SendCommandParams) (*RoomCommandResponse, error) {
+	uid, ok := auth.UserID()
+	if !ok {
+		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "must be logged in"}
+	}
+	if err := validateRoomName(roomName); err != nil {
+		return nil, err
+	}
+	command := strings.TrimSpace(p.Command)
+	if command == "" {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "command cannot be empty"}
+	}
+
+	senderName := "Admin"
+	_ = profilesDB.QueryRow(ctx, `
+		SELECT display_name FROM user_profiles WHERE user_id = $1
+	`, string(uid)).Scan(&senderName)
+
+	cmdID, _ := uuid.NewV4()
+	now := time.Now().UTC()
+
+	// Pubblicazione su Pub/Sub
+	_, err := RoomEvents.Publish(ctx, &RoomEvent{
+		EventID:      cmdID.String(),
+		RoomName:     roomName,
+		Type:         "command." + command,
+		SenderUserID: string(uid),
+		SenderName:   senderName,
+		Body:         p.Payload,
+		TargetID:     p.TargetID,
+		OccurredAt:   now,
+	})
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to publish room command")
+	}
+
+	return &RoomCommandResponse{
+		EventID:    cmdID.String(),
+		RoomName:   roomName,
+		Command:    command,
+		Success:    true,
+		OccurredAt: now,
+	}, nil
 }

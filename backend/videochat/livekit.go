@@ -25,7 +25,7 @@ var secrets struct {
 }
 
 const tokenTTL = 10 * time.Minute
-const apiTimeout = 10 * time.Second
+const apiTimeout = 35 * time.Second
 
 func liveKitClient() (*lksdk.RoomServiceClient, string, error) {
 	serverURL, err := websocketURL(secrets.LiveKitURL)
