@@ -34,16 +34,27 @@ func TestImageContentType(t *testing.T) {
 
 func TestSanitizeInlineHTML(t *testing.T) {
 	cases := map[string]string{
-		"plain text":                                      "plain text",
-		"<b>bold</b> and <i>it</i>":                       "<b>bold</b> and <i>it</i>",
-		`<img src=x onerror=alert(1)>hi`:                  "hi",
-		`<b onclick="x()">a</b>`:                          "<b>a</b>",
-		`<script>alert(1)</script>ok`:                     "ok",
-		`<a href="javascript:alert(1)">link</a>`:          "link",
-		"<b>unclosed":                                     "<b>unclosed</b>",
-		"a<br/>b":                                         "a<br>b",
-		"1 < 2 &amp; 3":                                   "1 &lt; 2 &amp; 3",
-		`<div><strong>x</strong></div><style>p{}</style>`: "<strong>x</strong>",
+		// Plain text and editor formatting are kept.
+		"plain text":                "plain text",
+		"<b>bold</b> and <i>it</i>": "<b>bold</b> and <i>it</i>",
+		`<font face="Arial Black" size="6">Pippo</font>`:               `<font face="Arial Black" size="6">Pippo</font>`,
+		`<font color="#ff0000">rosso</font>`:                           `<font color="#ff0000">rosso</font>`,
+		`<div>riga 1</div><div><u>riga 2</u></div>`:                    `<div>riga 1</div><div><u>riga 2</u></div>`,
+		`<span style="font-family: Georgia; font-size: 18px">x</span>`: `<span style="font-family: Georgia; font-size: 18px">x</span>`,
+		"a<br/>b":       "a<br>b",
+		"1 < 2 &amp; 3": "1 &lt; 2 &amp; 3",
+		"<b>unclosed":   "<b>unclosed</b>",
+		// Dangerous markup, attributes and CSS are removed.
+		`<img src=x onerror=alert(1)>hi`:                                        "hi",
+		`<b onclick="x()">a</b>`:                                                "<b>a</b>",
+		`<script>alert(1)</script>ok`:                                           "ok",
+		`<a href="javascript:alert(1)">link</a>`:                                "link",
+		`<font face="x" onmouseover="alert(1)">f</font>`:                        `<font face="x">f</font>`,
+		`<font size="9" color="red;background:url(x)">f</font>`:                 "<font>f</font>",
+		`<span style="background:url(javascript:alert(1))">s</span>`:            "<span>s</span>",
+		`<span style="color: expression(alert(1)); font-weight: bold">s</span>`: `<span style="font-weight: bold">s</span>`,
+		`<div class="x" id="y"><strong>x</strong></div><style>p{}</style>`:      "<div><strong>x</strong></div>",
+		`<svg onload="alert(1)"><b>s</b></svg>`:                                 "",
 	}
 	for in, want := range cases {
 		if got := SanitizeInlineHTML(in); got != want {
