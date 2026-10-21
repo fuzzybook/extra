@@ -3,6 +3,7 @@ package broadcasters
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"testing"
 
 	"encore.app/config"
@@ -336,5 +337,51 @@ func TestSanitizePhotosRejectsScriptURLsAndMarkup(t *testing.T) {
 	}
 	if photos[0].Alt != "<b>ok</b>" {
 		t.Fatalf("Alt = %q, want %q", photos[0].Alt, "<b>ok</b>")
+	}
+}
+
+func TestShortIDGeneratedOnInsertAndUnique(t *testing.T) {
+	ctx := context.Background()
+	insert := func() uuid.UUID {
+		id, _ := uuid.NewV4()
+		userID, _ := uuid.NewV4()
+		// Same shape as the direct insert in admin.UpdateProfileMemberType: no short_id given.
+		if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name) VALUES ($1, $2, 'Short ID test')`, id, userID); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+		return id
+	}
+	first, second := insert(), insert()
+
+	shortIDs := map[uuid.UUID]string{}
+	for _, id := range []uuid.UUID{first, second} {
+		var shortID string
+		if err := db.QueryRow(ctx, `SELECT short_id FROM broadcasters WHERE id = $1`, id).Scan(&shortID); err != nil {
+			t.Fatalf("select short_id: %v", err)
+		}
+		if !regexp.MustCompile(`^[0-9a-z]{6}$`).MatchString(shortID) {
+			t.Fatalf("short_id %q does not match ^[0-9a-z]{6}$", shortID)
+		}
+		shortIDs[id] = shortID
+	}
+	if shortIDs[first] == shortIDs[second] {
+		t.Fatalf("two broadcasters got the same short_id %q", shortIDs[first])
+	}
+
+	// A duplicate value must be rejected by the unique constraint.
+	if _, err := db.Exec(ctx, `UPDATE broadcasters SET short_id = $1 WHERE id = $2`, shortIDs[first], second); err == nil {
+		t.Fatal("duplicate short_id was accepted")
+	}
+	// The format check rejects anything that is not 6 chars of [0-9a-z].
+	if _, err := db.Exec(ctx, `UPDATE broadcasters SET short_id = 'ABC123' WHERE id = $1`, second); err == nil {
+		t.Fatal("short_id with uppercase letters was accepted")
+	}
+
+	b, err := getBroadcaster(ctx, first)
+	if err != nil {
+		t.Fatalf("getBroadcaster: %v", err)
+	}
+	if b.ShortID != shortIDs[first] {
+		t.Fatalf("Broadcaster.ShortID = %q, want %q", b.ShortID, shortIDs[first])
 	}
 }

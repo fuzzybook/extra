@@ -301,6 +301,7 @@ type BroadcasterAttribute struct {
 
 type Broadcaster struct {
 	ID            uuid.UUID              `json:"id"`
+	ShortID       string                 `json:"short_id"` // 6 caratteri [0-9a-z], unico, generato dal DB
 	UserID        uuid.UUID              `json:"user_id"`
 	DisplayName   string                 `json:"display_name"`
 	Category      string                 `json:"category"`
@@ -508,6 +509,7 @@ func scanBroadcaster(scanner interface{ Scan(dest ...any) error }) (*Broadcaster
 
 	err := scanner.Scan(
 		&b.ID,
+		&b.ShortID,
 		&b.UserID,
 		&b.DisplayName,
 		&b.Category,
@@ -599,7 +601,7 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 	}
 
 	query := `
-		SELECT id, user_id, display_name, category, category_color, bio, certified,
+		SELECT id, short_id, user_id, display_name, category, category_color, bio, certified,
 		       availability, phone, services, languages, attributes, hours, photos,
 		       enabled, used, created_at, updated_at
 		FROM broadcasters
@@ -659,7 +661,7 @@ func GetBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 // getBroadcaster legge il profilo completo, senza filtri di visibilità.
 func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 	row := db.QueryRow(ctx, `
-		SELECT id, user_id, display_name, category, category_color, bio, certified,
+		SELECT id, short_id, user_id, display_name, category, category_color, bio, certified,
 		       availability, phone, services, languages, attributes, hours, photos,
 		       enabled, used, created_at, updated_at
 		FROM broadcasters
@@ -681,7 +683,7 @@ func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 //encore:api public method=GET path=/broadcasters/user/:userID
 func GetBroadcasterByUserID(ctx context.Context, userID uuid.UUID) (*Broadcaster, error) {
 	row := db.QueryRow(ctx, `
-		SELECT id, user_id, display_name, category, category_color, bio, certified,
+		SELECT id, short_id, user_id, display_name, category, category_color, bio, certified,
 		       availability, phone, services, languages, attributes, hours, photos,
 		       enabled, used, created_at, updated_at
 		FROM broadcasters
@@ -791,13 +793,13 @@ func CreateBroadcaster(ctx context.Context, p *CreateBroadcasterParams) (*Broadc
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
 		)
-		RETURNING created_at, updated_at
+		RETURNING short_id, created_at, updated_at
 	`
 	err = db.QueryRow(ctx, query,
 		broadcasterID, targetUserID, p.DisplayName, p.Category, p.CategoryColor, p.Bio, p.Certified,
 		p.Availability, p.Phone, servicesJSON, languagesJSON, attributesJSON, hoursJSON, photosJSON,
 		enabled, used, now, now,
-	).Scan(&b.CreatedAt, &b.UpdatedAt)
+	).Scan(&b.ShortID, &b.CreatedAt, &b.UpdatedAt)
 
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "impossibile creare il profilo broadcaster (potrebbe già esistere)")
