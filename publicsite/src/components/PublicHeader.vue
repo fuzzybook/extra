@@ -10,9 +10,9 @@
 
       <!-- Top Banner -->
       <div class="topbanner col q-pa-sm q-mx-md">
-        <a href="http://localhost:9200" target="_blank" rel="noopener noreferrer">
+        <router-link :to="getMenuRoute('')">
           <img class="image-banner" src="/assets/banners/banner.svg" width="700" height="80" alt="Top Banner" />
-        </a>
+        </router-link>
       </div>
 
       <!-- Right Menu: Languages & Actions -->

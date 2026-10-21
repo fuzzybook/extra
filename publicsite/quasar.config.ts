@@ -4,6 +4,17 @@
 import { defineConfig } from '#q-app';
 
 export default defineConfig((/* ctx */) => {
+  // The site calls the API on its own origin. In development the dev server
+  // proxies the API routes it uses to the Encore backend (override with
+  // QCLI_API_BASE_URL=http://host:port); in production the reverse proxy
+  // (Caddy) must route the same paths.
+  const apiBaseUrl = new URL(process.env.QCLI_API_BASE_URL || 'http://127.0.0.1:4002');
+  if (!['http:', 'https:'].includes(apiBaseUrl.protocol) || apiBaseUrl.username || apiBaseUrl.password) {
+    throw new Error('QCLI_API_BASE_URL must be an HTTP(S) URL without credentials');
+  }
+  // Only the backend paths used by the site: the site's own pages use history
+  // routing, so a broader proxy could shadow them.
+  const apiPaths = ['promo'];
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -74,7 +85,13 @@ export default defineConfig((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
       port: 9200,
-      open: true // opens browser window automatically
+      open: true, // opens browser window automatically
+      proxy: {
+        [`^/(${apiPaths.join('|')})(/|\\?|$)`]: {
+          target: apiBaseUrl.origin,
+          changeOrigin: true,
+        },
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework

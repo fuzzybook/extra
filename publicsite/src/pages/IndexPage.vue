@@ -9,11 +9,10 @@
               <div class="text-caption text-weight-bold">{{ promo.section }}</div>
               <div v-for="(it, i) in promo.item" :key="i">
                 <div v-for="(c, ci) in it.content" :key="ci" class="q-my-xs">
-                  <img
+                  <PromoBroadcaster
                     v-if="c.broadcaster?.image_url"
-                    :src="c.broadcaster.image_url"
+                    :broadcaster="c.broadcaster"
                     :alt="c.broadcaster.display_name || it.title || promo.section"
-                    class="promo-img"
                   />
                 </div>
               </div>
@@ -58,11 +57,10 @@
                 <div class="text-caption text-weight-bold">{{ promo.section }}</div>
                 <div v-for="(it, i) in promo.item" :key="i">
                   <div v-for="(c, ci) in it.content" :key="ci" class="q-my-xs">
-                    <img
+                    <PromoBroadcaster
                       v-if="c.broadcaster?.image_url"
-                      :src="c.broadcaster.image_url"
+                      :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
-                      class="promo-img"
                     />
                   </div>
                 </div>
@@ -81,11 +79,10 @@
                 <div class="text-caption text-weight-bold">{{ promo.section }}</div>
                 <div v-for="(it, i) in promo.item" :key="i">
                   <div v-for="(c, ci) in it.content" :key="ci" class="q-my-xs">
-                    <img
+                    <PromoBroadcaster
                       v-if="c.broadcaster?.image_url"
-                      :src="c.broadcaster.image_url"
+                      :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
-                      class="promo-img"
                     />
                   </div>
                 </div>
@@ -102,7 +99,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import Client, { Local, type advertising } from '@/encore/client';
+import { type advertising } from '@/encore/client';
+import { api } from '@/encore/api';
+import PromoBroadcaster from '@/components/PromoBroadcaster.vue';
 
 const { t } = useI18n();
 
@@ -119,35 +118,19 @@ useMeta(() => ({
 type WeekPromoResponse = advertising.WeekPromoResponse;
 
 const promoData = ref<WeekPromoResponse | null>(null);
-const loading = ref(false);
-const error = ref<string | null>(null);
 
+// Promo della settimana corrente, caricate nel browser (non nel pre-render SSG).
 async function loadPromo() {
-  loading.value = true;
-  error.value = null;
   try {
-    const client = new Client(Local);
-    const res = await client.advertising.GetCurrentWeekPromo({ week: 0, year: 0 });
-    promoData.value = res;
+    promoData.value = await api.advertising.GetCurrentWeekPromo({ week: 0, year: 0 });
   } catch (err: unknown) {
-    // Fallback: chiamata diretta fetch
-    try {
-      const resp = await fetch('http://localhost:4000/promo/week');
-      if (resp.ok) {
-        promoData.value = (await resp.json()) as WeekPromoResponse;
-        return;
-      }
-      error.value = `HTTP error: ${resp.status}`;
-    } catch (fallbackErr: unknown) {
-      error.value = err instanceof Error ? err.message : String(err);
-    }
-  } finally {
-    loading.value = false;
+    console.warn('Impossibile caricare le promo:', err);
+    promoData.value = null;
   }
 }
 
 onMounted(() => {
-  loadPromo();
+  void loadPromo();
 });
 
 const promoLeftList = computed<advertising.Promo[]>(() => {
@@ -164,27 +147,6 @@ const promoRight2List = computed<advertising.Promo[]>(() => {
 
 const hasRightPromo = computed(() => {
   return promoRight1List.value.length > 0 || promoRight2List.value.length > 0;
-});
-
-const promoLeftText = computed(() => {
-  if (loading.value) return '// Caricamento...';
-  if (error.value) return `// Errore: ${error.value}`;
-  if (!promoData.value) return '// Nessun dato';
-  return JSON.stringify(promoData.value.by_section?.promo_left ?? promoData.value.promo_left, null, 2);
-});
-
-const promoRight1Text = computed(() => {
-  if (loading.value) return '// Caricamento...';
-  if (error.value) return `// Errore: ${error.value}`;
-  if (!promoData.value) return '// Nessun dato';
-  return JSON.stringify(promoData.value.by_section?.promo_right1 ?? promoData.value.promo_right1, null, 2);
-});
-
-const promoRight2Text = computed(() => {
-  if (loading.value) return '// Caricamento...';
-  if (error.value) return `// Errore: ${error.value}`;
-  if (!promoData.value) return '// Nessun dato';
-  return JSON.stringify(promoData.value.by_section?.promo_right2 ?? promoData.value.promo_right2, null, 2);
 });
 </script>
 
@@ -226,15 +188,6 @@ const promoRight2Text = computed(() => {
   max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
-}
-
-.promo-img {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  object-fit: contain;
-  border-radius: 4px;
 }
 
 .promo-header {
