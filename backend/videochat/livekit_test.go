@@ -105,8 +105,28 @@ func TestViewerTokenCannotPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := grants.Video
-	if g.GetCanPublish() || !g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() || !g.GetCanSubscribe() || g.RoomAdmin || g.RoomCreate {
+	// Viewers cannot publish data either: chat is relayed by the server.
+	if g.GetCanPublish() || g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() || !g.GetCanSubscribe() || g.RoomAdmin || g.RoomCreate {
 		t.Fatalf("unsafe viewer permissions: %+v", g)
+	}
+}
+
+func TestOwnerTokenCanPublish(t *testing.T) {
+	token, err := signJoinToken("test-key", "test-secret", "owner", "demo", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := lkauth.ParseAPIToken(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, grants, err := verifier.Verify("test-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := grants.Video
+	if !g.GetCanPublish() || !g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() || g.RoomAdmin || g.RoomCreate {
+		t.Fatalf("unexpected owner permissions: %+v", g)
 	}
 }
 

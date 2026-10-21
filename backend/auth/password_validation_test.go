@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	authpkg "encore.dev/beta/auth"
 	"encore.dev/beta/errs"
@@ -107,5 +109,18 @@ func TestParseUserID(t *testing.T) {
 
 	if _, err := parseUserID(authpkg.UID("not-a-uuid")); err == nil {
 		t.Fatal("parseUserID() should reject invalid UUID strings")
+	}
+}
+
+func TestSessionCookieIsHttpOnly(t *testing.T) {
+	token, _ := uuid.NewV4()
+	c := SessionCookie(token, time.Now().Add(time.Hour))
+	for _, want := range []string{"session=" + token.String(), "HttpOnly", "SameSite=Lax", "Path=/"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("SessionCookie() = %q, missing %q", c, want)
+		}
+	}
+	if clear := ClearSessionCookie(); !strings.Contains(clear, "Max-Age=0") || !strings.HasPrefix(clear, "session=;") {
+		t.Errorf("ClearSessionCookie() = %q", clear)
 	}
 }

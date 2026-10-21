@@ -3,6 +3,7 @@ package videochat
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -11,7 +12,10 @@ import (
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/pubsub"
+	"encore.dev/rlog"
 	"encore.dev/types/uuid"
+	"github.com/livekit/protocol/livekit"
+	lksdk "github.com/livekit/server-sdk-go/v2"
 )
 
 // RoomEvent rappresenta un evento (messaggio o comando) della videochat distribuito via Pub/Sub.
@@ -55,6 +59,44 @@ func handleRoomEvent(ctx context.Context, ev *RoomEvent) error {
 	}
 
 	return nil
+}
+
+// RoomDataMessage è il payload che il server invia ai partecipanti tramite il
+// data channel LiveKit (topic "chat"). I client devono considerare valide solo
+// le data packet inviate dal server (nessun partecipante mittente).
+type RoomDataMessage struct {
+	Type            string    `json:"type"` // "chat.message" | "admin.alert"
+	ID              string    `json:"id"`
+	ClientMessageID string    `json:"client_message_id,omitempty"`
+	SenderUserID    string    `json:"sender_user_id"`
+	SenderName      string    `json:"sender_name"`
+	SenderAvatar    string    `json:"sender_avatar,omitempty"`
+	Body            string    `json:"body"`
+	CreatedAt       time.Time `json:"created_at"`
+	IsOwner         bool      `json:"is_owner"`
+}
+
+const roomDataTopic = "chat"
+
+// relayToRoom invia msg ai partecipanti della stanza (a tutti se destinations
+// è vuoto). Un errore non annulla l'operazione già salvata: viene solo
+// registrato, i client recuperano comunque lo storico con ListMessages.
+func relayToRoom(ctx context.Context, client *lksdk.RoomServiceClient, roomName string, destinations []string, msg *RoomDataMessage) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		rlog.Error("failed to encode room data message", "err", err)
+		return
+	}
+	topic := roomDataTopic
+	if _, err := client.SendData(ctx, &livekit.SendDataRequest{
+		Room:                  roomName,
+		Data:                  data,
+		Kind:                  livekit.DataPacket_RELIABLE,
+		Topic:                 &topic,
+		DestinationIdentities: destinations,
+	}); err != nil {
+		rlog.Warn("failed to relay message to room", "err", err, "room", roomName, "type", msg.Type)
+	}
 }
 
 // sanitizeMessageBody normalizza e prepara il testo per futuri filtri di moderazione.
@@ -140,7 +182,7 @@ func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*C
 	defer cancel()
 
 	// Verifica che la stanza esista e sia aperta
-	_, _, err = findBroadcast(ctxTimeout, client, roomName)
+	room, metadata, err := findBroadcast(ctxTimeout, client, roomName)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +235,20 @@ func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*C
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to save chat message")
 	}
+
+	// Inoltra il messaggio salvato a tutti i partecipanti della stanza: il
+	// mittente arriva dal DB, non dal client.
+	relayToRoom(ctxTimeout, client, room.Name, nil, &RoomDataMessage{
+		Type:            "chat.message",
+		ID:              created.ID,
+		ClientMessageID: created.ClientMessageID,
+		SenderUserID:    created.SenderUserID,
+		SenderName:      created.SenderName,
+		SenderAvatar:    created.SenderAvatar,
+		Body:            created.Body,
+		CreatedAt:       created.CreatedAt,
+		IsOwner:         created.SenderUserID == metadata.OwnerID,
+	})
 
 	// Pubblica l'evento sul topic Pub/Sub Encore per consentire il filtraggio e la gestione asincrona
 	_, _ = RoomEvents.Publish(ctx, &RoomEvent{
@@ -283,17 +339,19 @@ func SendCommand(ctx context.Context, roomName string, p *SendCommandParams) (*R
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "command payload exceeds maximum length of 2000 characters"}
 	}
 
+	client, _, err := liveKitClient()
+	if err != nil {
+		return nil, err
+	}
+	ctxTimeout, cancel := context.WithTimeout(ctx, apiTimeout)
+	defer cancel()
+	room, metadata, err := findBroadcast(ctxTimeout, client, roomName)
+	if err != nil {
+		return nil, err
+	}
 	// Solo il proprietario della stanza o un admin possono moderarla.
-	if !authsvc.IsAdmin() {
-		client, _, err := liveKitClient()
-		if err != nil {
-			return nil, err
-		}
-		ctxTimeout, cancel := context.WithTimeout(ctx, apiTimeout)
-		defer cancel()
-		if err := requireRoomOwner(ctxTimeout, client, roomName); err != nil {
-			return nil, err
-		}
+	if metadata.OwnerID != string(uid) && !authsvc.IsAdmin() {
+		return nil, &errs.Error{Code: errs.PermissionDenied, Message: "room owner or admin required"}
 	}
 
 	senderName := "Admin"
@@ -304,8 +362,20 @@ func SendCommand(ctx context.Context, roomName string, p *SendCommandParams) (*R
 	cmdID, _ := uuid.NewV4()
 	now := time.Now().UTC()
 
+	// L'alert viene recapitato al solo proprietario della stanza.
+	if command == "alert" {
+		relayToRoom(ctxTimeout, client, room.Name, []string{metadata.OwnerID}, &RoomDataMessage{
+			Type:         "admin.alert",
+			ID:           cmdID.String(),
+			SenderUserID: string(uid),
+			SenderName:   senderName,
+			Body:         p.Payload,
+			CreatedAt:    now,
+		})
+	}
+
 	// Pubblicazione su Pub/Sub
-	_, err := RoomEvents.Publish(ctx, &RoomEvent{
+	_, err = RoomEvents.Publish(ctx, &RoomEvent{
 		EventID:      cmdID.String(),
 		RoomName:     roomName,
 		Type:         "command." + command,

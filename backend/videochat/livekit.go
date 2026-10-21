@@ -148,7 +148,9 @@ func signJoinToken(key, secret, identity, room string, owner bool) (string, erro
 	grant := &lkauth.VideoGrant{RoomJoin: true, Room: room}
 	grant.SetCanPublish(owner)
 	grant.SetCanSubscribe(true)
-	grant.SetCanPublishData(true)
+	// Viewers cannot publish data messages: chat goes through SendMessage and
+	// is relayed by the server, which is the only source of sender identity.
+	grant.SetCanPublishData(owner)
 	grant.SetCanUpdateOwnMetadata(false)
 	return lkauth.NewAccessToken(key, secret).
 		SetIdentity(identity).

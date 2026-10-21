@@ -140,9 +140,11 @@ func normalizeText(value string) string {
 }
 
 // Insert registers a new profile with a server-generated UUID v4, delegating
-// credential setup to the auth service.
+// credential setup to the auth service. It is private: the public sign-up
+// flow is registration.Register (validation, welcome email), and
+// administrators go through admin.InsertProfile.
 //
-//encore:api public method=POST path=/profiles
+//encore:api private method=POST path=/profiles
 func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err

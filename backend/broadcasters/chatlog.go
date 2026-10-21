@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	authsvc "encore.app/auth"
 	"encore.dev/beta/errs"
 )
 
@@ -33,9 +34,12 @@ type ListChatLogResponse struct {
 	Messages []*ChatLogEntry `json:"messages"`
 }
 
-// AddChatLog inserisce un nuovo evento o messaggio nella tabella chatlog.
+// AddChatLog inserisce un nuovo evento nella tabella chatlog (registro di
+// audit degli eventi della stanza, es. accensione di camera e microfono).
+// Richiede autenticazione; il tipo CMD è riservato agli admin. I messaggi di
+// chat passano invece da videochat.SendMessage.
 //
-//encore:api public method=POST path=/broadcasters/id/:id/chatlog
+//encore:api auth method=POST path=/broadcasters/id/:id/chatlog
 func AddChatLog(ctx context.Context, id string, p *AddChatLogParams) (*ChatLogEntry, error) {
 	if strings.TrimSpace(id) == "" || len(id) > 128 {
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "id stanza obbligatorio (massimo 128 caratteri)"}
@@ -54,7 +58,11 @@ func AddChatLog(ctx context.Context, id string, p *AddChatLogParams) (*ChatLogEn
 		msgType = "ALLERT"
 	}
 	switch msgType {
-	case "ACTION", "MESSAGE", "ALLERT", "CMD":
+	case "ACTION", "MESSAGE", "ALLERT":
+	case "CMD":
+		if !authsvc.IsAdmin() {
+			return nil, &errs.Error{Code: errs.PermissionDenied, Message: "il tipo CMD è riservato agli amministratori"}
+		}
 	default:
 		msgType = "MESSAGE"
 	}
@@ -77,11 +85,14 @@ func AddChatLog(ctx context.Context, id string, p *AddChatLogParams) (*ChatLogEn
 	return entry, nil
 }
 
-// ListChatLog preleva gli ultimi messaggi per la stanza (default 30) e li ordina
-// in ordine cronologico crescente (dal più vecchio al più recente), pronti per l'append nella UI.
+// ListChatLog preleva gli ultimi eventi per la stanza (default 30) e li ordina
+// in ordine cronologico crescente (dal più vecchio al più recente). Solo admin.
 //
-//encore:api public method=GET path=/broadcasters/id/:id/chatlog
+//encore:api auth method=GET path=/broadcasters/id/:id/chatlog
 func ListChatLog(ctx context.Context, id string, p *ListChatLogParams) (*ListChatLogResponse, error) {
+	if err := authsvc.RequireAdmin(); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(id) == "" {
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "id stanza obbligatorio"}
 	}

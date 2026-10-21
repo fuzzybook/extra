@@ -84,17 +84,22 @@ func CleanupExpiredSessions(ctx context.Context) error {
 	return nil
 }
 
-// Logout revokes the session used to authenticate the current request.
+type LogoutResponse struct {
+	LoggedOut bool `json:"logged_out"`
+	// SetCookie deletes the session cookie in the browser.
+	SetCookie string `header:"Set-Cookie" json:"-"`
+}
+
+// Logout revokes the session used to authenticate the current request, if
+// any, and always clears the session cookie. It is public so that a browser
+// holding an expired or revoked cookie can still get rid of it.
 //
-//encore:api auth method=POST path=/auth/logout
-func Logout(ctx context.Context) error {
-	data, _ := auth.Data().(*AuthData)
-	if data == nil {
-		return nil
+//encore:api public method=POST path=/auth/logout
+func Logout(ctx context.Context) (*LogoutResponse, error) {
+	if data, _ := auth.Data().(*AuthData); data != nil {
+		if _, err := db.Exec(ctx, `DELETE FROM sessions WHERE token = $1`, data.SessionToken); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to revoke session")
+		}
 	}
-	_, err := db.Exec(ctx, `DELETE FROM sessions WHERE token = $1`, data.SessionToken)
-	if err != nil {
-		return errs.WrapCode(err, errs.Internal, "failed to revoke session")
-	}
-	return nil
+	return &LogoutResponse{LoggedOut: true, SetCookie: ClearSessionCookie()}, nil
 }

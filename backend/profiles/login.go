@@ -16,15 +16,17 @@ type LoginParams struct {
 	Password  string `json:"password" encore:"sensitive"`
 }
 
+// LoginResponse carries the session only in an HttpOnly cookie: the token is
+// never exposed to JavaScript.
 type LoginResponse struct {
-	Token     uuid.UUID `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
+	SetCookie string    `header:"Set-Cookie" json:"-"`
 }
 
 // Login is the public entry point for authenticating a user. It resolves the
 // given email to a user ID via the local profiles database, rejects profiles
 // that are not active, and then asks the auth service to check the password
-// and issue a session.
+// and issue a session, which is returned as an HttpOnly cookie.
 //
 //encore:api public method=POST path=/auth/login
 func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
@@ -59,5 +61,5 @@ func Login(ctx context.Context, p *LoginParams) (*LoginResponse, error) {
 		}
 		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "invalid credentials"}
 	}
-	return &LoginResponse{Token: resp.Token, ExpiresAt: resp.ExpiresAt}, nil
+	return &LoginResponse{ExpiresAt: resp.ExpiresAt, SetCookie: auth.SessionCookie(resp.Token, resp.ExpiresAt)}, nil
 }
