@@ -69,29 +69,38 @@ const (
 	PromoRight2Selected PromoRight2Sections = "selected"
 )
 
-// PromoContent è un contenuto della promo: un broadcaster, identificato dal
-// suo short_id.
+// PromoContent è un contenuto della promo: il broadcaster da mostrare.
 type PromoContent struct {
-	MobileOnly         bool   `json:"mobile_only"`
-	BroadcasterShortID string `json:"broadcaster_short_id"`
-	// Broadcaster è aggiunto in lettura (nome e prima foto) e non viene salvato.
+	MobileOnly bool `json:"mobile_only"`
+	// Broadcaster è obbligatorio in scrittura (basta short_id). In lettura è
+	// completato con i dati del broadcaster; agli utenti non admin viene
+	// omesso se il broadcaster è disabilitato o non esiste più.
 	Broadcaster *PromoBroadcaster `json:"broadcaster,omitempty" encore:"optional"`
 }
 
-// PromoBroadcaster sono i dati del broadcaster mostrati dalla promo: la sua
-// prima foto con dimensioni e proporzione, la didascalia della foto (HTML con
-// sola formattazione di base) e la posizione in cui la didascalia va mostrata
-// sopra la foto (box_x, box_y, come nell'editor delle foto).
+// PromoBroadcaster identifica il broadcaster della promo tramite short_id,
+// l'unico campo salvato. Gli altri campi sono solo in lettura: la sua prima
+// foto con dimensioni e proporzione, la didascalia della foto (HTML con sola
+// formattazione di base) e la posizione in cui la didascalia va mostrata sopra
+// la foto (box_x, box_y, come nell'editor delle foto).
 type PromoBroadcaster struct {
 	ShortID     string `json:"short_id"`
-	DisplayName string `json:"display_name"`
-	ImageURL    string `json:"image_url"`
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	Proportion  string `json:"proportion"`
-	Description string `json:"description"`
-	BoxX        int    `json:"box_x"`
-	BoxY        int    `json:"box_y"`
+	DisplayName string `json:"display_name,omitempty" encore:"optional"`
+	ImageURL    string `json:"image_url,omitempty" encore:"optional"`
+	Width       int    `json:"width,omitempty" encore:"optional"`
+	Height      int    `json:"height,omitempty" encore:"optional"`
+	Proportion  string `json:"proportion,omitempty" encore:"optional"`
+	Description string `json:"description,omitempty" encore:"optional"`
+	BoxX        int    `json:"box_x,omitempty" encore:"optional"`
+	BoxY        int    `json:"box_y,omitempty" encore:"optional"`
+}
+
+// shortIDOf restituisce lo short_id del broadcaster del contenuto ("" se assente).
+func shortIDOf(c PromoContent) string {
+	if c.Broadcaster == nil {
+		return ""
+	}
+	return c.Broadcaster.ShortID
 }
 
 var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
@@ -142,18 +151,18 @@ func validatePromoFields(position PromoPosition, section string) error {
 	return nil
 }
 
-// validatePromoItems richiede per ogni contenuto lo short_id di un
-// broadcaster e scarta i dati del broadcaster inviati dal client, che sono
-// solo in lettura.
+// validatePromoItems richiede per ogni contenuto un broadcaster con short_id
+// valido e tiene solo quello: gli altri dati del broadcaster inviati dal
+// client sono solo in lettura e non vengono salvati.
 func validatePromoItems(items []PromoItem) error {
 	for i := range items {
 		for j := range items[i].Content {
 			c := &items[i].Content[j]
-			c.Broadcaster = nil
-			c.BroadcasterShortID = strings.ToLower(strings.TrimSpace(c.BroadcasterShortID))
-			if !shortIDPattern.MatchString(c.BroadcasterShortID) {
+			shortID := strings.ToLower(strings.TrimSpace(shortIDOf(*c)))
+			if !shortIDPattern.MatchString(shortID) {
 				return &errs.Error{Code: errs.InvalidArgument, Message: "ogni contenuto della promo deve indicare un broadcaster (short_id di 6 caratteri)"}
 			}
+			c.Broadcaster = &PromoBroadcaster{ShortID: shortID}
 		}
 	}
 	return nil
@@ -168,8 +177,8 @@ func requireExistingBroadcasters(ctx context.Context, items []PromoItem) error {
 	}
 	for _, item := range items {
 		for _, c := range item.Content {
-			if _, ok := cards[c.BroadcasterShortID]; !ok {
-				return &errs.Error{Code: errs.InvalidArgument, Message: "broadcaster non trovato: " + c.BroadcasterShortID}
+			if _, ok := cards[shortIDOf(c)]; !ok {
+				return &errs.Error{Code: errs.InvalidArgument, Message: "broadcaster non trovato: " + shortIDOf(c)}
 			}
 		}
 	}
@@ -181,9 +190,9 @@ func collectShortIDs(items []PromoItem) []string {
 	var ids []string
 	for _, item := range items {
 		for _, c := range item.Content {
-			if c.BroadcasterShortID != "" && !seen[c.BroadcasterShortID] {
-				seen[c.BroadcasterShortID] = true
-				ids = append(ids, c.BroadcasterShortID)
+			if id := shortIDOf(c); id != "" && !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
 			}
 		}
 	}
@@ -205,8 +214,10 @@ func lookupBroadcasters(ctx context.Context, shortIDs []string) (map[string]*bro
 	return cards, nil
 }
 
-// attachBroadcasters aggiunge a ogni contenuto nome e prima foto del suo
-// broadcaster. I broadcaster disabilitati sono mostrati solo agli admin.
+// attachBroadcasters completa il broadcaster di ogni contenuto con nome, foto,
+// didascalia e posizione. Agli utenti non admin i broadcaster disabilitati o
+// inesistenti non vengono mostrati; agli admin resta almeno lo short_id, così
+// la promo si può correggere dal pannello.
 func attachBroadcasters(ctx context.Context, promos []*Promo) error {
 	var items []PromoItem
 	for _, p := range promos {
@@ -221,10 +232,17 @@ func attachBroadcasters(ctx context.Context, promos []*Promo) error {
 		for i := range p.Item {
 			for j := range p.Item[i].Content {
 				c := &p.Item[i].Content[j]
-				card, ok := cards[c.BroadcasterShortID]
-				if !ok || (!card.Enabled && !isAdmin) {
-					c.Broadcaster = nil
-					continue
+				shortID := shortIDOf(*c)
+				card, ok := cards[shortID]
+				if !ok || !card.Enabled {
+					if isAdmin && shortID != "" && !ok {
+						c.Broadcaster = &PromoBroadcaster{ShortID: shortID}
+						continue
+					}
+					if !isAdmin {
+						c.Broadcaster = nil
+						continue
+					}
 				}
 				c.Broadcaster = &PromoBroadcaster{
 					ShortID:     card.ShortID,

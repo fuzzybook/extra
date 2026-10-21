@@ -58,7 +58,7 @@ func TestCreatePromoParamsValidate(t *testing.T) {
 						Title: "Banner Estivo",
 						Content: []PromoContent{
 							{
-								BroadcasterShortID: "ab12cd",
+								Broadcaster: &PromoBroadcaster{ShortID: "ab12cd"},
 							},
 						},
 					},
@@ -262,13 +262,19 @@ func TestIsPromoActiveInWeek(t *testing.T) {
 	}
 }
 
-func TestPromoParamsRequireBroadcasterShortID(t *testing.T) {
+func TestPromoParamsRequireBroadcaster(t *testing.T) {
+	// Senza broadcaster il contenuto non è valido.
+	noBroadcaster := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{}}}}}
+	if err := noBroadcaster.Validate(); err == nil {
+		t.Error("CreatePromoParams.Validate() accepted a content without broadcaster")
+	}
+
 	for _, shortID := range []string{"", "abc", "abc-12", "abcdefg", "àbc123"} {
-		create := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{BroadcasterShortID: shortID}}}}}
+		create := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{Broadcaster: &PromoBroadcaster{ShortID: shortID}}}}}}
 		if err := create.Validate(); err == nil {
 			t.Errorf("CreatePromoParams.Validate() accepted short_id %q", shortID)
 		}
-		update := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{BroadcasterShortID: shortID}}}}}
+		update := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{Broadcaster: &PromoBroadcaster{ShortID: shortID}}}}}}
 		if err := update.Validate(); err == nil {
 			t.Errorf("UpdatePromoParams.Validate() accepted short_id %q", shortID)
 		}
@@ -277,14 +283,13 @@ func TestPromoParamsRequireBroadcasterShortID(t *testing.T) {
 	// Lo short_id viene normalizzato e i dati del broadcaster inviati dal
 	// client vengono scartati (sono solo in lettura).
 	p := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{
-		BroadcasterShortID: " Ab12Cd ",
-		Broadcaster:        &PromoBroadcaster{ShortID: "zzzzzz", ImageURL: "javascript:alert(1)"},
+		Broadcaster: &PromoBroadcaster{ShortID: " Ab12Cd ", DisplayName: "x", ImageURL: "javascript:alert(1)"},
 	}}}}}
 	if err := p.Validate(); err != nil {
 		t.Fatalf("Validate() = %v", err)
 	}
 	c := p.Item[0].Content[0]
-	if c.BroadcasterShortID != "ab12cd" || c.Broadcaster != nil {
-		t.Fatalf("content after Validate = %+v", c)
+	if c.Broadcaster == nil || *c.Broadcaster != (PromoBroadcaster{ShortID: "ab12cd"}) {
+		t.Fatalf("content after Validate = %+v, want only broadcaster.short_id = ab12cd", c.Broadcaster)
 	}
 }
