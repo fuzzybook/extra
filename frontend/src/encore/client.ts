@@ -617,6 +617,11 @@ export namespace broadcasters {
 
     export interface Broadcaster {
         id: string
+        /**
+         * 6 caratteri [0-9a-z], unico, generato dal DB
+         */
+        "short_id": string
+
         "user_id": string
         "display_name": string
         category: string
