@@ -424,3 +424,48 @@ func SetDescription(ctx context.Context, id uuid.UUID, p *SetDescriptionParams) 
 	}
 	return nil
 }
+
+// ImageSize sono le dimensioni salvate di un'immagine (0 / "" se non note).
+type ImageSize struct {
+	UUID       uuid.UUID `json:"uuid"`
+	Width      int       `json:"width"`
+	Height     int       `json:"height"`
+	Proportion string    `json:"proportion"`
+}
+
+type GetImageSizesParams struct {
+	UUIDs []uuid.UUID `json:"uuids"`
+}
+
+type GetImageSizesResponse struct {
+	Images []*ImageSize `json:"images"`
+}
+
+// GetImageSizes restituisce le dimensioni delle immagini indicate; quelle
+// inesistenti vengono omesse. Privato: usato da broadcasters per le promo.
+//
+//encore:api private method=POST path=/images/internal/sizes
+func GetImageSizes(ctx context.Context, p *GetImageSizesParams) (*GetImageSizesResponse, error) {
+	resp := &GetImageSizesResponse{Images: []*ImageSize{}}
+	if p == nil || len(p.UUIDs) == 0 {
+		return resp, nil
+	}
+	rows, err := db.Query(ctx, `
+		SELECT uuid, width, height, proportion FROM images WHERE uuid = ANY($1)
+	`, p.UUIDs)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare le dimensioni delle immagini")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s ImageSize
+		if err := rows.Scan(&s.UUID, &s.Width, &s.Height, &s.Proportion); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura delle dimensioni")
+		}
+		resp.Images = append(resp.Images, &s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante l'iterazione delle immagini")
+	}
+	return resp, nil
+}

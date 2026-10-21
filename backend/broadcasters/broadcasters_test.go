@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 
 	"encore.app/config"
@@ -383,5 +384,44 @@ func TestShortIDGeneratedOnInsertAndUnique(t *testing.T) {
 	}
 	if b.ShortID != shortIDs[first] {
 		t.Fatalf("Broadcaster.ShortID = %q, want %q", b.ShortID, shortIDs[first])
+	}
+}
+
+func TestLookupByShortIDsReturnsFirstPhotoCaptionAndSize(t *testing.T) {
+	ctx := context.Background()
+	id, _ := uuid.NewV4()
+	userID, _ := uuid.NewV4()
+	imageID, _ := uuid.NewV4()
+	photos := `[{"image_url": "http://img.example/images/` + imageID.String() + `",
+		"description": {"text": "<b>Ciao</b><img src=x onerror=alert(1)>", "box_x": 14, "box_y": 77}},
+		{"image_url": "http://img.example/images/second"}]`
+	if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, photos, enabled) VALUES ($1, $2, 'Card test', $3::jsonb, TRUE)`, id, userID, photos); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	var shortID string
+	if err := db.QueryRow(ctx, `SELECT short_id FROM broadcasters WHERE id = $1`, id).Scan(&shortID); err != nil {
+		t.Fatalf("select short_id: %v", err)
+	}
+
+	resp, err := LookupByShortIDs(ctx, &LookupByShortIDsParams{ShortIDs: []string{shortID, "000000"}})
+	if err != nil {
+		t.Fatalf("LookupByShortIDs: %v", err)
+	}
+	if len(resp.Broadcasters) != 1 {
+		t.Fatalf("got %d broadcasters, want 1 (unknown short_id omitted)", len(resp.Broadcasters))
+	}
+	c := resp.Broadcasters[0]
+	if c.DisplayName != "Card test" || !strings.HasSuffix(c.ImageURL, imageID.String()) || !c.Enabled {
+		t.Fatalf("unexpected card %+v", c)
+	}
+	if c.Description != "<b>Ciao</b>" {
+		t.Fatalf("Description = %q, want sanitized %q", c.Description, "<b>Ciao</b>")
+	}
+	if c.BoxX != 14 || c.BoxY != 77 {
+		t.Fatalf("caption position = (%d, %d), want (14, 77)", c.BoxX, c.BoxY)
+	}
+	// The image is not in the images service: standard broadcaster size.
+	if c.Width != BroadcasterImageSize.Width || c.Height != BroadcasterImageSize.Height || c.Proportion != BroadcasterImageSize.Proportion {
+		t.Fatalf("size = %dx%d %q, want standard broadcaster size", c.Width, c.Height, c.Proportion)
 	}
 }

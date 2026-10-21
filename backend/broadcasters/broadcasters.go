@@ -1094,16 +1094,10 @@ func UpdateBroadcasterPhotos(ctx context.Context, id uuid.UUID, p *UpdateBroadca
 	alignPhotos(photos)
 
 	for i := range photos {
-		if photos[i].ImageURL != "" {
-			parts := strings.Split(strings.TrimRight(photos[i].ImageURL, "/"), "/")
-			if len(parts) > 0 {
-				lastPart := parts[len(parts)-1]
-				if parsedUUID, err := uuid.FromString(lastPart); err == nil {
-					_ = images.SetDescription(ctx, parsedUUID, &images.SetDescriptionParams{
-						Description: photos[i].Description,
-					})
-				}
-			}
+		if imageID, ok := imageUUIDFromURL(photos[i].ImageURL); ok {
+			_ = images.SetDescription(ctx, imageID, &images.SetDescriptionParams{
+				Description: photos[i].Description,
+			})
 		}
 	}
 
@@ -1190,11 +1184,18 @@ func DeleteByUser(ctx context.Context, userID uuid.UUID) error {
 }
 
 // BroadcasterCard sono i dati pubblici minimi di un broadcaster usati da altri
-// servizi (es. le promo): short_id, nome e prima foto.
+// servizi (es. le promo): short_id, nome e prima foto con dimensioni,
+// didascalia (HTML sanitizzato) e posizione della didascalia.
 type BroadcasterCard struct {
 	ShortID     string `json:"short_id"`
 	DisplayName string `json:"display_name"`
 	ImageURL    string `json:"image_url"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Proportion  string `json:"proportion"`
+	Description string `json:"description"`
+	BoxX        int    `json:"box_x"`
+	BoxY        int    `json:"box_y"`
 	Enabled     bool   `json:"enabled"`
 }
 
@@ -1239,9 +1240,15 @@ func LookupByShortIDs(ctx context.Context, p *LookupByShortIDsParams) (*LookupBy
 				return nil, errs.WrapCode(err, errs.Internal, "foto del broadcaster non valide")
 			}
 		}
+		alignPhotos(photos)
 		for _, ph := range photos {
 			if strings.TrimSpace(ph.ImageURL) != "" {
 				card.ImageURL = ph.ImageURL
+				// Le didascalie salvate prima della sanitizzazione lato server
+				// vengono ripulite anche in uscita.
+				card.Description = validate.SanitizeInlineHTML(ph.Description.Text)
+				card.BoxX = ph.Description.Box_X
+				card.BoxY = ph.Description.Box_y
 				break
 			}
 		}
@@ -1250,5 +1257,51 @@ func LookupByShortIDs(ctx context.Context, p *LookupByShortIDsParams) (*LookupBy
 	if err := rows.Err(); err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante l'iterazione dei broadcaster")
 	}
+	if err := attachImageSizes(ctx, resp.Broadcasters); err != nil {
+		return nil, err
+	}
 	return resp, nil
+}
+
+// attachImageSizes completa le dimensioni delle foto con quelle salvate nel
+// servizio images; se mancano usa la misura standard delle foto broadcaster.
+func attachImageSizes(ctx context.Context, cards []*BroadcasterCard) error {
+	byCard := map[*BroadcasterCard]uuid.UUID{}
+	var ids []uuid.UUID
+	for _, card := range cards {
+		if id, ok := imageUUIDFromURL(card.ImageURL); ok {
+			byCard[card] = id
+			ids = append(ids, id)
+		}
+	}
+	sizes := map[uuid.UUID]*images.ImageSize{}
+	if len(ids) > 0 {
+		resp, err := images.GetImageSizes(ctx, &images.GetImageSizesParams{UUIDs: ids})
+		if err != nil {
+			return errs.WrapCode(err, errs.Internal, "impossibile recuperare le dimensioni delle foto")
+		}
+		for _, s := range resp.Images {
+			sizes[s.UUID] = s
+		}
+	}
+	for _, card := range cards {
+		if card.ImageURL == "" {
+			continue
+		}
+		card.Width, card.Height, card.Proportion = BroadcasterImageSize.Width, BroadcasterImageSize.Height, BroadcasterImageSize.Proportion
+		if s, ok := sizes[byCard[card]]; ok && s.Width > 0 {
+			card.Width, card.Height, card.Proportion = s.Width, s.Height, s.Proportion
+		}
+	}
+	return nil
+}
+
+// imageUUIDFromURL estrae l'UUID dell'immagine dall'ultimo segmento dell'URL.
+func imageUUIDFromURL(raw string) (uuid.UUID, bool) {
+	parts := strings.Split(strings.TrimRight(strings.TrimSpace(raw), "/"), "/")
+	if len(parts) == 0 {
+		return uuid.Nil, false
+	}
+	id, err := uuid.FromString(parts[len(parts)-1])
+	return id, err == nil
 }

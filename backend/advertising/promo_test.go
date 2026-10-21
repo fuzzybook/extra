@@ -58,8 +58,6 @@ func TestCreatePromoParamsValidate(t *testing.T) {
 						Title: "Banner Estivo",
 						Content: []PromoContent{
 							{
-								Width:              300,
-								Height:             250,
 								BroadcasterShortID: "ab12cd",
 							},
 						},
@@ -263,7 +261,6 @@ func TestIsPromoActiveInWeek(t *testing.T) {
 		t.Errorf("expected promo to NOT be active in week 13")
 	}
 }
-
 
 func TestPromoParamsRequireBroadcasterShortID(t *testing.T) {
 	for _, shortID := range []string{"", "abc", "abc-12", "abcdefg", "àbc123"} {

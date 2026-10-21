@@ -70,21 +70,28 @@ const (
 )
 
 // PromoContent è un contenuto della promo: un broadcaster, identificato dal
-// suo short_id, mostrato con le dimensioni indicate.
+// suo short_id.
 type PromoContent struct {
-	Width              int    `json:"width"`
-	Height             int    `json:"height"`
 	MobileOnly         bool   `json:"mobile_only"`
 	BroadcasterShortID string `json:"broadcaster_short_id"`
 	// Broadcaster è aggiunto in lettura (nome e prima foto) e non viene salvato.
 	Broadcaster *PromoBroadcaster `json:"broadcaster,omitempty" encore:"optional"`
 }
 
-// PromoBroadcaster sono i dati del broadcaster mostrati dalla promo.
+// PromoBroadcaster sono i dati del broadcaster mostrati dalla promo: la sua
+// prima foto con dimensioni e proporzione, la didascalia della foto (HTML con
+// sola formattazione di base) e la posizione in cui la didascalia va mostrata
+// sopra la foto (box_x, box_y, come nell'editor delle foto).
 type PromoBroadcaster struct {
 	ShortID     string `json:"short_id"`
 	DisplayName string `json:"display_name"`
 	ImageURL    string `json:"image_url"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Proportion  string `json:"proportion"`
+	Description string `json:"description"`
+	BoxX        int    `json:"box_x"`
+	BoxY        int    `json:"box_y"`
 }
 
 var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
@@ -219,7 +226,17 @@ func attachBroadcasters(ctx context.Context, promos []*Promo) error {
 					c.Broadcaster = nil
 					continue
 				}
-				c.Broadcaster = &PromoBroadcaster{ShortID: card.ShortID, DisplayName: card.DisplayName, ImageURL: card.ImageURL}
+				c.Broadcaster = &PromoBroadcaster{
+					ShortID:     card.ShortID,
+					DisplayName: card.DisplayName,
+					ImageURL:    card.ImageURL,
+					Width:       card.Width,
+					Height:      card.Height,
+					Proportion:  card.Proportion,
+					Description: card.Description,
+					BoxX:        card.BoxX,
+					BoxY:        card.BoxY,
+				}
 			}
 		}
 	}
