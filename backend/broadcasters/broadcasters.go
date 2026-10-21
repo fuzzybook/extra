@@ -11,6 +11,7 @@ import (
 
 	authsvc "encore.app/auth"
 	"encore.app/config"
+	images "encore.app/images"
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
@@ -45,8 +46,139 @@ var BroadcasterImageSize = BroadcasterImage{
 }
 
 type BroadcasterPhoto struct {
-	ImageURL string `json:"image_url"`
-	Alt      string `json:"alt"`
+	ImageURL    string                  `json:"image_url"`
+	Alt         string                  `json:"alt"`
+	Box_X       int                     `json:"box_x"`
+	Box_y       int                     `json:"box_y"`
+	Description images.ImageDescription `json:"description"`
+}
+
+// UnmarshalJSON supports case variants for Box_x and Box_y and populates Description.
+func (bp *BroadcasterPhoto) UnmarshalJSON(data []byte) error {
+	type Alias BroadcasterPhoto
+	var aux struct {
+		Alias
+		AltBoxX        int             `json:"box_X"`
+		CapBoxX        int             `json:"Box_X"`
+		AltBoxY        int             `json:"box_Y"`
+		CapBoxY        int             `json:"Box_y"`
+		CapBoxY2       int             `json:"Box_Y"`
+		RawDescription json.RawMessage `json:"description"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*bp = BroadcasterPhoto(aux.Alias)
+	if bp.Box_X == 0 {
+		if aux.AltBoxX != 0 {
+			bp.Box_X = aux.AltBoxX
+		} else if aux.CapBoxX != 0 {
+			bp.Box_X = aux.CapBoxX
+		}
+	}
+	if bp.Box_y == 0 {
+		if aux.AltBoxY != 0 {
+			bp.Box_y = aux.AltBoxY
+		} else if aux.CapBoxY != 0 {
+			bp.Box_y = aux.CapBoxY
+		} else if aux.CapBoxY2 != 0 {
+			bp.Box_y = aux.CapBoxY2
+		}
+	}
+
+	if len(aux.RawDescription) > 0 {
+		var imgDesc images.ImageDescription
+		if err := json.Unmarshal(aux.RawDescription, &imgDesc); err == nil {
+			bp.Description = imgDesc
+		} else {
+			var plainDesc string
+			if err := json.Unmarshal(aux.RawDescription, &plainDesc); err == nil {
+				bp.Description.Text = plainDesc
+			}
+		}
+	}
+
+	if bp.Description.Text != "" && bp.Alt == "" {
+		bp.Alt = bp.Description.Text
+	} else if bp.Alt != "" && bp.Description.Text == "" {
+		bp.Description.Text = bp.Alt
+	}
+
+	if bp.Description.Box_X != 0 && bp.Box_X == 0 {
+		bp.Box_X = bp.Description.Box_X
+	} else if bp.Box_X != 0 && bp.Description.Box_X == 0 {
+		bp.Description.Box_X = bp.Box_X
+	}
+
+	if bp.Description.Box_y != 0 && bp.Box_y == 0 {
+		bp.Box_y = bp.Description.Box_y
+	} else if bp.Box_y != 0 && bp.Description.Box_y == 0 {
+		bp.Description.Box_y = bp.Box_y
+	}
+
+	return nil
+}
+
+// MarshalJSON ensures both alt/box_x/box_y and description are always serialized.
+func (bp BroadcasterPhoto) MarshalJSON() ([]byte, error) {
+	desc := bp.Description
+	if desc.Text == "" && bp.Alt != "" {
+		desc.Text = bp.Alt
+	}
+	if desc.Box_X == 0 && bp.Box_X != 0 {
+		desc.Box_X = bp.Box_X
+	}
+	if desc.Box_y == 0 && bp.Box_y != 0 {
+		desc.Box_y = bp.Box_y
+	}
+
+	alt := bp.Alt
+	if alt == "" && desc.Text != "" {
+		alt = desc.Text
+	}
+	boxX := bp.Box_X
+	if boxX == 0 && desc.Box_X != 0 {
+		boxX = desc.Box_X
+	}
+	boxY := bp.Box_y
+	if boxY == 0 && desc.Box_y != 0 {
+		boxY = desc.Box_y
+	}
+
+	type Alias BroadcasterPhoto
+	return json.Marshal(&struct {
+		Alias
+		Alt         string                  `json:"alt"`
+		Box_X       int                     `json:"box_x"`
+		Box_y       int                     `json:"box_y"`
+		Description images.ImageDescription `json:"description"`
+	}{
+		Alias:       Alias(bp),
+		Alt:         alt,
+		Box_X:       boxX,
+		Box_y:       boxY,
+		Description: desc,
+	})
+}
+
+func alignPhotos(photos []BroadcasterPhoto) {
+	for i := range photos {
+		if photos[i].Description.Text != "" && photos[i].Alt == "" {
+			photos[i].Alt = photos[i].Description.Text
+		} else if photos[i].Alt != "" && photos[i].Description.Text == "" {
+			photos[i].Description.Text = photos[i].Alt
+		}
+		if photos[i].Description.Box_X != 0 && photos[i].Box_X == 0 {
+			photos[i].Box_X = photos[i].Description.Box_X
+		} else if photos[i].Box_X != 0 && photos[i].Description.Box_X == 0 {
+			photos[i].Description.Box_X = photos[i].Box_X
+		}
+		if photos[i].Description.Box_y != 0 && photos[i].Box_y == 0 {
+			photos[i].Box_y = photos[i].Description.Box_y
+		} else if photos[i].Box_y != 0 && photos[i].Description.Box_y == 0 {
+			photos[i].Description.Box_y = photos[i].Box_y
+		}
+	}
 }
 
 type BroadcasterTimeSlot struct {
@@ -496,6 +628,7 @@ func CreateBroadcaster(ctx context.Context, p *CreateBroadcasterParams) (*Broadc
 		targetUserID = parsedUID
 	}
 
+	alignPhotos(p.Photos)
 	servicesJSON, _ := json.Marshal(p.Services)
 	languagesJSON, _ := json.Marshal(p.Languages)
 	attributesJSON, _ := json.Marshal(p.Attributes)
@@ -610,6 +743,7 @@ func UpdateBroadcaster(ctx context.Context, id uuid.UUID, p *UpdateBroadcasterPa
 		used = *p.Used
 	}
 
+	alignPhotos(p.Photos)
 	servicesJSON, _ := json.Marshal(p.Services)
 	languagesJSON, _ := json.Marshal(p.Languages)
 	attributesJSON, _ := json.Marshal(p.Attributes)
@@ -841,6 +975,23 @@ func UpdateBroadcasterPhotos(ctx context.Context, id uuid.UUID, p *UpdateBroadca
 	photos := []BroadcasterPhoto{}
 	if p != nil && p.Photos != nil {
 		photos = p.Photos
+	}
+
+	alignPhotos(photos)
+
+	for i := range photos {
+		if photos[i].ImageURL != "" {
+			parts := strings.Split(strings.TrimRight(photos[i].ImageURL, "/"), "/")
+			if len(parts) > 0 {
+				lastPart := parts[len(parts)-1]
+				if parsedUUID, err := uuid.FromString(lastPart); err == nil {
+					_, _ = images.SaveImage(ctx, &images.SaveImageParams{
+						UUID:        parsedUUID.String(),
+						Description: photos[i].Description,
+					})
+				}
+			}
+		}
 	}
 
 	photosJSON, _ := json.Marshal(photos)

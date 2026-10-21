@@ -160,9 +160,6 @@ func (p *SaveImageParams) Validate() error {
 	if p == nil {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "i parametri immagine sono obbligatori"}
 	}
-	if strings.TrimSpace(p.Description.Text) == "" {
-		return &errs.Error{Code: errs.InvalidArgument, Message: "la descrizione dell'immagine è obbligatoria"}
-	}
 	if strings.TrimSpace(p.UUID) == "" && strings.TrimSpace(p.Data) == "" {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "il contenuto dell'immagine (data) è obbligatorio per una nuova immagine"}
 	}

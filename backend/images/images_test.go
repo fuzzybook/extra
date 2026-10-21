@@ -9,13 +9,18 @@ import (
 )
 
 func TestSaveImageParams_Validate(t *testing.T) {
-	// Missing description
+	// Nil params
+	if err := (*SaveImageParams)(nil).Validate(); err == nil {
+		t.Error("expected error for nil params, got nil")
+	}
+
+	// Empty description is allowed for new image with data
 	p := &SaveImageParams{
 		Description: ImageDescription{},
-		Data:        "abc",
+		Data:        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
 	}
-	if err := p.Validate(); err == nil {
-		t.Error("expected error for empty description, got nil")
+	if err := p.Validate(); err != nil {
+		t.Errorf("expected valid for empty description, got %v", err)
 	}
 
 	// Missing data for new image (uuid is empty)

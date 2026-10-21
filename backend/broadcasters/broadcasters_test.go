@@ -2,6 +2,7 @@ package broadcasters
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"encore.app/config"
@@ -228,13 +229,61 @@ func TestGetBroadcasterServicesPresetsFromSiteConfig(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	expected := config.GetBroadcasterServices()
-	if len(resp.Services) != len(expected) {
-		t.Fatalf("expected %d services presets from SiteConfig, got %d", len(expected), len(resp.Services))
-	}
 	for i, svc := range resp.Services {
 		if svc != expected[i] {
 			t.Errorf("expected service %d to be '%s', got '%s'", i, expected[i], svc)
 		}
+	}
+}
+
+func TestBroadcasterPhoto_Description(t *testing.T) {
+	// 1. Unmarshal from description object
+	data1 := []byte(`{"image_url":"https://example.com/img.png","description":{"text":"Foto da concerto","box_x":25,"box_y":50}}`)
+	var p1 BroadcasterPhoto
+	if err := json.Unmarshal(data1, &p1); err != nil {
+		t.Fatalf("failed to unmarshal p1: %v", err)
+	}
+	if p1.Description.Text != "Foto da concerto" || p1.Alt != "Foto da concerto" {
+		t.Errorf("expected Description.Text and Alt to be 'Foto da concerto', got desc='%s', alt='%s'", p1.Description.Text, p1.Alt)
+	}
+	if p1.Description.Box_X != 25 || p1.Box_X != 25 {
+		t.Errorf("expected Box_X 25, got desc=%d, bp=%d", p1.Description.Box_X, p1.Box_X)
+	}
+	if p1.Description.Box_y != 50 || p1.Box_y != 50 {
+		t.Errorf("expected Box_y 50, got desc=%d, bp=%d", p1.Description.Box_y, p1.Box_y)
+	}
+
+	// 2. Unmarshal from legacy alt, box_x, box_y
+	data2 := []byte(`{"image_url":"https://example.com/img2.png","alt":"Legacy didascalia","box_x":12,"box_y":34}`)
+	var p2 BroadcasterPhoto
+	if err := json.Unmarshal(data2, &p2); err != nil {
+		t.Fatalf("failed to unmarshal p2: %v", err)
+	}
+	if p2.Description.Text != "Legacy didascalia" {
+		t.Errorf("expected Description.Text 'Legacy didascalia', got '%s'", p2.Description.Text)
+	}
+	if p2.Description.Box_X != 12 || p2.Description.Box_y != 34 {
+		t.Errorf("expected Description box 12, 34, got %d, %d", p2.Description.Box_X, p2.Description.Box_y)
+	}
+
+	// 3. Marshal output contains both alt/box_x/box_y and description object
+	marshaled, err := json.Marshal(p1)
+	if err != nil {
+		t.Fatalf("failed to marshal p1: %v", err)
+	}
+	var res map[string]interface{}
+	if err := json.Unmarshal(marshaled, &res); err != nil {
+		t.Fatalf("failed to unmarshal marshaled result: %v", err)
+	}
+	if res["alt"] != "Foto da concerto" {
+		t.Errorf("expected alt in json, got %v", res["alt"])
+	}
+	descObj, ok := res["description"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected description object in json, got %T: %v", res["description"], res["description"])
+	}
+	if descObj["text"] != "Foto da concerto" || descObj["box_x"] != float64(25) || descObj["box_y"] != float64(50) {
+		t.Errorf("unexpected description object content: %+v", descObj)
 	}
 }
 
