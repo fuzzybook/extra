@@ -1,9 +1,56 @@
-// Keeps only the basic formatting produced by the caption editor, without any
-// attribute; every other element is unwrapped (its text kept) and dangerous
-// elements are dropped with their content. Same rule as validate.SanitizeInlineHTML
-// in the backend, applied again here as defense in depth before v-html.
-const ALLOWED_TAGS = new Set(['B', 'I', 'U', 'STRONG', 'EM', 'BR']);
+// Keeps only the formatting produced by the caption editor (Quasar q-editor:
+// font face/size, bold, italic, underline, lines) with a strict allowlist of
+// attributes and CSS properties; every other element is unwrapped (its text
+// kept) and dangerous elements are dropped with their content. Same rules as
+// validate.SanitizeInlineHTML in the backend, applied again here as defense in
+// depth before v-html.
+const ALLOWED_TAGS = new Set(['B', 'I', 'U', 'S', 'STRIKE', 'STRONG', 'EM', 'BR', 'FONT', 'SPAN', 'DIV', 'P']);
 const DROPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'TEMPLATE', 'NOSCRIPT', 'TEXTAREA', 'TITLE', 'SVG', 'MATH']);
+
+const ALLOWED_CSS = new Set([
+  'font-family', 'font-size', 'font-weight', 'font-style',
+  'text-decoration', 'text-decoration-line', 'color', 'text-align',
+]);
+// No parentheses: no url(), expression(), var()...
+const SAFE_CSS_VALUE = /^[a-zA-Z0-9 #%.,'"-]+$/;
+const SAFE_FONT_FACE = /^[a-zA-Z0-9 ,'"-]+$/;
+const SAFE_COLOR = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/;
+const SAFE_FONT_SIZE = /^[1-7]$/;
+
+function sanitizeStyle(style: string): string {
+  return style
+    .split(';')
+    .map((decl) => {
+      const idx = decl.indexOf(':');
+      if (idx < 0) return '';
+      const name = decl.slice(0, idx).trim().toLowerCase();
+      const value = decl.slice(idx + 1).trim();
+      const lower = value.toLowerCase();
+      if (!ALLOWED_CSS.has(name) || !value || !SAFE_CSS_VALUE.test(value) || lower.includes('expression') || lower.includes('javascript')) {
+        return '';
+      }
+      return `${name}: ${value}`;
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+function copyAllowedAttrs(src: Element, dst: Element, tag: string) {
+  for (const attr of Array.from(src.attributes)) {
+    const name = attr.name.toLowerCase();
+    const value = attr.value.trim();
+    if (name === 'style') {
+      const style = sanitizeStyle(value);
+      if (style) dst.setAttribute('style', style);
+    } else if (tag === 'FONT' && name === 'face' && SAFE_FONT_FACE.test(value)) {
+      dst.setAttribute('face', value);
+    } else if (tag === 'FONT' && name === 'size' && SAFE_FONT_SIZE.test(value)) {
+      dst.setAttribute('size', value);
+    } else if (tag === 'FONT' && name === 'color' && SAFE_COLOR.test(value)) {
+      dst.setAttribute('color', value);
+    }
+  }
+}
 
 function cleanNode(node: Node, doc: Document): Node[] {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -22,6 +69,7 @@ function cleanNode(node: Node, doc: Document): Node[] {
     return children;
   }
   const clean = doc.createElement(tag.toLowerCase());
+  copyAllowedAttrs(el, clean, tag);
   children.forEach((child) => clean.appendChild(child));
   return [clean];
 }

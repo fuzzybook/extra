@@ -589,18 +589,29 @@
           </div>
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
-        <q-card-section class="column items-center q-pa-md">
-          <img
-            :src="tableImagePreviewUrl"
-            :alt="tableImagePreviewBroadcaster?.display_name || t('promos.previewDialog.tablePreviewTitle')"
-            style="max-width: 85vw; max-height: 70vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
-          />
-          <!-- Didascalia della foto (HTML con sola formattazione di base) -->
-          <div
-            v-if="tableImagePreviewDescription"
-            class="promo-preview-description text-body2 text-grey-9 q-mt-md"
-            v-html="tableImagePreviewDescription"
-          />
+        <q-card-section class="flex flex-center q-pa-md">
+          <!-- Il riquadro prende le dimensioni dell'immagine caricata; la didascalia (HTML)
+               viene posizionata in box_x / box_y solo dopo il rendering dell'immagine. -->
+          <div class="promo-preview-frame" :style="tableImagePreviewFrameStyle">
+            <img
+              :key="tableImagePreviewUrl"
+              :src="tableImagePreviewUrl"
+              :alt="tableImagePreviewBroadcaster?.display_name || t('promos.previewDialog.tablePreviewTitle')"
+              class="promo-preview-img"
+              :class="{ 'promo-preview-img--sized': !!tableImagePreviewSize }"
+              @load="onPreviewImageLoad"
+              @error="tableImagePreviewSize = null"
+            />
+            <!-- Livello grande quanto la foto: la didascalia scala con essa (vedi app.css) -->
+            <div v-if="tableImagePreviewSize" class="promo-preview-caption-layer photo-caption-frame">
+              <div
+                v-if="tableImagePreviewDescription"
+                class="promo-preview-caption photo-caption-text"
+                :style="tableImagePreviewCaptionStyle"
+                v-html="tableImagePreviewDescription"
+              />
+            </div>
+          </div>
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -732,9 +743,49 @@ const noImagePlaceholder = '/no-image.svg';
 const tableImagePreviewOpen = ref<boolean>(false);
 const tableImagePreviewUrl = ref<string>('');
 const tableImagePreviewBroadcaster = ref<PromoBroadcaster | null>(null);
+// Dimensioni a cui viene mostrata l'immagine, calcolate dopo il suo caricamento
+// (null finché l'immagine non è stata renderizzata).
+const tableImagePreviewSize = ref<{ width: number; height: number } | null>(null);
+
+const tableImagePreviewFrameStyle = computed(() =>
+  tableImagePreviewSize.value
+    ? { width: `${tableImagePreviewSize.value.width}px`, height: `${tableImagePreviewSize.value.height}px` }
+    : {},
+);
+
+// Usa le dimensioni reali dell'immagine (naturalWidth/naturalHeight), adattate
+// alla finestra mantenendo le proporzioni e senza ingrandirla oltre il naturale.
+function onPreviewImageLoad(event: Event) {
+  const img = event.target as HTMLImageElement;
+  const naturalW = img.naturalWidth || tableImagePreviewBroadcaster.value?.width || 0;
+  const naturalH = img.naturalHeight || tableImagePreviewBroadcaster.value?.height || 0;
+  if (!naturalW || !naturalH) {
+    tableImagePreviewSize.value = null;
+    return;
+  }
+  const scale = Math.min(1, (window.innerWidth * 0.85) / naturalW, (window.innerHeight * 0.75) / naturalH);
+  tableImagePreviewSize.value = {
+    width: Math.round(naturalW * scale),
+    height: Math.round(naturalH * scale),
+  };
+}
 const tableImagePreviewDescription = computed(() =>
   sanitizeInlineHtml(tableImagePreviewBroadcaster.value?.description),
 );
+
+// box_x / box_y sono l'offset in percentuale della foto (0-100), quindi la
+// didascalia resta nello stesso punto a qualunque dimensione sia mostrata.
+function captionPercent(value: number | undefined): number {
+  return Math.min(Math.max(value ?? 0, 0), 100);
+}
+
+const tableImagePreviewCaptionStyle = computed(() => {
+  const b = tableImagePreviewBroadcaster.value;
+  return {
+    left: `${captionPercent(b?.box_x)}%`,
+    top: `${captionPercent(b?.box_y)}%`,
+  };
+});
 
 // Primo broadcaster della promo con una foto: è quello mostrato in tabella.
 function getPromoBroadcaster(promo: Promo): PromoBroadcaster | null {
@@ -756,6 +807,7 @@ function getPromoImageUrl(promo: Promo): string {
 function openTableImagePreview(promo: Promo) {
   const broadcaster = getPromoBroadcaster(promo);
   if (!broadcaster?.image_url) return;
+  tableImagePreviewSize.value = null;
   tableImagePreviewUrl.value = broadcaster.image_url;
   tableImagePreviewBroadcaster.value = broadcaster;
   tableImagePreviewOpen.value = true;
@@ -957,10 +1009,46 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.promo-preview-description {
-  max-width: min(85vw, 600px);
-  text-align: center;
-  white-space: pre-line;
+.promo-preview-frame {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.promo-preview-img {
+  display: block;
+  max-width: 85vw;
+  max-height: 75vh;
+  object-fit: contain;
+}
+
+/* Dopo il caricamento l'immagine riempie esattamente il riquadro dimensionato */
+.promo-preview-img--sized {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+}
+
+.promo-preview-caption-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Stessa geometria della didascalia nell'editor delle foto (padding in em,
+   bordo da 1px), senza i controlli di trascinamento. */
+.promo-preview-caption {
+  position: absolute;
+  max-width: 85%;
+  padding: 0.35em 0.7em;
+  border: 1px solid transparent;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  word-break: break-word;
 }
 
 .promo-thumb-wrapper {
