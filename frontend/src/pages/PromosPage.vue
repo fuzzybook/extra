@@ -589,18 +589,21 @@
           </div>
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
-        <q-card-section class="column items-center q-pa-md">
-          <img
-            :src="tableImagePreviewUrl"
-            :alt="tableImagePreviewBroadcaster?.display_name || t('promos.previewDialog.tablePreviewTitle')"
-            style="max-width: 85vw; max-height: 70vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
-          />
-          <!-- Didascalia della foto (HTML con sola formattazione di base) -->
-          <div
-            v-if="tableImagePreviewDescription"
-            class="promo-preview-description text-body2 text-grey-9 q-mt-md"
-            v-html="tableImagePreviewDescription"
-          />
+        <q-card-section class="flex flex-center q-pa-md">
+          <!-- La didascalia (HTML) è posizionata sopra la foto in box_x / box_y, come nell'editor delle foto -->
+          <div class="promo-preview-frame">
+            <img
+              :src="tableImagePreviewUrl"
+              :alt="tableImagePreviewBroadcaster?.display_name || t('promos.previewDialog.tablePreviewTitle')"
+              class="promo-preview-img"
+            />
+            <div
+              v-if="tableImagePreviewDescription"
+              class="promo-preview-caption"
+              :style="tableImagePreviewCaptionStyle"
+              v-html="tableImagePreviewDescription"
+            />
+          </div>
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -735,6 +738,23 @@ const tableImagePreviewBroadcaster = ref<PromoBroadcaster | null>(null);
 const tableImagePreviewDescription = computed(() =>
   sanitizeInlineHtml(tableImagePreviewBroadcaster.value?.description),
 );
+
+// box_x / box_y sono percentuali della foto (0-100). Valori oltre 100 sono
+// posizioni in pixel salvate in passato: si convertono in percentuale sulle
+// dimensioni della foto. Come nell'editor, il box resta entro l'85%.
+function captionPercent(value: number | undefined, size: number | undefined, fallbackSize: number): number {
+  const v = value ?? 0;
+  const pct = v > 100 ? (v / (size && size > 0 ? size : fallbackSize)) * 100 : v;
+  return Math.min(Math.max(pct, 0), 85);
+}
+
+const tableImagePreviewCaptionStyle = computed(() => {
+  const b = tableImagePreviewBroadcaster.value;
+  return {
+    left: `${captionPercent(b?.box_x, b?.width, 600)}%`,
+    top: `${captionPercent(b?.box_y, b?.height, 900)}%`,
+  };
+});
 
 // Primo broadcaster della promo con una foto: è quello mostrato in tabella.
 function getPromoBroadcaster(promo: Promo): PromoBroadcaster | null {
@@ -957,10 +977,33 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.promo-preview-description {
-  max-width: min(85vw, 600px);
-  text-align: center;
-  white-space: pre-line;
+.promo-preview-frame {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.promo-preview-img {
+  display: block;
+  max-width: 85vw;
+  max-height: 75vh;
+  object-fit: contain;
+}
+
+/* Stesso aspetto della didascalia nell'editor delle foto, senza i controlli di trascinamento */
+.promo-preview-caption {
+  position: absolute;
+  max-width: 85%;
+  padding: 4px 8px;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.3;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  word-break: break-word;
 }
 
 .promo-thumb-wrapper {
