@@ -1,1 +1,29 @@
 /* app global css */
+
+/* Stesse regole del pannello (frontend/src/css/app.css): tenerle allineate. */
+/* Didascalie sopra le foto dei broadcaster.
+ * box_x / box_y sono l'offset in percentuale della foto e la didascalia scala
+ * con la larghezza della foto (unità cqw del contenitore .photo-caption-frame):
+ * posizione, ingombro e centro del testo restano gli stessi, in proporzione, a
+ * qualunque dimensione la foto venga mostrata.
+ * Riferimento: la foto come appare nella galleria dell'editor (240px di
+ * larghezza): lì il testo ha le dimensioni scelte nell'editor delle didascalie.
+ */
+.photo-caption-frame {
+  container-type: inline-size;
+}
+
+.photo-caption-text {
+  --caption-px: calc(100cqw / 240);
+  font-size: calc(var(--caption-px) * 11);
+  line-height: 1.3;
+}
+
+/* Dimensioni di <font size> dell'editor (10/13/16/18/24/32/48px) alla foto di riferimento */
+.photo-caption-text font[size='1'] { font-size: calc(var(--caption-px) * 10); }
+.photo-caption-text font[size='2'] { font-size: calc(var(--caption-px) * 13); }
+.photo-caption-text font[size='3'] { font-size: calc(var(--caption-px) * 16); }
+.photo-caption-text font[size='4'] { font-size: calc(var(--caption-px) * 18); }
+.photo-caption-text font[size='5'] { font-size: calc(var(--caption-px) * 24); }
+.photo-caption-text font[size='6'] { font-size: calc(var(--caption-px) * 32); }
+.photo-caption-text font[size='7'] { font-size: calc(var(--caption-px) * 48); }
