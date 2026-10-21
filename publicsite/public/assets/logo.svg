@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="292 160 422.5 280" width="422.5" height="280" fill="#f0c">
+  <!-- First 'E' (Mirrored, reduced size ~60%, close to X) -->
+  <!-- E reflected horizontally around its local center x=40, preserving position -->
+  <g transform="translate(390, 300) scale(0.65) translate(-100, 0) translate(80, 0) scale(-1, 1)">
+    <!-- Mirrored E shape pointing left -->
+    <path d="M 100 -120
+             L -20 -120
+             L -20 120
+             L 100 120
+             L 100 70
+             L 30 70
+             L 30 25
+             L 90 25
+             L 90 -25
+             L 30 -25
+             L 30 -70
+             L 100 -70
+             Z" />
+  </g>
+
+  <!-- Central 'X' (Full/Standard size) -->
+  <g transform="translate(500, 300)">
+    <path d="M -70 -120
+             L -20 -120
+             L 0 -60
+             L 20 -120
+             L 70 -120
+             L 25 0
+             L 75 120
+             L 25 120
+             L 0 55
+             L -25 120
+             L -75 120
+             L -25 0
+             Z" />
+  </g>
+
+  <!-- Second E: same shape and scale as the first, pointing right -->
+  <g transform="translate(610, 300) scale(0.65) translate(20, 0)">
+    <path d="M 100 -120
+             L -20 -120
+             L -20 120
+             L 100 120
+             L 100 70
+             L 30 70
+             L 30 25
+             L 90 25
+             L 90 -25
+             L 30 -25
+             L 30 -70
+             L 100 -70
+             Z" />
+  </g>
+</svg>

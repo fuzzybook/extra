@@ -1,0 +1,105 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Frontend: SPA Quasar (Vue 3 + Vite) servita da Caddy
+  # ---------------------------------------------------------------------------
+  frontend:
+    container_name: extra-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_SSL_PORT:-8443}:443"
+      - "${FRONTEND_SSL_PORT:-8443}:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - extra_network
+
+  # ---------------------------------------------------------------------------
+  # Backend: Microservizi Encore (Go)
+  # ---------------------------------------------------------------------------
+  backend:
+    container_name: extra-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+      - "${BACKEND_DASHBOARD_PORT:-9400}:9400"
+    environment:
+      - PASSWORD_PEPPER=${PASSWORD_PEPPER:?PASSWORD_PEPPER non impostato: definirlo in .env}
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-extra}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-extrasecret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - extra_network
+
+  # ---------------------------------------------------------------------------
+  # Database: PostgreSQL 16 (con script per DB multipli Encore)
+  # ---------------------------------------------------------------------------
+  postgres:
+    container_name: extra-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-extra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-extrasecret}
+      POSTGRES_DB: ${POSTGRES_DB:-extra}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-extra} -d ${POSTGRES_DB:-extra}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - extra_network
+
+  # ---------------------------------------------------------------------------
+  # LiveKit: Media Server WebRTC / SFU
+  # ---------------------------------------------------------------------------
+  livekit:
+    container_name: extra-livekit
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    ports:
+      - "${LIVEKIT_HTTP_PORT:-7880}:7880"
+      - "${LIVEKIT_RTC_TCP_PORT:-7881}:7881"
+      - "${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+    networks:
+      - extra_network
+
+volumes:
+  postgres_data:
+    name: extra_postgres_data
+  caddy_data:
+    name: extra_caddy_data
+  caddy_config:
+    name: extra_caddy_config
+
+networks:
+  extra_network:
+    name: extra_network
+    driver: bridge

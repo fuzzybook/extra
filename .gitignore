@@ -1,0 +1,22 @@
+# OS / editor
+.DS_Store
+.thumbs.db
+
+# Dipendenze e build
+node_modules/
+dist/
+.quasar/
+*.tsbuildinfo
+
+# Configurazione locale e segreti: mai nel repository
+.env
+.env.*
+!.env.example
+.secrets*.cue
+*.cue.bak
+
+# Stato locale di Encore, agenti e strumenti
+.encore/
+.claude/
+.claude-tmp/
+backend/pkg/

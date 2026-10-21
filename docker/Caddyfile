@@ -1,0 +1,24 @@
+{
+    # Opzioni globali
+    auto_https off
+}
+
+:80 {
+    # Directory contenente i file della SPA Quasar
+    root * /usr/share/caddy
+    file_server
+
+    # Compressione automatica (Gzip + Zstandard)
+    encode gzip zstd
+
+    # Cache a lungo termine per gli asset statici
+    @static path /assets/*
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Reverse proxy verso i microservizi Encore (con supporto WebSocket automatico)
+    @backend path /auth/* /profiles/* /videochat/* /admin/* /advertising/* /images/* /registration/* /extrahome/* /hello/* /broadcasters/*
+    reverse_proxy @backend backend:4000
+
+    # Fallback per il routing SPA di Vue Router / Quasar
+    try_files {path} /index.html
+}

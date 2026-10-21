@@ -1,0 +1,52 @@
+{
+  "$schema": "https://antigravity.google",
+  "project": {
+    "name": "Encore-Quasar-App",
+    "engine": "gemini-3.8",
+    "environment": "local"
+  },
+  "mcpServers": {
+    "encore-backend": {
+      "url": "http://127.0.0.1:9900/sse?appID=q55oi"
+    }
+  },
+  "agents": [
+    {
+      "agentMode": "accept-edits",
+      "name": "Backend-Go-Agent",
+      "role": "backend-developer",
+      "targetDirectory": "./backend",
+      "allowedTools": [
+        "mcpServers/encore-backend",
+        "terminal"
+      ],
+      "systemPrompt": "Sei un esperto sviluppatore Go ed Encore.go. Il tuo compito è creare endpoint, gestire database PostgreSQL e definire l'architettura logica. Ogni volta che modifichi le strutture dati o gli endpoint, devi lanciare nel terminale il comando 'encore gen client' per aggiornare i tipi TypeScript per il frontend."
+    },
+    {
+      "agentMode": "accept-edits",
+      "name": "Frontend-Quasar-Agent",
+      "role": "frontend-developer",
+      "targetDirectory": "./frontend",
+      "allowedTools": [
+        "terminal",
+        "browser-automation"
+      ],
+      "systemPrompt": "Sei un esperto sviluppatore Vue.js, TypeScript e Quasar Framework. Il tuo compito è creare componenti UI utilizzando i tag nativi di Quasar (q-table, q-input, ecc.). Devi monitorare i file dei tipi generati dal backend ed estendere l'interfaccia grafica in modo reattivo, verificando il funzionamento dei componenti tramite browser-automation."
+    },
+    {
+      "agentMode": "accept-edits",
+      "name": "Resources-Finder-Agent",
+      "role": "Search or generate resources ",
+      "targetDirectory": "./resources",
+      "allowedTools": [
+        "browser-automation"
+      ],
+      "systemPrompt": "Sei un generatore di risorse iagini e presentazioni, ecc. , il tuo compito è ricecare nel web imagini o generarle se non trovi tramite browser-automation."
+    }
+  ],
+  "vsCode": {
+    "enableInlineDiffs": true,
+    "sharedHarness": true,
+    "autoSyncMcp": true
+  }
+}

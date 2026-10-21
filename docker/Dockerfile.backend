@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.24-bookworm
+
+# Installa pacchetti di sistema necessari
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    bash \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installa la CLI ufficiale di Encore
+RUN curl -L https://encore.dev/install.sh | bash
+ENV PATH="/root/.encore/bin:${PATH}"
+
+WORKDIR /app
+
+# Scarica le dipendenze Go prima di copiare tutto il codice (ottimizzazione cache)
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+# Copia l'intero backend e lo script di entrypoint
+COPY backend/ ./
+COPY docker/entrypoint-backend.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Porte: 4000 (Encore API Gateway), 9400 (Dashboard / Tracing)
+EXPOSE 4000 9400
+
+ENTRYPOINT ["/entrypoint.sh"]

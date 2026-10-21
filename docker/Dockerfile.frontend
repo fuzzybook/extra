@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build Quasar SPA Frontend
+# -----------------------------------------------------------------------------
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Installa le dipendenze del frontend
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copia l'intero sorgente del frontend e compila la SPA
+COPY frontend/ ./
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 2: Serve tramite Caddy Web Server
+# -----------------------------------------------------------------------------
+FROM caddy:2-alpine
+
+# Rimuovi eventuali file di default
+RUN rm -rf /usr/share/caddy/*
+
+# Copia la build Quasar SPA da Stage 1
+COPY --from=builder /app/dist/spa /usr/share/caddy
+
+# Copia la configurazione Caddyfile
+COPY docker/Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80 443 443/udp
+
+HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:80/ || exit 1
+
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

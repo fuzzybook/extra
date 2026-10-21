@@ -1,0 +1,20 @@
+services:
+  # ---------------------------------------------------------------------------
+  # LiveKit: Server SFU WebRTC locale
+  # ---------------------------------------------------------------------------
+  livekit:
+    container_name: local-livekit
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    ports:
+      # Segnalazione HTTP, WebSocket e API Twirp RoomService
+      - "7880:7880"
+      # Fallback WebRTC su TCP (utile se UDP è bloccato da firewall locali)
+      - "7881:7881"
+      # Porta primaria WebRTC su UDP
+      - "7882:7882/udp"
+      # Range porte UDP per i canali multimediali WebRTC ICE (flussi video/audio)
+      - "50000-50020:50000-50020/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
