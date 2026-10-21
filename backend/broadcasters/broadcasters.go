@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	authsvc "encore.app/auth"
 	"encore.app/config"
 	images "encore.app/images"
+	"encore.app/validate"
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
@@ -161,6 +163,20 @@ func (bp BroadcasterPhoto) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// sanitizePhotos validates image URLs and strips any markup from captions
+// except basic formatting, since captions are rendered as HTML.
+func sanitizePhotos(photos []BroadcasterPhoto) error {
+	for i := range photos {
+		photos[i].ImageURL = strings.TrimSpace(photos[i].ImageURL)
+		if err := validate.HTTPURL(photos[i].ImageURL); err != nil {
+			return err
+		}
+		photos[i].Alt = validate.SanitizeInlineHTML(photos[i].Alt)
+		photos[i].Description.Text = validate.SanitizeInlineHTML(photos[i].Description.Text)
+	}
+	return nil
+}
+
 func alignPhotos(photos []BroadcasterPhoto) {
 	for i := range photos {
 		if photos[i].Description.Text != "" && photos[i].Alt == "" {
@@ -221,6 +237,21 @@ func (bh *BroadcasterHours) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// parseClock parses an "HH:MM" time of day (also "H:MM") into minutes since
+// midnight. "24:00" is accepted as end of day.
+func parseClock(value string) (int, bool) {
+	hh, mm, ok := strings.Cut(value, ":")
+	if !ok || len(hh) < 1 || len(hh) > 2 || len(mm) != 2 {
+		return 0, false
+	}
+	h, errH := strconv.Atoi(hh)
+	m, errM := strconv.Atoi(mm)
+	if errH != nil || errM != nil || h < 0 || m < 0 || m > 59 || h > 24 || (h == 24 && m != 0) {
+		return 0, false
+	}
+	return h*60 + m, true
+}
+
 func ValidateHours(hours []BroadcasterHours) error {
 	for _, h := range hours {
 		day := strings.TrimSpace(h.Day)
@@ -234,14 +265,24 @@ func ValidateHours(hours []BroadcasterHours) error {
 			if fromA == "" || toA == "" {
 				return &errs.Error{Code: errs.InvalidArgument, Message: fmt.Sprintf("orario incompleto per %s: 'from' e 'to' sono obbligatori", day)}
 			}
-			if fromA >= toA {
+			startA, okFrom := parseClock(fromA)
+			endA, okTo := parseClock(toA)
+			if !okFrom || !okTo {
+				return &errs.Error{Code: errs.InvalidArgument, Message: fmt.Sprintf("orario non valido per %s: usare il formato HH:MM (%s-%s)", day, fromA, toA)}
+			}
+			if startA >= endA {
 				return &errs.Error{Code: errs.InvalidArgument, Message: fmt.Sprintf("orario non valido per %s: l'orario di inizio (%s) deve essere precedente a quello di fine (%s)", day, fromA, toA)}
 			}
 			for j := i + 1; j < len(h.Hours); j++ {
 				slotB := h.Hours[j]
 				fromB := strings.TrimSpace(slotB.From)
 				toB := strings.TrimSpace(slotB.To)
-				if fromA < toB && fromB < toA {
+				startB, okB1 := parseClock(fromB)
+				endB, okB2 := parseClock(toB)
+				if !okB1 || !okB2 {
+					return &errs.Error{Code: errs.InvalidArgument, Message: fmt.Sprintf("orario non valido per %s: usare il formato HH:MM (%s-%s)", day, fromB, toB)}
+				}
+				if startA < endB && startB < endA {
 					return &errs.Error{
 						Code:    errs.InvalidArgument,
 						Message: fmt.Sprintf("orari sovrapposti per %s: la fascia %s-%s si sovrappone con %s-%s", day, fromA, toA, fromB, toB),
@@ -352,7 +393,7 @@ func (p *CreateBroadcasterParams) Validate() error {
 	if p.Photos == nil {
 		p.Photos = []BroadcasterPhoto{}
 	}
-	return nil
+	return sanitizePhotos(p.Photos)
 }
 
 type UpdateBroadcasterParams struct {
@@ -407,7 +448,7 @@ func (p *UpdateBroadcasterParams) Validate() error {
 			return err
 		}
 	}
-	return nil
+	return sanitizePhotos(p.Photos)
 }
 
 func authedUser() (uuid.UUID, bool, error) {
@@ -422,6 +463,37 @@ func authedUser() (uuid.UUID, bool, error) {
 	data, _ := auth.Data().(*authsvc.AuthData)
 	isAdmin := data != nil && data.Role.IsAdmin()
 	return parsedID, isAdmin, nil
+}
+
+// callerInfo returns the caller's user ID (uuid.Nil when anonymous) and
+// whether the caller is admin. Unlike authedUser it never fails, for use in
+// public endpoints.
+func callerInfo() (uuid.UUID, bool) {
+	uid, ok := auth.UserID()
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, err := uuid.FromString(string(uid))
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return id, authsvc.IsAdmin()
+}
+
+// forViewer applies what public endpoints may reveal: disabled profiles are
+// visible only to their owner and to admins, and phone and user_id are
+// returned only to them as well. It returns false if b must be hidden.
+func forViewer(b *Broadcaster, callerID uuid.UUID, isAdmin bool) bool {
+	isOwner := callerID != uuid.Nil && b.UserID == callerID
+	if isAdmin || isOwner {
+		return true
+	}
+	if !b.Enabled {
+		return false
+	}
+	b.Phone = ""
+	b.UserID = uuid.Nil
+	return true
 }
 
 func scanBroadcaster(scanner interface{ Scan(dest ...any) error }) (*Broadcaster, error) {
@@ -459,28 +531,27 @@ func scanBroadcaster(scanner interface{ Scan(dest ...any) error }) (*Broadcaster
 	}
 
 	b.Services = []string{}
-	if len(servicesBytes) > 0 {
-		_ = json.Unmarshal(servicesBytes, &b.Services)
-	}
-
 	b.Languages = []string{}
-	if len(languagesBytes) > 0 {
-		_ = json.Unmarshal(languagesBytes, &b.Languages)
-	}
-
 	b.Attributes = []BroadcasterAttribute{}
-	if len(attributesBytes) > 0 {
-		_ = json.Unmarshal(attributesBytes, &b.Attributes)
-	}
-
 	b.Hours = []BroadcasterHours{}
-	if len(hoursBytes) > 0 {
-		_ = json.Unmarshal(hoursBytes, &b.Hours)
-	}
-
 	b.Photos = []BroadcasterPhoto{}
-	if len(photosBytes) > 0 {
-		_ = json.Unmarshal(photosBytes, &b.Photos)
+	for _, f := range []struct {
+		name string
+		raw  []byte
+		dst  any
+	}{
+		{"services", servicesBytes, &b.Services},
+		{"languages", languagesBytes, &b.Languages},
+		{"attributes", attributesBytes, &b.Attributes},
+		{"hours", hoursBytes, &b.Hours},
+		{"photos", photosBytes, &b.Photos},
+	} {
+		if len(f.raw) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(f.raw, f.dst); err != nil {
+			return nil, fmt.Errorf("broadcaster %s: campo %s non valido: %w", b.ID, f.name, err)
+		}
 	}
 
 	return &b, nil
@@ -520,6 +591,13 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 		}
 	}
 
+	callerID, isAdmin := callerInfo()
+	if !isAdmin {
+		whereClauses = append(whereClauses, fmt.Sprintf("(enabled = TRUE OR user_id = $%d)", argIdx))
+		args = append(args, callerID)
+		argIdx++
+	}
+
 	query := `
 		SELECT id, user_id, display_name, category, category_color, bio, certified,
 		       availability, phone, services, languages, attributes, hours, photos,
@@ -543,7 +621,9 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 		if err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del record broadcaster")
 		}
-		result = append(result, b)
+		if forViewer(b, callerID, isAdmin) {
+			result = append(result, b)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante l'iterazione dei broadcaster")
@@ -560,9 +640,24 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 }
 
 // GetBroadcaster restituisce il profilo broadcaster dato il suo ID UUID.
+// I profili disabilitati, il telefono e lo user_id sono visibili solo al
+// proprietario e agli admin.
 //
 //encore:api public method=GET path=/broadcasters/id/:id
 func GetBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
+	b, err := getBroadcaster(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	callerID, isAdmin := callerInfo()
+	if !forViewer(b, callerID, isAdmin) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	return b, nil
+}
+
+// getBroadcaster legge il profilo completo, senza filtri di visibilità.
+func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 	row := db.QueryRow(ctx, `
 		SELECT id, user_id, display_name, category, category_color, bio, certified,
 		       availability, phone, services, languages, attributes, hours, photos,
@@ -599,6 +694,10 @@ func GetBroadcasterByUserID(ctx context.Context, userID uuid.UUID) (*Broadcaster
 	}
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	callerID, isAdmin := callerInfo()
+	if !forViewer(b, callerID, isAdmin) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato per l'utente specificato"}
 	}
 	return b, nil
 }
@@ -651,12 +750,17 @@ func CreateBroadcaster(ctx context.Context, p *CreateBroadcasterParams) (*Broadc
 	}
 
 	enabled := false
-	if p.Enabled != nil {
-		enabled = *p.Enabled
-	}
 	used := true
-	if p.Used != nil {
-		used = *p.Used
+	if isAdmin {
+		if p.Enabled != nil {
+			enabled = *p.Enabled
+		}
+		if p.Used != nil {
+			used = *p.Used
+		}
+	} else {
+		// Abilitazione e certificazione sono decise solo dall'amministrazione.
+		p.Certified = false
 	}
 
 	var b Broadcaster
@@ -715,7 +819,7 @@ func UpdateBroadcaster(ctx context.Context, id uuid.UUID, p *UpdateBroadcasterPa
 		return nil, err
 	}
 
-	existing, err := GetBroadcaster(ctx, id)
+	existing, err := getBroadcaster(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -735,12 +839,17 @@ func UpdateBroadcaster(ctx context.Context, id uuid.UUID, p *UpdateBroadcasterPa
 	}
 
 	enabled := existing.Enabled
-	if p.Enabled != nil {
-		enabled = *p.Enabled
-	}
 	used := existing.Used
-	if p.Used != nil {
-		used = *p.Used
+	if isAdmin {
+		if p.Enabled != nil {
+			enabled = *p.Enabled
+		}
+		if p.Used != nil {
+			used = *p.Used
+		}
+	} else {
+		// Abilitazione e certificazione sono decise solo dall'amministrazione.
+		p.Certified = existing.Certified
 	}
 
 	alignPhotos(p.Photos)
@@ -798,7 +907,7 @@ func DeleteBroadcaster(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	existing, err := GetBroadcaster(ctx, id)
+	existing, err := getBroadcaster(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -845,7 +954,7 @@ func UpdateBroadcasterAttributes(ctx context.Context, id uuid.UUID, p *UpdateBro
 		return nil, err
 	}
 
-	existing, err := GetBroadcaster(ctx, id)
+	existing, err := getBroadcaster(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -902,7 +1011,7 @@ func UpdateBroadcasterHours(ctx context.Context, id uuid.UUID, p *UpdateBroadcas
 		return nil, err
 	}
 
-	existing, err := GetBroadcaster(ctx, id)
+	existing, err := getBroadcaster(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -963,7 +1072,7 @@ func UpdateBroadcasterPhotos(ctx context.Context, id uuid.UUID, p *UpdateBroadca
 		return nil, err
 	}
 
-	existing, err := GetBroadcaster(ctx, id)
+	existing, err := getBroadcaster(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -977,6 +1086,9 @@ func UpdateBroadcasterPhotos(ctx context.Context, id uuid.UUID, p *UpdateBroadca
 		photos = p.Photos
 	}
 
+	if err := sanitizePhotos(photos); err != nil {
+		return nil, err
+	}
 	alignPhotos(photos)
 
 	for i := range photos {
@@ -985,8 +1097,7 @@ func UpdateBroadcasterPhotos(ctx context.Context, id uuid.UUID, p *UpdateBroadca
 			if len(parts) > 0 {
 				lastPart := parts[len(parts)-1]
 				if parsedUUID, err := uuid.FromString(lastPart); err == nil {
-					_, _ = images.SaveImage(ctx, &images.SaveImageParams{
-						UUID:        parsedUUID.String(),
+					_ = images.SetDescription(ctx, parsedUUID, &images.SetDescriptionParams{
 						Description: photos[i].Description,
 					})
 				}
@@ -1065,3 +1176,13 @@ func GetBroadcasterServicesPresets(ctx context.Context) (*BroadcasterServicesRes
 	}, nil
 }
 
+// DeleteByUser rimuove il profilo broadcaster dell'utente, se esiste.
+// Privato: chiamato da profiles quando un profilo utente viene eliminato.
+//
+//encore:api private method=DELETE path=/broadcasters/internal/user/:userID
+func DeleteByUser(ctx context.Context, userID uuid.UUID) error {
+	if _, err := db.Exec(ctx, `DELETE FROM broadcasters WHERE user_id = $1`, userID); err != nil {
+		return errs.WrapCode(err, errs.Internal, "errore durante l'eliminazione del broadcaster")
+	}
+	return nil
+}

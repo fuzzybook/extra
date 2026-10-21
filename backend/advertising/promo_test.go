@@ -265,3 +265,22 @@ func TestIsPromoActiveInWeek(t *testing.T) {
 	}
 }
 
+
+func TestPromoParamsRejectNonHTTPURLs(t *testing.T) {
+	for _, field := range []func(*PromoContent){
+		func(c *PromoContent) { c.URL = "javascript:alert(document.cookie)" },
+		func(c *PromoContent) { c.ImageURL = "data:image/svg+xml,<svg onload=alert(1)>" },
+		func(c *PromoContent) { c.MobileImageURL = "vbscript:x" },
+	} {
+		c := PromoContent{URL: "https://example.com", ImageURL: "https://example.com/i.png"}
+		field(&c)
+		create := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{c}}}}
+		if err := create.Validate(); err == nil {
+			t.Errorf("CreatePromoParams.Validate() accepted %+v", c)
+		}
+		update := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{c}}}}
+		if err := update.Validate(); err == nil {
+			t.Errorf("UpdatePromoParams.Validate() accepted %+v", c)
+		}
+	}
+}

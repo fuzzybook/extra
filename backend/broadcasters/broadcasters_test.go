@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"encore.app/config"
+	"encore.dev/types/uuid"
 )
 
 func TestCreateBroadcasterParamsValidate(t *testing.T) {
@@ -288,3 +289,52 @@ func TestBroadcasterPhoto_Description(t *testing.T) {
 }
 
 
+
+func TestValidateHoursComparesTimesNotStrings(t *testing.T) {
+	// "9:00" >= "10:00" as strings: must be accepted as a valid range.
+	ok := []BroadcasterHours{{Day: "Lunedì", Hours: []BroadcasterTimeSlot{{From: "9:00", To: "10:00"}}}}
+	if err := ValidateHours(ok); err != nil {
+		t.Fatalf("ValidateHours(9:00-10:00) = %v, want nil", err)
+	}
+	for _, slot := range []BroadcasterTimeSlot{{From: "9", To: "10:00"}, {From: "25:00", To: "26:00"}, {From: "10:60", To: "11:00"}, {From: "abc", To: "10:00"}} {
+		bad := []BroadcasterHours{{Day: "Lunedì", Hours: []BroadcasterTimeSlot{slot}}}
+		if err := ValidateHours(bad); err == nil {
+			t.Errorf("ValidateHours(%s-%s) = nil, want error", slot.From, slot.To)
+		}
+	}
+}
+
+func TestForViewerRedactsPrivateFields(t *testing.T) {
+	owner, _ := uuid.NewV4()
+	other, _ := uuid.NewV4()
+	newB := func(enabled bool) *Broadcaster {
+		return &Broadcaster{UserID: owner, Phone: "+39 123", Enabled: enabled}
+	}
+
+	if b := newB(true); !forViewer(b, uuid.Nil, false) || b.Phone != "" || b.UserID != uuid.Nil {
+		t.Fatalf("anonymous viewer must see enabled profile without phone/user_id, got %+v", b)
+	}
+	if b := newB(false); forViewer(b, other, false) {
+		t.Fatal("disabled profile must be hidden from other users")
+	}
+	if b := newB(false); !forViewer(b, owner, false) || b.Phone == "" {
+		t.Fatal("owner must see own disabled profile with phone")
+	}
+	if b := newB(false); !forViewer(b, other, true) || b.Phone == "" {
+		t.Fatal("admin must see every profile with phone")
+	}
+}
+
+func TestSanitizePhotosRejectsScriptURLsAndMarkup(t *testing.T) {
+	bad := []BroadcasterPhoto{{ImageURL: "javascript:alert(1)"}}
+	if err := sanitizePhotos(bad); err == nil {
+		t.Fatal("sanitizePhotos must reject javascript: URLs")
+	}
+	photos := []BroadcasterPhoto{{ImageURL: "https://cdn.example.com/a.png", Alt: `<b>ok</b><img src=x onerror=alert(1)>`}}
+	if err := sanitizePhotos(photos); err != nil {
+		t.Fatalf("sanitizePhotos returned %v", err)
+	}
+	if photos[0].Alt != "<b>ok</b>" {
+		t.Fatalf("Alt = %q, want %q", photos[0].Alt, "<b>ok</b>")
+	}
+}

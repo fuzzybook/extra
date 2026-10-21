@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"encore.app/validate"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/objects"
 	"encore.dev/types/uuid"
@@ -32,14 +33,23 @@ func UploadAvatar(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	contentType := req.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	// Read at most one byte over the limit, then sniff the real type: the
+	// client-supplied Content-Type is ignored so no HTML/SVG lands in the
+	// public bucket.
+	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, validate.MaxImageBytes+1))
+	if err != nil {
+		errs.HTTPError(w, &errs.Error{Code: errs.InvalidArgument, Message: "immagine troppo grande (massimo 5 MB)"})
+		return
+	}
+	contentType, err := validate.ImageContentType(body)
+	if err != nil {
+		errs.HTTPError(w, err)
+		return
 	}
 
 	writer := avatars.Upload(req.Context(), key.String(),
 		objects.WithUploadAttrs(objects.UploadAttrs{ContentType: contentType}))
-	if _, err := io.Copy(writer, req.Body); err != nil {
+	if _, err := writer.Write(body); err != nil {
 		writer.Abort(err)
 		errs.HTTPError(w, errs.WrapCode(err, errs.Internal, "failed to upload avatar"))
 		return

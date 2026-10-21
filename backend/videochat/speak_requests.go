@@ -8,9 +8,11 @@ import (
 
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
+	"encore.dev/cron"
 	"encore.dev/rlog"
 	"encore.dev/storage/sqldb"
 	"encore.dev/types/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/livekit/protocol/livekit"
 )
 
@@ -83,20 +85,20 @@ func CreateSpeakRequest(ctx context.Context, roomName string) (*SpeakRequest, er
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "owner already has publishing permissions"}
 	}
 
+	// Le richieste pending scadute passano a 'expired': altrimenti l'indice
+	// unico parziale (status = 'pending') bloccherebbe ogni nuova richiesta.
+	if _, err := db.Exec(ctx, `
+		UPDATE videochat_speak_requests
+		SET status = 'expired', updated_at = NOW()
+		WHERE room_name = $1 AND requester_user_id = $2 AND status = 'pending' AND expires_at <= NOW()
+	`, roomName, string(uid)); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to expire stale speak requests")
+	}
+
 	// Idempotenza: controlla se l'utente ha già una richiesta 'pending' attiva non scaduta
-	var existing SpeakRequest
-	err = db.QueryRow(ctx, `
-		SELECT id, room_name, requester_user_id, requester_livekit_identity, status, 
-		       created_at, updated_at, expires_at, decided_at, decided_by_user_id
-		FROM videochat_speak_requests
-		WHERE room_name = $1 AND requester_user_id = $2 AND status = 'pending' AND expires_at > NOW()
-	`, roomName, string(uid)).Scan(
-		&existing.ID, &existing.RoomName, &existing.RequesterUserID, &existing.RequesterLivekitIdentity,
-		&existing.Status, &existing.CreatedAt, &existing.UpdatedAt, &existing.ExpiresAt,
-		&existing.DecidedAt, &existing.DecidedByUserID,
-	)
+	existing, err := pendingSpeakRequest(ctx, roomName, string(uid))
 	if err == nil {
-		return &existing, nil
+		return existing, nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to check existing speak request")
 	}
@@ -109,7 +111,8 @@ func CreateSpeakRequest(ctx context.Context, roomName string) (*SpeakRequest, er
 	now := time.Now().UTC()
 	expiresAt := now.Add(speakRequestTTL)
 
-	// Inserimento con ON CONFLICT DO UPDATE per garantire unicità assoluta concorrente
+	// Una richiesta concorrente può aver vinto la corsa: in caso di violazione
+	// dell'indice unico si restituisce quella già creata.
 	var created SpeakRequest
 	err = db.QueryRow(ctx, `
 		INSERT INTO videochat_speak_requests (
@@ -120,12 +123,41 @@ func CreateSpeakRequest(ctx context.Context, roomName string) (*SpeakRequest, er
 		&created.ID, &created.RoomName, &created.RequesterUserID, &created.RequesterLivekitIdentity,
 		&created.Status, &created.CreatedAt, &created.UpdatedAt, &created.ExpiresAt,
 	)
+	if isUniqueViolation(err) {
+		if existing, err := pendingSpeakRequest(ctx, roomName, string(uid)); err == nil {
+			return existing, nil
+		}
+	}
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to create speak request")
 	}
 
 	rlog.Info("created speak request", "request_id", created.ID, "room", roomName, "user", uid)
 	return &created, nil
+}
+
+// pendingSpeakRequest returns the caller's active pending request in the room.
+func pendingSpeakRequest(ctx context.Context, roomName, userID string) (*SpeakRequest, error) {
+	var r SpeakRequest
+	err := db.QueryRow(ctx, `
+		SELECT id, room_name, requester_user_id, requester_livekit_identity, status,
+		       created_at, updated_at, expires_at, decided_at, decided_by_user_id
+		FROM videochat_speak_requests
+		WHERE room_name = $1 AND requester_user_id = $2 AND status = 'pending' AND expires_at > NOW()
+	`, roomName, userID).Scan(
+		&r.ID, &r.RoomName, &r.RequesterUserID, &r.RequesterLivekitIdentity,
+		&r.Status, &r.CreatedAt, &r.UpdatedAt, &r.ExpiresAt,
+		&r.DecidedAt, &r.DecidedByUserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // ListSpeakRequests elenca le richieste di intervento della stanza. Richiede l'owner.
@@ -565,4 +597,79 @@ func GetSpeakerState(ctx context.Context, roomName string) (*SpeakerStateRespons
 		ActiveSpeaker:   speakerPtr,
 		MyRequest:       myReqPtr,
 	}, nil
+}
+
+var _ = cron.NewJob("expire-speaker-leases", cron.JobConfig{
+	Title:    "Revoke guest speakers whose lease has expired",
+	Every:    1 * cron.Minute,
+	Endpoint: ExpireSpeakerLeases,
+})
+
+// ExpireSpeakerLeases revoca su LiveKit il permesso di pubblicare agli speaker
+// il cui lease è scaduto e libera il relativo slot, così non possono esserci
+// due speaker contemporanei.
+//
+//encore:api private
+func ExpireSpeakerLeases(ctx context.Context) error {
+	rows, err := db.Query(ctx, `
+		SELECT room_name, COALESCE(speaker_livekit_identity, '')
+		FROM videochat_speaker_slots
+		WHERE state <> 'free' AND lease_expires_at IS NOT NULL AND lease_expires_at < NOW()
+	`)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to query expired speaker leases")
+	}
+	type expired struct{ room, identity string }
+	var list []expired
+	for rows.Next() {
+		var e expired
+		if err := rows.Scan(&e.room, &e.identity); err != nil {
+			rows.Close()
+			return errs.WrapCode(err, errs.Internal, "failed to scan expired speaker lease")
+		}
+		list = append(list, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return errs.WrapCode(err, errs.Internal, "failed to iterate expired speaker leases")
+	}
+	if len(list) == 0 {
+		return nil
+	}
+
+	client, _, err := liveKitClient()
+	if err != nil {
+		return err
+	}
+	for _, e := range list {
+		if e.identity != "" {
+			ctxTimeout, cancel := context.WithTimeout(ctx, apiTimeout)
+			_, lkErr := client.UpdateParticipant(ctxTimeout, &livekit.UpdateParticipantRequest{
+				Room:     e.room,
+				Identity: e.identity,
+				Permission: &livekit.ParticipantPermission{
+					CanPublish:     false,
+					CanSubscribe:   true,
+					CanPublishData: false,
+				},
+			})
+			cancel()
+			if lkErr != nil {
+				// Il partecipante potrebbe essersi già disconnesso: lo slot va liberato comunque.
+				rlog.Warn("livekit revoke on lease expiry failed", "err", lkErr, "room", e.room, "identity", e.identity)
+			}
+		}
+		_, _ = db.Exec(ctx, `
+			UPDATE videochat_speaker_slots
+			SET state = 'free', speaker_user_id = NULL, speaker_livekit_identity = NULL, request_id = NULL, updated_at = NOW()
+			WHERE room_name = $1 AND state <> 'free' AND lease_expires_at < NOW()
+		`, e.room)
+		_, _ = db.Exec(ctx, `
+			UPDATE videochat_speak_requests
+			SET status = 'revoked', updated_at = NOW()
+			WHERE room_name = $1 AND requester_livekit_identity = $2 AND status = 'approved'
+		`, e.room, e.identity)
+		rlog.Info("speaker lease expired", "room", e.room, "identity", e.identity)
+	}
+	return nil
 }

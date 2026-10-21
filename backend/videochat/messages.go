@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	authsvc "encore.app/auth"
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/pubsub"
@@ -77,7 +78,7 @@ type ChatMessage struct {
 type SendMessageParams struct {
 	ClientMessageID string `json:"client_message_id"`
 	Text            string `json:"text"`
-	Kind            string `json:"kind,omitempty"` // facoltativo, default 'text'
+	Kind            string `json:"kind,omitempty"` // ignorato: i client inviano solo 'text'
 }
 
 type ListMessagesParams struct {
@@ -87,6 +88,9 @@ type ListMessagesParams struct {
 type ListMessagesResponse struct {
 	Messages []*ChatMessage `json:"messages"`
 }
+
+// allowedRoomCommands è l'elenco chiuso dei comandi di moderazione.
+var allowedRoomCommands = map[string]bool{"alert": true, "mute": true, "clear": true, "filter": true}
 
 type SendCommandParams struct {
 	Command  string `json:"command"` // 'alert' | 'mute' | 'clear' | 'filter'
@@ -141,10 +145,9 @@ func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*C
 		return nil, err
 	}
 
+	// I messaggi "system" sono creati solo dal server: il campo Kind inviato
+	// dal client viene ignorato.
 	kind := "text"
-	if p.Kind == "system" {
-		kind = "system"
-	}
 
 	// Recupera display name e avatar del mittente da profilesDB
 	senderName := "Utente"
@@ -207,7 +210,7 @@ func SendMessage(ctx context.Context, roomName string, p *SendMessageParams) (*C
 	return &created, nil
 }
 
-// ListMessages recupera lo storico cronologico dei messaggi di chat della stanza.
+// ListMessages recupera gli ultimi messaggi di chat della stanza, in ordine cronologico.
 //
 //encore:api auth method=GET path=/videochat/rooms/:roomName/messages
 func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (*ListMessagesResponse, error) {
@@ -225,10 +228,14 @@ func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (
 
 	rows, err := db.Query(ctx, `
 		SELECT id, room_name, sender_user_id, sender_name, sender_avatar, kind, body, client_message_id, created_at
-		FROM videochat_messages
-		WHERE room_name = $1
-		ORDER BY created_at ASC
-		LIMIT $2
+		FROM (
+			SELECT id, room_name, sender_user_id, sender_name, sender_avatar, kind, body, client_message_id, created_at
+			FROM videochat_messages
+			WHERE room_name = $1
+			ORDER BY created_at DESC, id DESC
+			LIMIT $2
+		) latest
+		ORDER BY created_at ASC, id ASC
 	`, roomName, limit)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to query messages")
@@ -246,6 +253,9 @@ func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (
 		}
 		list = append(list, &m)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to iterate chat messages")
+	}
 	if list == nil {
 		list = []*ChatMessage{}
 	}
@@ -254,6 +264,7 @@ func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (
 }
 
 // SendCommand pubblica un comando amministrativo o di moderazione sul topic Pub/Sub della stanza.
+// Richiede il proprietario della stanza o un admin.
 //
 //encore:api auth method=POST path=/videochat/rooms/:roomName/commands
 func SendCommand(ctx context.Context, roomName string, p *SendCommandParams) (*RoomCommandResponse, error) {
@@ -265,8 +276,24 @@ func SendCommand(ctx context.Context, roomName string, p *SendCommandParams) (*R
 		return nil, err
 	}
 	command := strings.TrimSpace(p.Command)
-	if command == "" {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "command cannot be empty"}
+	if !allowedRoomCommands[command] {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "unknown command: allowed are alert, mute, clear, filter"}
+	}
+	if len(p.Payload) > 2000 {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "command payload exceeds maximum length of 2000 characters"}
+	}
+
+	// Solo il proprietario della stanza o un admin possono moderarla.
+	if !authsvc.IsAdmin() {
+		client, _, err := liveKitClient()
+		if err != nil {
+			return nil, err
+		}
+		ctxTimeout, cancel := context.WithTimeout(ctx, apiTimeout)
+		defer cancel()
+		if err := requireRoomOwner(ctxTimeout, client, roomName); err != nil {
+			return nil, err
+		}
 	}
 
 	senderName := "Admin"

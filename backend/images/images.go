@@ -7,12 +7,16 @@ import (
 	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	authsvc "encore.app/auth"
+	"encore.app/validate"
+	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/objects"
 	"encore.dev/storage/sqldb"
@@ -195,15 +199,22 @@ func parseImageData(data string, fallbackContentType string) ([]byte, string, er
 	return decoded, contentType, nil
 }
 
-// ListImages ritorna la lista completa delle immagini.
+// ListImages ritorna le immagini visibili al chiamante: agli anonimi solo
+// quelle approvate, agli utenti anche le proprie, agli admin tutte.
 //
 //encore:api public method=GET path=/images
 func ListImages(ctx context.Context) (*ListImagesResponse, error) {
+	all := authsvc.IsAdmin()
+	owner := uuid.Nil
+	if uid, ok := auth.UserID(); ok {
+		owner, _ = uuid.FromString(string(uid))
+	}
 	rows, err := db.Query(ctx, `
 		SELECT uuid, owner, description, approved, proportion, width, height, created_at
 		FROM images
+		WHERE $1 OR approved OR ($2 <> '00000000-0000-0000-0000-000000000000'::uuid AND owner = $2)
 		ORDER BY created_at DESC
-	`)
+	`, all, owner)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante il recupero delle immagini")
 	}
@@ -258,6 +269,7 @@ func GetImage(w http.ResponseWriter, req *http.Request) {
 	defer reader.Close()
 
 	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if _, err := io.Copy(w, reader); err != nil {
 		if reader.Err() != nil {
 			errs.HTTPError(w, &errs.Error{Code: errs.NotFound, Message: "immagine non trovata"})
@@ -271,11 +283,21 @@ func GetImage(w http.ResponseWriter, req *http.Request) {
 }
 
 // SaveImage crea una nuova immagine o aggiorna la descrizione/file dell'immagine esistente.
+// Una nuova immagine appartiene a chi la carica; un'immagine esistente può
+// essere modificata solo dal proprietario o da un admin.
 //
-//encore:api public method=POST path=/image
+//encore:api auth method=POST path=/image
 func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
+	}
+	uid, ok := auth.UserID()
+	if !ok {
+		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "autenticazione richiesta"}
+	}
+	callerID, err := uuid.FromString(string(uid))
+	if err != nil {
+		return nil, &errs.Error{Code: errs.Unauthenticated, Message: "identificativo utente non valido"}
 	}
 
 	var targetUUID uuid.UUID
@@ -288,12 +310,18 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 			return nil, &errs.Error{Code: errs.InvalidArgument, Message: "UUID immagine non valido"}
 		}
 		targetUUID = parsedUUID
-		var exists bool
-		err = db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM images WHERE uuid = $1)`, targetUUID).Scan(&exists)
-		if err != nil {
+		var currentOwner uuid.UUID
+		err = db.QueryRow(ctx, `SELECT owner FROM images WHERE uuid = $1`, targetUUID).Scan(&currentOwner)
+		switch {
+		case errors.Is(err, sqldb.ErrNoRows):
+			// Il client non può scegliere l'UUID di una nuova immagine.
+			return nil, &errs.Error{Code: errs.NotFound, Message: "immagine non trovata"}
+		case err != nil:
 			return nil, errs.WrapCode(err, errs.Internal, "errore durante il controllo esistenza immagine")
+		case currentOwner != callerID && !authsvc.IsAdmin():
+			return nil, &errs.Error{Code: errs.PermissionDenied, Message: "permesso negato: non sei il proprietario dell'immagine"}
 		}
-		isUpdate = exists
+		isUpdate = true
 	} else {
 		newID, err := uuid.NewV4()
 		if err != nil {
@@ -303,7 +331,13 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 	}
 
 	if strings.TrimSpace(p.Data) != "" {
-		rawBytes, detectedContentType, err := parseImageData(p.Data, p.ContentType)
+		rawBytes, _, err := parseImageData(p.Data, p.ContentType)
+		if err != nil {
+			return nil, err
+		}
+		// Il content type dichiarato (data: URL o campo) viene ignorato:
+		// conta solo quello rilevato dai byte.
+		detectedContentType, err := validate.ImageContentType(rawBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -321,7 +355,7 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 	}
 
 	desc := p.Description
-	desc.Text = strings.TrimSpace(desc.Text)
+	desc.Text = validate.SanitizeInlineHTML(strings.TrimSpace(desc.Text))
 
 	var (
 		createdAt time.Time
@@ -349,10 +383,10 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 		}
 	} else {
 		err := db.QueryRow(ctx, `
-			INSERT INTO images (uuid, description, proportion, width, height)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO images (uuid, owner, description, proportion, width, height)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING created_at, owner, approved, proportion, width, height
-		`, targetUUID, desc, p.Proportion, p.Width, p.Height).Scan(
+		`, targetUUID, callerID, desc, p.Proportion, p.Width, p.Height).Scan(
 			&createdAt, &resOwner, &resAppr, &resProp, &resWidth, &resHeight,
 		)
 		if err != nil {
@@ -371,4 +405,22 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 		Width:       resWidth,
 		Height:      resHeight,
 	}, nil
+}
+
+type SetDescriptionParams struct {
+	Description ImageDescription `json:"description"`
+}
+
+// SetDescription aggiorna solo la descrizione di un'immagine esistente.
+// Privato: usato da broadcasters per allineare le didascalie delle foto, dopo
+// aver verificato che il chiamante sia proprietario del profilo broadcaster.
+//
+//encore:api private method=PUT path=/images/internal/:id/description
+func SetDescription(ctx context.Context, id uuid.UUID, p *SetDescriptionParams) error {
+	desc := p.Description
+	desc.Text = validate.SanitizeInlineHTML(strings.TrimSpace(desc.Text))
+	if _, err := db.Exec(ctx, `UPDATE images SET description = $1 WHERE uuid = $2`, desc, id); err != nil {
+		return errs.WrapCode(err, errs.Internal, "impossibile aggiornare la descrizione dell'immagine")
+	}
+	return nil
 }

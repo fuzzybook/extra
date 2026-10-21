@@ -91,37 +91,47 @@ func GetProfile(ctx context.Context, userID uuid.UUID) (*Profile, error) {
 	return &p, nil
 }
 
-// InsertProfile creates a new user profile with a server-generated UUID v4,
-// delegating credential setup to the auth service.
+// InsertProfile creates a new user profile through profiles.Insert, so the
+// same validation, email normalization and credential setup apply.
 //
 //encore:api auth method=POST path=/admin/profiles
 func InsertProfile(ctx context.Context, p *RegisterParams) (*Profile, error) {
-	userID, err := uuid.NewV4()
+	created, err := profilessvc.Insert(ctx, &profilessvc.RegisterParams{
+		Email:       p.Email,
+		DisplayName: p.DisplayName,
+		AvatarURL:   p.AvatarURL,
+		Password:    p.Password,
+	})
 	if err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "failed to generate profile id")
+		return nil, err
 	}
-	profile := Profile{UserID: userID, Email: p.Email, DisplayName: p.DisplayName, AvatarURL: p.AvatarURL}
-	err = profilesDB.QueryRow(ctx, `
-		INSERT INTO user_profiles (user_id, email, display_name, avatar_url)
-		VALUES ($1, $2, $3, $4)
-		RETURNING role, status, member_type, broadcaster, created_at, updated_at
-	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
-	if isUniqueViolation(err) {
-		return nil, &errs.Error{Code: errs.AlreadyExists, Message: "email already registered"}
+	return fromServiceProfile(created), nil
+}
+
+func fromServiceProfile(p *profilessvc.Profile) *Profile {
+	return &Profile{
+		UserID:      p.UserID,
+		Email:       p.Email,
+		DisplayName: p.DisplayName,
+		AvatarURL:   p.AvatarURL,
+		MemberType:  p.MemberType,
+		Broadcaster: p.Broadcaster,
+		Role:        p.Role,
+		Status:      p.Status,
+		CreatedAt:   p.CreatedAt,
+		UpdatedAt:   p.UpdatedAt,
 	}
-	if err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "failed to create profile")
-	}
-	if err := authsvc.Register(ctx, &authsvc.RegisterParams{UserID: userID, Password: p.Password}); err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "failed to register credentials")
-	}
-	return &profile, nil
 }
 
 // UpdateProfile replaces the data of any user's profile.
 //
 //encore:api auth method=PUT path=/admin/profiles/:userID
 func UpdateProfile(ctx context.Context, userID uuid.UUID, p *ProfileParams) (*Profile, error) {
+	params := profilessvc.ProfileParams{DisplayName: p.DisplayName, AvatarURL: p.AvatarURL}
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	p.DisplayName, p.AvatarURL = params.DisplayName, params.AvatarURL
 	profile := Profile{UserID: userID, DisplayName: p.DisplayName, AvatarURL: p.AvatarURL}
 	err := profilesDB.QueryRow(ctx, `
 		UPDATE user_profiles
@@ -165,6 +175,11 @@ func UpdateProfileStatus(ctx context.Context, userID uuid.UUID, p *UpdateProfile
 	}
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to update profile status")
+	}
+	if p.Status != profilessvc.StatusActive {
+		if err := authsvc.RevokeUserSessions(ctx, userID); err != nil {
+			return nil, err
+		}
 	}
 	return &profile, nil
 }
@@ -346,7 +361,7 @@ func DeleteProfile(ctx context.Context, userID uuid.UUID) error {
 	if res.RowsAffected() == 0 {
 		return &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
-	return nil
+	return profilessvc.CleanupDeletedUser(ctx, userID)
 }
 
 type PersonalData struct {
@@ -392,6 +407,11 @@ func GetPersonalData(ctx context.Context, userID uuid.UUID) (*PersonalData, erro
 //
 //encore:api auth method=PUT path=/admin/profiles/:userID/personal-data
 func UpsertPersonalData(ctx context.Context, userID uuid.UUID, p *PersonalDataParams) (*PersonalData, error) {
+	params := profilessvc.PersonalDataParams(*p)
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	*p = PersonalDataParams(params)
 	pd := PersonalData{
 		UserID:    userID,
 		FirstName: p.FirstName,
@@ -421,12 +441,6 @@ func UpsertPersonalData(ctx context.Context, userID uuid.UUID, p *PersonalDataPa
 		return nil, errs.WrapCode(err, errs.Internal, "failed to save personal data")
 	}
 	return &pd, nil
-}
-
-// isUniqueViolation reports whether err is a Postgres unique constraint violation.
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // isForeignKeyViolation reports whether err is a Postgres foreign key constraint violation.

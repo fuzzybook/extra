@@ -104,15 +104,10 @@ type EmailAvailabilityResponse struct {
 //
 //encore:api public method=GET path=/registration/email/:email
 func CheckEmail(ctx context.Context, email string) (*EmailAvailabilityResponse, error) {
-	email = strings.TrimSpace(email)
-	if email == "" {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "email is required"}
-	}
-	parsed, err := mail.ParseAddress(email)
+	email, err := normalizeEmail(email)
 	if err != nil {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "invalid email"}
+		return nil, err
 	}
-	email = parsed.Address
 
 	domain, ok := emailDomain(email)
 	if !ok {
@@ -125,7 +120,7 @@ func CheckEmail(ctx context.Context, email string) (*EmailAvailabilityResponse, 
 
 	var exists bool
 	err = profilesDB.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM user_profiles WHERE email = $1)
+		SELECT EXISTS(SELECT 1 FROM user_profiles WHERE lower(email) = $1)
 	`, email).Scan(&exists)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to check email")
@@ -227,7 +222,7 @@ func RequestPasswordReset(ctx context.Context, p *PasswordResetRequestParams) (*
 	err = profilesDB.QueryRow(ctx, `
 		SELECT user_id, email, display_name, avatar_url, role, status, member_type, created_at, updated_at
 		FROM user_profiles
-		WHERE email = $1
+		WHERE lower(email) = $1
 	`, email).Scan(
 		&profile.UserID,
 		&profile.Email,
@@ -269,35 +264,27 @@ func ConfirmPasswordReset(ctx context.Context, token uuid.UUID, p *PasswordReset
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
+	// Consume the token first with a single conditional UPDATE, so two
+	// concurrent requests with the same token cannot both succeed.
 	var userID uuid.UUID
 	var email string
-	var expiresAt time.Time
-	var usedAt *time.Time
 	err := db.QueryRow(ctx, `
-		SELECT user_id, email, expires_at, used_at FROM password_reset_tokens WHERE token = $1
-	`, token).Scan(&userID, &email, &expiresAt, &usedAt)
+		UPDATE password_reset_tokens SET used_at = NOW()
+		WHERE token = $1 AND used_at IS NULL AND expires_at > NOW()
+		RETURNING user_id, email
+	`, token).Scan(&userID, &email)
 	if errors.Is(err, sqldb.ErrNoRows) {
-		return nil, &errs.Error{Code: errs.NotFound, Message: "password reset token not found"}
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "password reset token is invalid, expired or already used"}
 	}
-	if err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "failed to load password reset token")
-	}
-	if usedAt != nil {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "password reset token already used"}
-	}
-	if time.Now().After(expiresAt) {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "password reset token has expired"}
-	}
-
-	if err := authsvc.SetUserPassword(ctx, userID, &authsvc.SetUserPasswordParams{UserID: userID, Password: p.Password}); err != nil {
-		return nil, err
-	}
-
-	_, err = db.Exec(ctx, `
-		UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1
-	`, token)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to consume password reset token")
+	}
+
+	// SetUserPassword also revokes every existing session of the user.
+	if err := authsvc.SetUserPassword(ctx, userID, &authsvc.SetUserPasswordParams{UserID: userID, Password: p.Password}); err != nil {
+		// Give the token back so the user can retry with the same link.
+		_, _ = db.Exec(ctx, `UPDATE password_reset_tokens SET used_at = NULL WHERE token = $1`, token)
+		return nil, err
 	}
 
 	return &PasswordResetConfirmResponse{Email: email, Reset: true}, nil

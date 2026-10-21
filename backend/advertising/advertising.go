@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	authsvc "encore.app/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
 	"encore.dev/types/uuid"
@@ -88,10 +89,13 @@ type ListAdvertisingResponse struct {
 	Advertising []*Advertising `json:"advertising"`
 }
 
-// List ritorna l'intera lista delle pubblicità ordinate per data di creazione.
+// List ritorna l'intera lista delle pubblicità ordinate per data di creazione. Solo admin.
 //
-//encore:api public method=GET path=/advertising
+//encore:api auth method=GET path=/advertising
 func List(ctx context.Context) (*ListAdvertisingResponse, error) {
+	if err := authsvc.RequireAdmin(); err != nil {
+		return nil, err
+	}
 	rows, err := db.Query(ctx, `
 		SELECT id, nome, email, status, created_at
 		FROM advertising
@@ -121,10 +125,13 @@ func List(ctx context.Context) (*ListAdvertisingResponse, error) {
 	return &ListAdvertisingResponse{Advertising: list}, nil
 }
 
-// Create crea un nuovo cliente/pubblicità con validazione dell'email e dei campi.
+// Create crea un nuovo cliente/pubblicità con validazione dell'email e dei campi. Solo admin.
 //
-//encore:api public method=POST path=/advertising
+//encore:api auth method=POST path=/advertising
 func Create(ctx context.Context, p *CreateAdvertisingParams) (*Advertising, error) {
+	if err := authsvc.RequireAdmin(); err != nil {
+		return nil, err
+	}
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}

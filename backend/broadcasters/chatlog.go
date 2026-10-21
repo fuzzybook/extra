@@ -8,6 +8,9 @@ import (
 	"encore.dev/beta/errs"
 )
 
+// maxChatLogData limita la dimensione di un singolo evento salvato.
+const maxChatLogData = 4 << 10 // 4 KB
+
 type ChatLogEntry struct {
 	ID        int64     `json:"id"`
 	Timestamp time.Time `json:"timestamp"`
@@ -34,11 +37,14 @@ type ListChatLogResponse struct {
 //
 //encore:api public method=POST path=/broadcasters/id/:id/chatlog
 func AddChatLog(ctx context.Context, id string, p *AddChatLogParams) (*ChatLogEntry, error) {
-	if strings.TrimSpace(id) == "" {
-		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "id stanza obbligatorio"}
+	if strings.TrimSpace(id) == "" || len(id) > 128 {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "id stanza obbligatorio (massimo 128 caratteri)"}
 	}
 	if p == nil || strings.TrimSpace(p.Data) == "" {
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "data obbligatorio"}
+	}
+	if len(p.Data) > maxChatLogData {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "data troppo grande (massimo 4 KB)"}
 	}
 
 	msgType := strings.ToUpper(strings.TrimSpace(p.Type))

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	authsvc "encore.app/auth"
+	"encore.app/validate"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
 )
@@ -121,6 +123,21 @@ func validatePromoFields(position PromoPosition, section string) error {
 	return nil
 }
 
+// validatePromoItems accetta solo URL http/https: i link e le immagini delle
+// promo finiscono in href/src del sito pubblico.
+func validatePromoItems(items []PromoItem) error {
+	for _, item := range items {
+		for _, c := range item.Content {
+			for _, u := range []string{c.URL, c.ImageURL, c.MobileImageURL} {
+				if err := validate.HTTPURL(u); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func validatePromoWeeks(weeks []int) error {
 	for _, w := range weeks {
 		if w < 1 || w > 53 {
@@ -139,6 +156,9 @@ func (p *CreatePromoParams) Validate() error {
 	}
 	if p.Item == nil {
 		p.Item = []PromoItem{}
+	}
+	if err := validatePromoItems(p.Item); err != nil {
+		return err
 	}
 	if p.Weeks == nil {
 		p.Weeks = []int{}
@@ -170,6 +190,9 @@ func (p *UpdatePromoParams) Validate() error {
 	}
 	if p.Item == nil {
 		p.Item = []PromoItem{}
+	}
+	if err := validatePromoItems(p.Item); err != nil {
+		return err
 	}
 	if p.Weeks == nil {
 		p.Weeks = []int{}
@@ -261,10 +284,13 @@ func ListPromotions(ctx context.Context) (*ListPromotionsResponse, error) {
 	return &ListPromotionsResponse{Promotions: promos}, nil
 }
 
-// CreatePromo inserisce una nuova promozione nel database.
+// CreatePromo inserisce una nuova promozione nel database. Solo admin.
 //
-//encore:api public method=POST path=/promo
+//encore:api auth method=POST path=/promo
 func CreatePromo(ctx context.Context, p *CreatePromoParams) (*Promo, error) {
+	if err := authsvc.RequireAdmin(); err != nil {
+		return nil, err
+	}
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
@@ -304,10 +330,13 @@ func CreatePromo(ctx context.Context, p *CreatePromoParams) (*Promo, error) {
 	return &promo, nil
 }
 
-// UpdatePromo aggiorna una promozione esistente nel database.
+// UpdatePromo aggiorna una promozione esistente nel database. Solo admin.
 //
-//encore:api public method=PUT path=/promo/:id
+//encore:api auth method=PUT path=/promo/:id
 func UpdatePromo(ctx context.Context, id int64, p *UpdatePromoParams) (*Promo, error) {
+	if err := authsvc.RequireAdmin(); err != nil {
+		return nil, err
+	}
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}

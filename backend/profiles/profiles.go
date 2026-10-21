@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"net/mail"
-	"net/url"
 	"strings"
 	"time"
 
 	authsvc "encore.app/auth"
+	broadcasterssvc "encore.app/broadcasters"
+	"encore.app/validate"
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
@@ -20,8 +21,6 @@ import (
 var db = sqldb.NewDatabase("profiles", sqldb.DatabaseConfig{
 	Migrations: "./migrations",
 })
-
-var authDB = sqldb.Named("auth")
 
 const (
 	MemberTypeBroadcaster = "broadcaster"
@@ -95,7 +94,7 @@ func (p *RegisterParams) Validate() error {
 	}
 	p.DisplayName = name
 	if p.AvatarURL != "" {
-		if _, err := url.ParseRequestURI(p.AvatarURL); err != nil {
+		if err := validate.HTTPURL(p.AvatarURL); err != nil {
 			return &errs.Error{Code: errs.InvalidArgument, Message: "avatar url is invalid"}
 		}
 	}
@@ -111,7 +110,7 @@ func (p *ProfileParams) Validate() error {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "display name is required"}
 	}
 	if p.AvatarURL != "" {
-		if _, err := url.ParseRequestURI(p.AvatarURL); err != nil {
+		if err := validate.HTTPURL(p.AvatarURL); err != nil {
 			return &errs.Error{Code: errs.InvalidArgument, Message: "avatar url is invalid"}
 		}
 	}
@@ -165,6 +164,8 @@ func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to create profile")
 	}
 	if err := authsvc.Register(ctx, &authsvc.RegisterParams{UserID: userID, Password: p.Password}); err != nil {
+		// Without credentials the profile is unusable and would block the email.
+		_, _ = db.Exec(ctx, `DELETE FROM user_profiles WHERE user_id = $1`, userID)
 		return nil, errs.WrapCode(err, errs.Internal, "failed to register credentials")
 	}
 	return &profile, nil
@@ -254,7 +255,19 @@ func Delete(ctx context.Context) error {
 	if res.RowsAffected() == 0 {
 		return &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
-	return nil
+	return CleanupDeletedUser(ctx, userID)
+}
+
+// CleanupDeletedUser removes what other services keep for a deleted profile:
+// credentials and sessions (auth) and the broadcaster record. Called by
+// Delete and by admin.DeleteProfile.
+//
+//encore:api private method=POST path=/profiles/internal/:userID/cleanup
+func CleanupDeletedUser(ctx context.Context, userID uuid.UUID) error {
+	if err := authsvc.DeleteCredentials(ctx, userID); err != nil {
+		return err
+	}
+	return broadcasterssvc.DeleteByUser(ctx, userID)
 }
 
 // requireSelf returns an error unless the authenticated caller is the user identified by userID.

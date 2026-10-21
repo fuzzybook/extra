@@ -52,14 +52,7 @@ func websocketURL(raw string) (string, error) {
 }
 
 func requireAdmin() error {
-	if _, ok := auth.UserID(); !ok {
-		return &errs.Error{Code: errs.Unauthenticated, Message: "must be logged in"}
-	}
-	data, _ := auth.Data().(*authsvc.AuthData)
-	if data == nil || !data.Role.IsAdmin() {
-		return &errs.Error{Code: errs.PermissionDenied, Message: "admin role required"}
-	}
-	return nil
+	return authsvc.RequireAdmin()
 }
 
 func validateRoomName(name string) error {

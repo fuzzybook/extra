@@ -29,6 +29,10 @@ var secrets struct {
 }
 
 const sessionTTL = 7 * 24 * time.Hour
+
+// profileStatusActive mirrors profiles.StatusActive; auth cannot import
+// profiles because profiles already depends on auth.
+const profileStatusActive = 0
 const minPasswordLength = 8
 
 type AuthParams struct {
@@ -64,11 +68,16 @@ func AuthHandler(ctx context.Context, p *AuthParams) (auth.UID, *AuthData, error
 		return "", nil, errs.WrapCode(err, errs.Internal, "failed to validate session")
 	}
 
+	// Sessions of deleted, suspended or banned profiles must not authenticate.
 	var roleStr string
+	var status int
 	err = profilesDB.QueryRow(ctx, `
-		SELECT role FROM user_profiles WHERE user_id = $1
-	`, userID).Scan(&roleStr)
-	if err != nil && !errors.Is(err, sqldb.ErrNoRows) {
+		SELECT role, status FROM user_profiles WHERE user_id = $1
+	`, userID).Scan(&roleStr, &status)
+	if errors.Is(err, sqldb.ErrNoRows) || (err == nil && status != profileStatusActive) {
+		return "", nil, &errs.Error{Code: errs.Unauthenticated, Message: "account is not active"}
+	}
+	if err != nil {
 		return "", nil, errs.WrapCode(err, errs.Internal, "failed to load user role")
 	}
 	r := role(roleStr)
