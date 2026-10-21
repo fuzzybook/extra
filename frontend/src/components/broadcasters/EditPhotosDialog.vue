@@ -88,7 +88,7 @@
           >
             <q-card flat bordered class="photo-card column full-height">
               <!-- Immagine con Aspect Ratio 2:3 -->
-              <div class="photo-ratio-box">
+              <div class="photo-ratio-box photo-caption-frame">
                 <img
                   :src="photo.image_url"
                   :alt="stripHtml(photo.alt) || 'Foto Broadcaster'"
@@ -122,8 +122,7 @@
                   @pointercancel="stopCaptionDrag($event)"
                   @dblclick.stop="openCaptionDialog(index)"
                 >
-                  <div class="caption-drag-inner">
-                    <q-icon name="drag_indicator" size="14px" class="caption-drag-handle" />
+                  <div class="caption-drag-inner photo-caption-text">
                     <span v-if="stripHtml(photo.alt)" class="caption-drag-text" v-html="sanitizeInlineHtml(photo.alt)" />
                     <span v-else class="caption-drag-placeholder">Didascalia</span>
                   </div>
@@ -616,22 +615,14 @@ const captionDragState = reactive<CaptionDragState>({
   photoIndex: -1,
 });
 
+// box_x / box_y sono l'offset in percentuale della foto (0-100), indipendente
+// dalla dimensione a cui la foto viene mostrata.
 function getCaptionLeftPercent(photo: BroadcasterPhotoItem): number {
-  const x = photo.box_x ?? 0;
-  if (x > 100) {
-    const baseW = imageConfig.value.width || 600;
-    return Math.min(Math.max((x / baseW) * 100, 0), 85);
-  }
-  return Math.min(Math.max(x, 0), 85);
+  return Math.min(Math.max(photo.box_x ?? 0, 0), 100);
 }
 
 function getCaptionTopPercent(photo: BroadcasterPhotoItem): number {
-  const y = photo.box_y ?? 0;
-  if (y > 100) {
-    const baseH = targetCropHeight.value || 900;
-    return Math.min(Math.max((y / baseH) * 100, 0), 85);
-  }
-  return Math.min(Math.max(y, 0), 85);
+  return Math.min(Math.max(photo.box_y ?? 0, 0), 100);
 }
 
 function startCaptionDrag(event: PointerEvent, index: number) {
@@ -1376,9 +1367,8 @@ async function onSave() {
   color: #ffffff;
   border: 1px dashed rgba(255, 255, 255, 0.7);
   border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 11px;
-  line-height: 1.3;
+  /* em: il padding scala con il testo (dimensione da .photo-caption-text in app.css) */
+  padding: 0.35em 0.7em;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   transition: all 0.2s ease;
@@ -1391,18 +1381,7 @@ async function onSave() {
   box-shadow: 0 0 0 2px rgba(255, 87, 34, 0.45), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.caption-drag-handle {
-  color: #ff7043;
-  flex-shrink: 0;
-}
-
 .caption-drag-text {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
   word-break: break-word;
 }
 
