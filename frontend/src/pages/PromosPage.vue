@@ -167,7 +167,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { url: cnt.url || '-', image: cnt.image_url || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -277,7 +277,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { url: cnt.url || '-', image: cnt.image_url || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -387,7 +387,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { url: cnt.url || '-', image: cnt.image_url || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -509,70 +509,54 @@
               :rules="[(val: string) => (!!val && val.trim().length > 0) || t('promos.dialog.itemTitleRequired')]"
             />
 
-            <!-- Selezione o Upload Immagine Promo -->
-            <div>
-              <q-input
-                v-model="contentImageUrl"
-                :label="t('promos.dialog.imageUrlLabel')"
-                outlined
-                dense
-                placeholder="https://example.com/promo.jpg"
-              >
-                <template #append>
-                  <!-- Bottone View (Occhio) con popup anteprima dimensioni e descrizione -->
-                  <q-btn
-                    v-if="contentImageUrl"
-                    round
-                    flat
-                    dense
-                    color="teal"
-                    icon="visibility"
-                    @click="previewImageDialogOpen = true"
-                  >
-                    <q-tooltip>{{ t('promos.dialog.viewImageTooltip') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    round
-                    flat
-                    dense
-                    color="primary"
-                    icon="photo_library"
-                    @click="selectImageDialogOpen = true"
-                  >
-                    <q-tooltip>{{ t('promos.dialog.selectFromGalleryTooltip') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    round
-                    flat
-                    dense
-                    color="secondary"
-                    icon="add_photo_alternate"
-                    @click="uploadImageDialogOpen = true"
-                  >
-                    <q-tooltip>{{ t('promos.dialog.uploadNewImageTooltip') }}</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="contentImageUrl"
-                    round
-                    flat
-                    dense
-                    color="grey-6"
-                    icon="close"
-                    @click="clearContentImage"
-                  >
-                    <q-tooltip>{{ t('promos.dialog.removeImageTooltip') }}</q-tooltip>
-                  </q-btn>
-                </template>
-              </q-input>
-            </div>
-
-            <q-input
-              v-model="contentUrl"
-              :label="t('promos.dialog.destinationUrlLabel')"
+            <!-- Broadcaster mostrato dalla promo (immagine: la sua prima foto) -->
+            <q-select
+              v-model="contentBroadcasterShortId"
+              :options="filteredBroadcasterOptions"
+              :label="t('promos.dialog.broadcasterLabel')"
+              emit-value
+              map-options
+              use-input
+              input-debounce="0"
               outlined
               dense
-              placeholder="https://example.com/landing"
-            />
+              :loading="broadcastersStore.loading"
+              :rules="[(val: string | null) => !!val || t('promos.dialog.broadcasterRequired')]"
+              @filter="filterBroadcasters"
+            >
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section avatar>
+                    <q-avatar rounded size="40px" color="grey-3" text-color="grey-7">
+                      <img v-if="scope.opt.image" :src="scope.opt.image" :alt="scope.opt.label" style="object-fit: cover" />
+                      <q-icon v-else name="person" />
+                    </q-avatar>
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.label }}</q-item-label>
+                    <q-item-label caption>{{ scope.opt.value }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section v-if="!scope.opt.enabled" side>
+                    <q-badge color="grey-6" :label="t('promos.dialog.broadcasterDisabled')" />
+                  </q-item-section>
+                </q-item>
+              </template>
+              <template #selected-item="scope">
+                <div class="row items-center no-wrap q-gutter-sm">
+                  <q-avatar rounded size="24px" color="grey-3" text-color="grey-7">
+                    <img v-if="scope.opt.image" :src="scope.opt.image" :alt="scope.opt.label" style="object-fit: cover" />
+                    <q-icon v-else name="person" size="16px" />
+                  </q-avatar>
+                  <span>{{ scope.opt.label }}</span>
+                  <span class="text-caption text-grey-6">{{ scope.opt.value }}</span>
+                </div>
+              </template>
+              <template #no-option>
+                <q-item>
+                  <q-item-section class="text-grey-6">{{ t('promos.dialog.noBroadcasters') }}</q-item-section>
+                </q-item>
+              </template>
+            </q-select>
 
             <!-- Dimensioni Immagine Promo -->
             <div class="q-pa-sm bg-grey-1 rounded-borders">
@@ -674,7 +658,6 @@
 
             <div class="row items-center q-gutter-md q-pt-xs">
               <q-toggle v-model="contentMobileOnly" :label="t('promos.dialog.mobileOnly')" dense />
-              <q-toggle v-model="contentNewWindow" :label="t('promos.dialog.newWindow')" dense />
             </div>
 
             <div class="row justify-end q-gutter-sm q-pt-md">
@@ -689,83 +672,6 @@
             </div>
           </q-form>
         </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Dialog di Selezione Immagine da Galleria -->
-    <SelectImageDialog
-      v-model="selectImageDialogOpen"
-      :target-width="effectiveDimensions.width"
-      :target-height="promoHeight"
-      :proportion="promoProportion"
-      @selected="onImageSelected"
-    />
-
-    <!-- Dialog di Caricamento Nuova Immagine -->
-    <ImmageDialog
-      v-model="uploadImageDialogOpen"
-      :initial-category="ImageCategory.Promo"
-      :target-width="effectiveDimensions.width"
-      :target-height="promoHeight"
-      :proportion="promoProportion"
-      @saved="onImageUploaded"
-    />
-
-    <!-- Dialog Anteprima Immagine nelle Dimensioni Previste con Descrizione -->
-    <q-dialog v-model="previewImageDialogOpen">
-      <q-card style="max-width: 90vw; max-height: 90vh" class="column">
-        <q-card-section class="row items-center justify-between q-pb-none">
-          <div class="row items-center q-gutter-xs">
-            <q-icon name="visibility" size="sm" color="teal" />
-            <span class="text-h6 text-weight-bold">{{ t('promos.previewDialog.title') }}</span>
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <!-- Descrizione dell'immagine e dettagli dimensioni previste -->
-        <q-card-section class="q-pt-sm q-pb-xs">
-          <div class="row items-center justify-between q-gutter-sm q-mb-xs">
-            <div class="text-subtitle1 text-weight-bold text-grey-9">
-              {{ currentImageDescription || t('promos.previewDialog.noDescription') }}
-            </div>
-            <q-badge
-              color="primary"
-              :label="`${effectiveDimensions.width}x${effectiveDimensions.height} px`"
-              class="q-px-sm q-py-xs text-weight-bold"
-              rounded
-            />
-          </div>
-          <div v-if="contentImageUrl" class="text-caption text-grey-7 ellipsis">
-            {{ contentImageUrl }}
-          </div>
-        </q-card-section>
-
-        <q-separator />
-
-        <!-- Area Immagine renderizzata nelle dimensioni previste -->
-        <q-card-section class="col scroll flex flex-center bg-grey-2 q-pa-md">
-          <div
-            class="rounded-borders shadow-2 bg-white flex flex-center overflow-hidden"
-            :style="{
-              width: `${effectiveDimensions.width}px`,
-              height: `${effectiveDimensions.height}px`,
-              maxWidth: '85vw',
-              maxHeight: '65vh'
-            }"
-          >
-            <q-img
-              :src="contentImageUrl"
-              class="full-width full-height"
-              fit="contain"
-              spinner-color="primary"
-            />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md bg-grey-1">
-          <q-btn flat :label="t('promos.previewDialog.close')" v-close-popup />
-        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -803,12 +709,9 @@ import {
   calculatePromoDimensions,
   type PromoSectionOption,
 } from '@/types/promo';
-import SelectImageDialog from '@/components/SelectImageDialog.vue';
-import ImmageDialog from '@/components/ImmageDialog.vue';
 import PromoCalendarView from '@/components/PromoCalendarView.vue';
 import WeekSelector from '@/components/WeekSelector.vue';
-import { ImageCategory } from '@/types/images';
-import { useImagesStore, type ImageItem } from '@/stores/images-store';
+import { useBroadcastersStore } from '@/stores/broadcasters-store';
 
 // 5. Tipi fortemente tipizzati generati da Encore
 type Promo = AdvertisingNS.Promo;
@@ -819,7 +722,7 @@ type UpdatePromoParams = AdvertisingNS.UpdatePromoParams;
 
 const { t } = useI18n();
 const client = api;
-const imagesStore = useImagesStore();
+const broadcastersStore = useBroadcastersStore();
 
 const promosList = ref<Promo[]>([]);
 const loading = ref(false);
@@ -889,46 +792,43 @@ const effectiveDimensions = computed(() => {
 });
 
 const itemTitle = ref<string>('');
-const contentImageUrl = ref<string>('');
-const contentImageDescription = ref<string>('');
-const previewImageDialogOpen = ref<boolean>(false);
-const selectImageDialogOpen = ref<boolean>(false);
-const uploadImageDialogOpen = ref<boolean>(false);
+// Broadcaster selezionato (short_id): la promo mostra la sua prima foto.
+// null = nessuna selezione (per q-select una stringa vuota è un valore scelto).
+const contentBroadcasterShortId = ref<string | null>(null);
+const broadcasterSearch = ref('');
 
-function imageDescriptionText(desc: any): string {
-  if (!desc) return '';
-  if (typeof desc === 'string') return desc;
-  return desc.text ?? '';
+interface BroadcasterOption {
+  label: string;
+  value: string;
+  image: string;
+  enabled: boolean;
 }
 
-const currentImageDescription = computed(() => {
-  if (contentImageDescription.value) {
-    return contentImageDescription.value;
-  }
-  if (contentImageUrl.value) {
-    const found = imagesStore.images.find((img) => img.url === contentImageUrl.value);
-    if (found?.description) return imageDescriptionText(found.description);
-  }
-  return '';
+const broadcasterOptions = computed<BroadcasterOption[]>(() =>
+  broadcastersStore.broadcasters
+    .filter((b) => !!b.short_id)
+    .map((b) => ({
+      label: b.display_name,
+      value: b.short_id,
+      image: b.photos?.find((p) => p.image_url)?.image_url || '',
+      enabled: b.enabled,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+);
+
+const filteredBroadcasterOptions = computed<BroadcasterOption[]>(() => {
+  const q = broadcasterSearch.value.trim().toLowerCase();
+  if (!q) return broadcasterOptions.value;
+  return broadcasterOptions.value.filter((o) => o.label.toLowerCase().includes(q) || o.value.includes(q));
 });
 
-function onImageSelected(image: ImageItem) {
-  contentImageUrl.value = image.url;
-  contentImageDescription.value = imageDescriptionText(image.description);
+function filterBroadcasters(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    broadcasterSearch.value = val;
+  });
 }
 
-function onImageUploaded(image: ImageItem) {
-  contentImageUrl.value = image.url;
-  contentImageDescription.value = imageDescriptionText(image.description);
-}
-
-function clearContentImage() {
-  contentImageUrl.value = '';
-  contentImageDescription.value = '';
-}
-const contentUrl = ref<string>('');
 const contentMobileOnly = ref<boolean>(false);
-const contentNewWindow = ref<boolean>(false);
 
 const noImagePlaceholder = '/no-image.svg';
 const tableImagePreviewOpen = ref<boolean>(false);
@@ -939,8 +839,9 @@ function getPromoImageUrl(promo: Promo): string {
     for (const it of promo.item) {
       if (it.content && Array.isArray(it.content)) {
         for (const cnt of it.content) {
-          if (cnt.image_url && cnt.image_url.trim().length > 0) {
-            return cnt.image_url.trim();
+          const image = cnt.broadcaster?.image_url?.trim();
+          if (image) {
+            return image;
           }
         }
       }
@@ -1040,11 +941,8 @@ function openDialog() {
   promoProportion.value = defaultSize.proportion;
 
   itemTitle.value = '';
-  contentImageUrl.value = '';
-  contentImageDescription.value = '';
-  contentUrl.value = '';
+  contentBroadcasterShortId.value = null;
   contentMobileOnly.value = false;
-  contentNewWindow.value = false;
   dialogOpen.value = true;
 }
 
@@ -1063,32 +961,22 @@ function openEditDialog(promo: Promo) {
     itemTitle.value = firstItem.title || '';
     const firstContent = firstItem.content?.[0];
     if (firstContent) {
-      contentImageUrl.value = firstContent.image_url || '';
-      const found = imagesStore.images.find((img) => img.url === contentImageUrl.value);
-      contentImageDescription.value = found ? imageDescriptionText(found.description) : '';
-      contentUrl.value = firstContent.url || '';
+      contentBroadcasterShortId.value = firstContent.broadcaster_short_id || null;
       contentMobileOnly.value = !!firstContent.mobile_only;
-      contentNewWindow.value = !!firstContent.new_window;
       promoWidth.value = firstContent.width > 0 ? firstContent.width : defaultSize.width;
       promoHeight.value = firstContent.height !== undefined ? firstContent.height : defaultSize.height;
       promoProportion.value = promoHeight.value === 0 ? (defaultSize.proportion || '2:3') : '';
     } else {
-      contentImageUrl.value = '';
-      contentImageDescription.value = '';
-      contentUrl.value = '';
+      contentBroadcasterShortId.value = null;
       contentMobileOnly.value = false;
-      contentNewWindow.value = false;
       promoWidth.value = defaultSize.width;
       promoHeight.value = defaultSize.height;
       promoProportion.value = defaultSize.proportion;
     }
   } else {
     itemTitle.value = '';
-    contentImageUrl.value = '';
-    contentImageDescription.value = '';
-    contentUrl.value = '';
+    contentBroadcasterShortId.value = null;
     contentMobileOnly.value = false;
-    contentNewWindow.value = false;
     promoWidth.value = defaultSize.width;
     promoHeight.value = defaultSize.height;
     promoProportion.value = defaultSize.proportion;
@@ -1102,13 +990,10 @@ async function onSubmit() {
   submitting.value = true;
   try {
     const promoContent: PromoContent = {
-      image_url: contentImageUrl.value.trim(),
-      url: contentUrl.value.trim(),
+      broadcaster_short_id: contentBroadcasterShortId.value ?? '',
       width: promoWidth.value,
       height: promoHeight.value,
       mobile_only: contentMobileOnly.value,
-      mobile_image_url: '',
-      new_window: contentNewWindow.value,
     };
 
     const promoItem: PromoItem = {
@@ -1181,7 +1066,7 @@ async function onSubmit() {
 
 onMounted(() => {
   void fetchPromos();
-  void imagesStore.fetchImages();
+  void broadcastersStore.fetchBroadcasters();
 });
 </script>
 

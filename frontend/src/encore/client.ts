@@ -373,14 +373,28 @@ export namespace advertising {
         "created_at": string
     }
 
+    /**
+     * PromoBroadcaster sono i dati del broadcaster mostrati dalla promo.
+     */
+    export interface PromoBroadcaster {
+        "short_id": string
+        "display_name": string
+        "image_url": string
+    }
+
+    /**
+     * PromoContent è un contenuto della promo: un broadcaster, identificato dal
+     * suo short_id, mostrato con le dimensioni indicate.
+     */
     export interface PromoContent {
         width: number
         height: number
         "mobile_only": boolean
-        "mobile_image_url": string
-        "new_window": boolean
-        "image_url": string
-        url: string
+        "broadcaster_short_id": string
+        /**
+         * Broadcaster è aggiunto in lettura (nome e prima foto) e non viene salvato.
+         */
+        broadcaster?: PromoBroadcaster
     }
 
     export interface PromoItem {

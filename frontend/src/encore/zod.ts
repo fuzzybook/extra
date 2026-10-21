@@ -54,14 +54,18 @@ export const AdvertisingCreatePromoParamsSchema = z.object({
   active_from: z.string(),
 });
 
+export const AdvertisingPromoBroadcasterSchema = z.object({
+  short_id: z.string(),
+  display_name: z.string(),
+  image_url: z.string(),
+});
+
 export const AdvertisingPromoContentSchema = z.object({
   width: z.number(),
   height: z.number(),
   mobile_only: z.boolean(),
-  mobile_image_url: z.string(),
-  new_window: z.boolean(),
-  image_url: z.string(),
-  url: z.string(),
+  broadcaster_short_id: z.string(),
+  broadcaster: z.lazy(() => AdvertisingPromoBroadcasterSchema).optional(),
 });
 
 export const AdvertisingPromoItemSchema = z.object({
