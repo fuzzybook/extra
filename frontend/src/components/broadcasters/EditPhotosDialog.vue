@@ -124,7 +124,7 @@
                 >
                   <div class="caption-drag-inner">
                     <q-icon name="drag_indicator" size="14px" class="caption-drag-handle" />
-                    <span v-if="stripHtml(photo.alt)" class="caption-drag-text" v-html="photo.alt" />
+                    <span v-if="stripHtml(photo.alt)" class="caption-drag-text" v-html="sanitizeInlineHtml(photo.alt)" />
                     <span v-else class="caption-drag-placeholder">Didascalia</span>
                   </div>
                   <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">
@@ -172,7 +172,7 @@
                     <div
                       v-if="stripHtml(photo.alt)"
                       class="text-caption text-grey-9 caption-preview-text"
-                      v-html="photo.alt"
+                      v-html="sanitizeInlineHtml(photo.alt)"
                     />
                     <div v-else class="text-caption text-italic text-grey-5 flex items-center q-gutter-xs">
                       <span>{{ t('broadcasters.photosDialog.noCaption') }}</span>
@@ -541,6 +541,7 @@ import {
   type BroadcasterPhoto,
 } from '@/stores/broadcasters-store';
 import { useImagesStore } from '@/stores/images-store';
+import { sanitizeInlineHtml, stripHtml } from '@/utils/sanitize';
 import CropperImage from '@/components/CropperImage.vue';
 
 export type BroadcasterPhotoItem = BroadcasterPhoto & {
@@ -760,11 +761,6 @@ const editorToolbar = [
     'removeFormat',
   ],
 ];
-
-function stripHtml(html: string): string {
-  if (!html) return '';
-  return html.replace(/<[^>]*>?/gm, '').trim();
-}
 
 const targetCropWidth = computed(() => imageConfig.value.width || 600);
 const targetCropHeight = computed(() => {

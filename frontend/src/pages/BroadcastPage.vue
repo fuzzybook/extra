@@ -148,6 +148,7 @@
               :room="live"
               :connected="connected"
               :is-owner="isOwner"
+              :owner-id="ownerIdentity"
               :can-manage="canManage"
               :room-name="activeRoomId"
               :participants="displayParticipants"
@@ -204,7 +205,7 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const $q = useQuasar();
-const api = createVideochatClient(() => profiles.token);
+const api = createVideochatClient();
 const roomName = computed(() => String(route.params.roomName || ''));
 const details = ref<Room>();
 const opening = ref(false);
@@ -568,7 +569,7 @@ async function closeRoom() {
 }
 
 let pageVersion = 0;
-watch([roomName, () => profiles.token], async () => {
+watch([roomName, () => profiles.profile?.user_id], async () => {
   const version = ++pageVersion;
   ++participantRequest;
   loadingParticipants.value = false;

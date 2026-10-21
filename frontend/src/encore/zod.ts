@@ -101,6 +101,9 @@ export const BroadcastersBroadcasterHoursSchema = z.object({
 export const BroadcastersBroadcasterPhotoSchema = z.object({
   image_url: z.string(),
   alt: z.string(),
+  box_x: z.number(),
+  box_y: z.number(),
+  description: z.lazy(() => ImagesImageDescriptionSchema),
 });
 
 export const BroadcastersBroadcasterTimeSlotSchema = z.object({
@@ -197,13 +200,6 @@ export const ProfilesPersonalSetupParamsSchema = z.object({
 export const ProfilesProfileParamsSchema = z.object({
   display_name: z.string(),
   avatar_url: z.string(),
-});
-
-export const ProfilesRegisterParamsSchema = z.object({
-  email: z.string(),
-  display_name: z.string(),
-  avatar_url: z.string(),
-  password: z.string(),
 });
 
 export const RegistrationPasswordResetConfirmParamsSchema = z.object({

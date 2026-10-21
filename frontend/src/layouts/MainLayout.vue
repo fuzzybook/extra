@@ -120,13 +120,7 @@ const selectedLocale = computed({
 const isAdmin = computed(() => profilesStore.profile?.role === 'admin');
 
 onMounted(async () => {
-  if (profilesStore.isAuthenticated && !profilesStore.profile) {
-    try {
-      await profilesStore.me();
-    } catch {
-      profilesStore.logout();
-    }
-  }
+  await profilesStore.ensureSession();
 });
 
 
@@ -138,7 +132,7 @@ function toggleLeftDrawer () {
 }
 
 async function logout() {
-  profilesStore.logout();
+  await profilesStore.logout();
   await router.push('/');
 }
 </script>

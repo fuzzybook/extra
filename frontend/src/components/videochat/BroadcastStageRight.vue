@@ -246,7 +246,7 @@ import { useQuasar } from 'quasar';
 import type { Room as LiveRoom, RemoteParticipant } from 'livekit-client';
 import { RoomEvent } from 'livekit-client';
 import { useProfilesStore } from '@/stores/profiles-store';
-import { createVideochatClient } from '@/encore/videochat';
+import { createVideochatClient, type ChatMessage as ServerChatMessage } from '@/encore/videochat';
 
 export interface ParticipantItem {
   sid?: string | undefined;
@@ -265,6 +265,23 @@ export interface InternalChatMessage {
   isOwner?: boolean | undefined;
   type?: string | undefined;
   targetId?: string | undefined;
+  clientMessageId?: string | undefined;
+}
+
+/**
+ * Payload inviato dal server sul data channel LiveKit (topic "chat"), vedi
+ * videochat.RoomDataMessage nel backend.
+ */
+interface RoomDataMessage {
+  type: 'chat.message' | 'admin.alert';
+  id: string;
+  client_message_id?: string;
+  sender_user_id: string;
+  sender_name: string;
+  sender_avatar?: string;
+  body: string;
+  created_at: string;
+  is_owner: boolean;
 }
 
 const props = withDefaults(
@@ -272,6 +289,7 @@ const props = withDefaults(
     room?: LiveRoom | null | undefined;
     connected: boolean;
     isOwner: boolean;
+    ownerId?: string | undefined;
     canManage?: boolean | undefined;
     roomName: string;
     participants?: ParticipantItem[] | undefined;
@@ -281,6 +299,7 @@ const props = withDefaults(
   }>(),
   {
     room: undefined,
+    ownerId: '',
     canManage: false,
     participants: () => [],
     managementBusy: '',
@@ -297,7 +316,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const $q = useQuasar();
 const profiles = useProfilesStore();
-const videochatClient = createVideochatClient(() => profiles.token);
+const videochatClient = createVideochatClient();
 
 const currentTab = computed({
   get: () => props.modelValue,
@@ -312,9 +331,7 @@ const loadingHistory = ref(false);
 const messagesContainer = ref<HTMLDivElement>();
 const showScrollBottom = ref(false);
 
-const filteredMessages = computed(() => {
-  return messages.value.filter((m) => m.type !== 'ADMIN_ALERT' || props.isOwner);
-});
+const filteredMessages = computed(() => messages.value);
 
 const isAdminOrAdvisor = computed(() => {
   const role = profiles.profile?.role?.toLowerCase();
@@ -369,8 +386,9 @@ async function loadHistory(roomName: string) {
       senderAvatar: m.sender_avatar || undefined,
       text: m.body,
       timestamp: new Date(m.created_at).getTime(),
-      isOwner: false,
+      isOwner: Boolean(props.ownerId) && m.sender_user_id === props.ownerId,
       type: 'MESSAGE',
+      clientMessageId: m.client_message_id,
     }));
 
     // Deduplica e mantieni ordinati
@@ -387,53 +405,71 @@ async function loadHistory(roomName: string) {
 }
 
 /**
- * Invia un messaggio:
- * 1. Passa per il backend Encore (che valida, memorizza e diffonde tramite Pub/Sub)
- * 2. Invia in tempo reale sul Data Channel LiveKit per la ricezione istantanea dei peer
+ * Aggiunge o aggiorna un messaggio confermato dal server. Il messaggio
+ * ottimistico locale (id = client_message_id) viene sostituito da quello
+ * salvato, così l'inoltro del server non crea doppioni.
+ */
+function upsertServerMessage(m: ServerChatMessage | RoomDataMessage) {
+  const confirmed: InternalChatMessage = {
+    id: m.id,
+    senderId: m.sender_user_id,
+    senderName: m.sender_name || 'Utente',
+    senderAvatar: m.sender_avatar || undefined,
+    text: m.body,
+    timestamp: new Date(m.created_at).getTime(),
+    isOwner: 'is_owner' in m ? m.is_owner : Boolean(props.ownerId) && m.sender_user_id === props.ownerId,
+    type: 'MESSAGE',
+    clientMessageId: m.client_message_id || undefined,
+  };
+  const idx = messages.value.findIndex(
+    (x) => x.id === confirmed.id || (confirmed.clientMessageId && x.id === confirmed.clientMessageId),
+  );
+  if (idx >= 0) {
+    messages.value.splice(idx, 1, confirmed);
+  } else {
+    messages.value.push(confirmed);
+    scrollToBottom(true);
+  }
+}
+
+/**
+ * Invia un messaggio al backend Encore, che lo valida, lo salva e lo inoltra a
+ * tutti i partecipanti della stanza con l'identità del mittente presa dal DB.
+ * I client non pubblicano messaggi di chat direttamente su LiveKit.
  */
 async function sendMessage() {
   const text = inputText.value.trim();
-  if (!text || !props.roomName) return;
+  if (!text || !props.roomName || !profiles.isAuthenticated) return;
 
   isSending.value = true;
   const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const senderId = props.room?.localParticipant?.identity || profiles.profile?.user_id || 'me';
-  const senderName = profiles.profile?.display_name || props.room?.localParticipant?.name || 'Io';
-  const senderAvatar = profiles.profile?.avatar_url || undefined;
 
-  const localMsg: InternalChatMessage = {
+  // Messaggio ottimistico per una UX reattiva, sostituito dalla conferma del server
+  messages.value.push({
     id: clientMessageId,
-    senderId,
-    senderName,
-    senderAvatar,
+    senderId: props.room?.localParticipant?.identity || profiles.profile?.user_id || 'me',
+    senderName: profiles.profile?.display_name || props.room?.localParticipant?.name || 'Io',
+    senderAvatar: profiles.profile?.avatar_url || undefined,
     text,
     timestamp: Date.now(),
     isOwner: props.isOwner,
     type: 'MESSAGE',
-  };
-
-  // Aggiungi immediatamente in locale per UX reattiva
-  messages.value.push(localMsg);
+    clientMessageId,
+  });
   inputText.value = '';
   scrollToBottom(true);
 
   try {
-    // 1. Invio a Encore (salvataggio DB + Pub/Sub topic per filtering/audit)
-    if (profiles.isAuthenticated) {
-      await videochatClient.sendMessage(props.roomName, {
-        client_message_id: clientMessageId,
-        text,
-      });
-    }
-
-    // 2. Diffusione via LiveKit Data Channel per tutti i client connessi
-    if (props.room && props.connected) {
-      const payload = JSON.stringify(localMsg);
-      const encoded = new TextEncoder().encode(payload);
-      await props.room.localParticipant.publishData(encoded, { reliable: true, topic: 'chat' });
-    }
+    const saved = await videochatClient.sendMessage(props.roomName, {
+      client_message_id: clientMessageId,
+      text,
+    });
+    upsertServerMessage(saved);
   } catch (err) {
-    console.error('Errore durante la pubblicazione del messaggio:', err);
+    console.error("Errore durante l'invio del messaggio:", err);
+    messages.value = messages.value.filter((m) => m.id !== clientMessageId);
+    inputText.value = text;
+    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : String(err) });
   } finally {
     isSending.value = false;
   }
@@ -443,7 +479,6 @@ async function sendMessage() {
  * Invia un comando / alert amministrativo con pubblicazione su Pub/Sub Encore
  */
 function openAdminAlertDialog() {
-  const targetId = props.room?.localParticipant?.identity || '';
   const msgDialog = $q.dialog({
     title: t('admin.sendAlert'),
     prompt: { model: '', label: t('admin.message') },
@@ -454,67 +489,45 @@ function openAdminAlertDialog() {
   msgDialog.onOk(async (alertText: string) => {
     if (!alertText.trim() || !props.roomName) return;
     try {
-      // Pubblica comando su Pub/Sub Encore
+      // Il server verifica i permessi e recapita l'alert al proprietario della stanza
       await videochatClient.sendCommand(props.roomName, {
         command: 'alert',
-        target_id: targetId,
         payload: alertText.trim(),
       });
-
-      // Diffondi via LiveKit
-      if (props.room && props.connected) {
-        const adminMsg: InternalChatMessage = {
-          id: `cmd-${Date.now()}`,
-          senderId: profiles.profile?.user_id || 'admin',
-          senderName: 'Admin',
-          text: alertText.trim(),
-          timestamp: Date.now(),
-          isOwner: props.isOwner,
-          type: 'ADMIN_ALERT',
-          targetId,
-        };
-        const encoded = new TextEncoder().encode(JSON.stringify(adminMsg));
-        await props.room.localParticipant.publishData(encoded, { reliable: true, topic: 'chat' });
-      }
-
       $q.notify({ type: 'positive', message: 'Alert inviato con successo' });
     } catch (err) {
       console.warn('Errore invio alert amministratore:', err);
+      $q.notify({ type: 'negative', message: err instanceof Error ? err.message : String(err) });
     }
   });
 }
 
 /**
- * Gestore ricezione dati LiveKit Data Channel
+ * Gestore ricezione dati LiveKit Data Channel. Sono accettati solo i
+ * pacchetti inviati dal server (participant assente): un partecipante non può
+ * spacciarsi per un altro utente o per l'amministrazione.
  */
-function handleDataReceived(payload: Uint8Array, _participant?: RemoteParticipant, _kind?: unknown, topic?: string) {
-  if (topic && topic !== 'chat') return;
+function handleDataReceived(payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) {
+  if (participant || topic !== 'chat') return;
+  let msg: RoomDataMessage;
   try {
-    const text = new TextDecoder().decode(payload);
-    const msg = JSON.parse(text) as InternalChatMessage;
-
-    // Gestione alert amministratore
-    if (msg.type === 'ADMIN_ALERT') {
-      if (msg.targetId && !props.isOwner && msg.targetId !== profiles.profile?.user_id) {
-        return;
-      }
-      $q.notify({
-        type: 'negative',
-        message: t('admin.notifications.adminAlert'),
-        caption: msg.text,
-        timeout: 0,
-        actions: [{ label: t('close'), handler: () => {} }],
-      });
-      return;
-    }
-
-    // Aggiungi se non già presente
-    if (!messages.value.some((m) => m.id === msg.id)) {
-      messages.value.push(msg);
-      scrollToBottom(true);
-    }
+    msg = JSON.parse(new TextDecoder().decode(payload)) as RoomDataMessage;
   } catch {
-    // Ignora payload non JSON
+    return; // payload non JSON
+  }
+
+  if (msg.type === 'admin.alert') {
+    $q.notify({
+      type: 'negative',
+      message: t('admin.notifications.adminAlert'),
+      caption: msg.body,
+      timeout: 0,
+      actions: [{ label: t('close'), handler: () => {} }],
+    });
+    return;
+  }
+  if (msg.type === 'chat.message') {
+    upsertServerMessage(msg);
   }
 }
 

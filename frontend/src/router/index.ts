@@ -7,6 +7,7 @@ import {
 } from 'vue-router';
 
 import routes from './routes';
+import { useProfilesStore } from '@/stores/profiles-store';
 
 /*
  * If not building with SSR mode, you can
@@ -30,6 +31,15 @@ export default defineRouter((/* { store, ssrContext } */) => {
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE)
+  });
+
+  // The admin area needs an admin session. The backend enforces it on every
+  // endpoint; this only avoids showing the admin pages to anyone else.
+  Router.beforeEach(async (to) => {
+    if (!to.path.startsWith('/admin')) return true;
+    const profiles = useProfilesStore();
+    await profiles.ensureSession();
+    return profiles.profile?.role === 'admin' ? true : '/401';
   });
 
   return Router;

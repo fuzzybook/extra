@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { LocalStorage } from 'quasar';
-import Client, { Local, auth as AuthNS, profiles as ProfilesNS } from '@/encore/client';
+import { auth as AuthNS, profiles as ProfilesNS } from '@/encore/client';
+import { api } from '@/encore/api';
 
 export type Profile = ProfilesNS.Profile;
 export type ProfileParams = ProfilesNS.ProfileParams;
-export type RegisterParams = ProfilesNS.RegisterParams;
 export type LoginParams = ProfilesNS.LoginParams;
 export type LoginResponse = ProfilesNS.LoginResponse;
 export type Status = ProfilesNS.Status;
@@ -51,20 +51,26 @@ export function statusInfo(status: Status): { label: string; color: string } {
   return STATUS_INFO[status] ?? { label: `Unknown (${status})`, color: 'grey' };
 }
 
-const TOKEN_STORAGE_KEY = 'profiles.token';
+// Older versions kept the session token in localStorage, readable by any
+// script (and so by an XSS). The session now lives only in an HttpOnly cookie.
+const LEGACY_TOKEN_STORAGE_KEY = 'profiles.token';
 
 export const useProfilesStore = defineStore('profiles', () => {
-  const token = ref<string | null>(LocalStorage.getItem(TOKEN_STORAGE_KEY));
+  LocalStorage.remove(LEGACY_TOKEN_STORAGE_KEY);
+
   const profile = ref<Profile | null>(null);
   const personalData = ref<PersonalData | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  /** True once the session has been checked with the backend (see ensureSession). */
+  const initialized = ref(false);
 
-  const isAuthenticated = computed(() => token.value !== null);
+  // The cookie is invisible to scripts: being logged in means /auth/me
+  // returned a profile.
+  const isAuthenticated = computed(() => profile.value !== null);
 
-  const client = new Client(Local, {
-    auth: () => (token.value ? { Authorization: `Bearer ${token.value}` } : undefined),
-  });
+  const client = api;
+  let sessionCheck: Promise<Profile | null> | null = null;
 
   async function withLoading<T>(fn: () => Promise<T>): Promise<T> {
     loading.value = true;
@@ -79,30 +85,49 @@ export const useProfilesStore = defineStore('profiles', () => {
     }
   }
 
-  function setToken(newToken: string | null) {
-    token.value = newToken;
-    if (newToken) {
-      LocalStorage.set(TOKEN_STORAGE_KEY, newToken);
-    } else {
-      LocalStorage.remove(TOKEN_STORAGE_KEY);
-    }
+  function clearSession() {
+    profile.value = null;
+    personalData.value = null;
   }
 
-  /** Logs in and fetches the resulting profile into `profile`. */
+  /**
+   * Checks once whether the browser has a valid session cookie and loads the
+   * profile. Later calls reuse the same result; call it before relying on
+   * isAuthenticated (layouts, router guard).
+   */
+  async function ensureSession(): Promise<Profile | null> {
+    if (initialized.value) return profile.value;
+    sessionCheck ??= me()
+      .catch(() => {
+        clearSession();
+        return null;
+      })
+      .finally(() => {
+        initialized.value = true;
+        sessionCheck = null;
+      });
+    return sessionCheck;
+  }
+
+  /** Logs in (the backend sets the session cookie) and loads the profile. */
   async function login(params: LoginParams): Promise<LoginResponse> {
     return withLoading(async () => {
       const res = await client.profiles.Login(params);
-      setToken(res.token);
       await me();
+      initialized.value = true;
       return res;
     });
   }
 
-  /** Clears the local session. Does not call the auth service's Logout endpoint. */
-  function logout() {
-    setToken(null);
-    profile.value = null;
-    personalData.value = null;
+  /** Revokes the session on the backend, which also clears the cookie. */
+  async function logout(): Promise<void> {
+    try {
+      await client.auth.Logout();
+    } catch (err) {
+      console.warn('Logout lato server non riuscito:', err);
+    } finally {
+      clearSession();
+    }
   }
 
   /** Fetches the authenticated caller's profile, or null if not authenticated. */
@@ -111,13 +136,6 @@ export const useProfilesStore = defineStore('profiles', () => {
       const res = await client.profiles.Me();
       profile.value = res;
       return res;
-    });
-  }
-
-  /** Registers a new profile (and credentials) and returns it. */
-  async function register(params: RegisterParams): Promise<Profile> {
-    return withLoading(async () => {
-      return await client.profiles.Insert(params);
     });
   }
 
@@ -134,7 +152,7 @@ export const useProfilesStore = defineStore('profiles', () => {
   async function remove(): Promise<void> {
     return withLoading(async () => {
       await client.profiles.Delete();
-      logout();
+      await logout();
     });
   }
 
@@ -177,18 +195,18 @@ export const useProfilesStore = defineStore('profiles', () => {
 
   return {
     // state
-    token,
     profile,
+    initialized,
     personalData,
     loading,
     error,
     // getters
     isAuthenticated,
     // actions
+    ensureSession,
     login,
     logout,
     me,
-    register,
     update,
     remove,
     fetchPersonalData,

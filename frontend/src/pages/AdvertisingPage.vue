@@ -289,7 +289,8 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { Notify } from 'quasar';
-import Client, { Local, advertising as AdvertisingNS } from '@/encore/client';
+import { advertising as AdvertisingNS } from '@/encore/client';
+import { api } from '@/encore/api';
 
 // Tipizzazione forte basata sulle definizioni generate da Encore
 type Advertising = AdvertisingNS.Advertising;
@@ -297,7 +298,7 @@ type CreateAdvertisingParams = AdvertisingNS.CreateAdvertisingParams;
 type Status = AdvertisingNS.Status;
 type WeekPromoResponse = AdvertisingNS.WeekPromoResponse;
 
-const client = new Client(Local);
+const client = api;
 
 const advertisingList = ref<Advertising[]>([]);
 const loading = ref(false);

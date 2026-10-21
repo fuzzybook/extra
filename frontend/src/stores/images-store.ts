@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import Client, { Local, images as ImagesNS } from '@/encore/client';
-import { useProfilesStore } from '@/stores/profiles-store';
+import { images as ImagesNS } from '@/encore/client';
+import { api } from '@/encore/api';
 
 export type ImageItem = ImagesNS.Image;
 export type SaveImageParams = ImagesNS.SaveImageParams;
@@ -12,11 +12,8 @@ export const useImagesStore = defineStore('images', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  const profilesStore = useProfilesStore();
 
-  const client = new Client(Local, {
-    auth: () => (profilesStore.token ? { Authorization: `Bearer ${profilesStore.token}` } : undefined),
-  });
+  const client = api;
 
   async function withLoading<T>(fn: () => Promise<T>): Promise<T> {
     loading.value = true;

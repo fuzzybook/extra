@@ -16,7 +16,7 @@ export const Local: BaseURL = "http://localhost:4000"
  * Environment returns a BaseURL for calling the cloud environment with the given name.
  */
 export function Environment(name: string): BaseURL {
-    return `https://${name}-q55oi.encr.app`
+    return `https://${name}-q55cl.encr.app`
 }
 
 /**
@@ -29,7 +29,7 @@ export function PreviewEnv(pr: number | string): BaseURL {
 const BROWSER = typeof globalThis === "object" && ("window" in globalThis);
 
 /**
- * Client is an API client for the q55oi Encore application.
+ * Client is an API client for the q55cl Encore application.
  */
 export default class Client {
     public readonly admin: admin.ServiceClient
@@ -234,8 +234,8 @@ export namespace admin {
         }
 
         /**
-         * InsertProfile creates a new user profile with a server-generated UUID v4,
-         * delegating credential setup to the auth service.
+         * InsertProfile creates a new user profile through profiles.Insert, so the
+         * same validation, email normalization and credential setup apply.
          */
         public async InsertProfile(params: RegisterParams): Promise<Profile> {
             // Now make the actual call to the API
@@ -463,7 +463,7 @@ export namespace advertising {
         }
 
         /**
-         * Create crea un nuovo cliente/pubblicità con validazione dell'email e dei campi.
+         * Create crea un nuovo cliente/pubblicità con validazione dell'email e dei campi. Solo admin.
          */
         public async Create(params: CreateAdvertisingParams): Promise<Advertising> {
             // Now make the actual call to the API
@@ -472,7 +472,7 @@ export namespace advertising {
         }
 
         /**
-         * CreatePromo inserisce una nuova promozione nel database.
+         * CreatePromo inserisce una nuova promozione nel database. Solo admin.
          */
         public async CreatePromo(params: CreatePromoParams): Promise<Promo> {
             // Now make the actual call to the API
@@ -511,7 +511,7 @@ export namespace advertising {
         }
 
         /**
-         * List ritorna l'intera lista delle pubblicità ordinate per data di creazione.
+         * List ritorna l'intera lista delle pubblicità ordinate per data di creazione. Solo admin.
          */
         public async List(): Promise<ListAdvertisingResponse> {
             // Now make the actual call to the API
@@ -538,7 +538,7 @@ export namespace advertising {
         }
 
         /**
-         * UpdatePromo aggiorna una promozione esistente nel database.
+         * UpdatePromo aggiorna una promozione esistente nel database. Solo admin.
          */
         public async UpdatePromo(id: number, params: UpdatePromoParams): Promise<Promo> {
             // Now make the actual call to the API
@@ -554,6 +554,10 @@ export namespace advertising {
 export namespace auth {
     export interface AuthParams {
         Authorization: string
+    }
+
+    export interface LogoutResponse {
+        "logged_out": boolean
     }
 
     /**
@@ -579,10 +583,14 @@ export namespace auth {
         }
 
         /**
-         * Logout revokes the session used to authenticate the current request.
+         * Logout revokes the session used to authenticate the current request, if
+         * any, and always clears the session cookie. It is public so that a browser
+         * holding an expired or revoked cookie can still get rid of it.
          */
-        public async Logout(): Promise<void> {
-            await this.baseClient.callTypedAPI("POST", `/auth/logout`)
+        public async Logout(): Promise<LogoutResponse> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/auth/logout`)
+            return await resp.json() as LogoutResponse
         }
 
         /**
@@ -789,7 +797,10 @@ export namespace broadcasters {
         }
 
         /**
-         * AddChatLog inserisce un nuovo evento o messaggio nella tabella chatlog.
+         * AddChatLog inserisce un nuovo evento nella tabella chatlog (registro di
+         * audit degli eventi della stanza, es. accensione di camera e microfono).
+         * Richiede autenticazione; il tipo CMD è riservato agli admin. I messaggi di
+         * chat passano invece da videochat.SendMessage.
          */
         public async AddChatLog(id: string, params: AddChatLogParams): Promise<ChatLogEntry> {
             // Now make the actual call to the API
@@ -824,6 +835,8 @@ export namespace broadcasters {
 
         /**
          * GetBroadcaster restituisce il profilo broadcaster dato il suo ID UUID.
+         * I profili disabilitati, il telefono e lo user_id sono visibili solo al
+         * proprietario e agli admin.
          */
         public async GetBroadcaster(id: string): Promise<Broadcaster> {
             // Now make the actual call to the API
@@ -921,8 +934,8 @@ export namespace broadcasters {
         }
 
         /**
-         * ListChatLog preleva gli ultimi messaggi per la stanza (default 30) e li ordina
-         * in ordine cronologico crescente (dal più vecchio al più recente), pronti per l'append nella UI.
+         * ListChatLog preleva gli ultimi eventi per la stanza (default 30) e li ordina
+         * in ordine cronologico crescente (dal più vecchio al più recente). Solo admin.
          */
         public async ListChatLog(id: string, params: ListChatLogParams): Promise<ListChatLogResponse> {
             // Convert our params into the objects we need for the request
@@ -1108,7 +1121,8 @@ export namespace images {
         }
 
         /**
-         * ListImages ritorna la lista completa delle immagini.
+         * ListImages ritorna le immagini visibili al chiamante: agli anonimi solo
+         * quelle approvate, agli utenti anche le proprie, agli admin tutte.
          */
         public async ListImages(): Promise<ListImagesResponse> {
             // Now make the actual call to the API
@@ -1118,6 +1132,8 @@ export namespace images {
 
         /**
          * SaveImage crea una nuova immagine o aggiorna la descrizione/file dell'immagine esistente.
+         * Una nuova immagine appartiene a chi la carica; un'immagine esistente può
+         * essere modificata solo dal proprietario o da un admin.
          */
         public async SaveImage(params: SaveImageParams): Promise<Image> {
             // Now make the actual call to the API
@@ -1136,8 +1152,11 @@ export namespace profiles {
         password: string
     }
 
+    /**
+     * LoginResponse carries the session only in an HttpOnly cookie: the token is
+     * never exposed to JavaScript.
+     */
     export interface LoginResponse {
-        token: string
         "expires_at": string
     }
 
@@ -1205,13 +1224,6 @@ export namespace profiles {
         "avatar_url": string
     }
 
-    export interface RegisterParams {
-        email: string
-        "display_name": string
-        "avatar_url": string
-        password: string
-    }
-
     export type Status = number
 
     /**
@@ -1233,7 +1245,6 @@ export namespace profiles {
             this.GetPersonalData = this.GetPersonalData.bind(this)
             this.GetPersonalSetup = this.GetPersonalSetup.bind(this)
             this.GetUserPersonalSetup = this.GetUserPersonalSetup.bind(this)
-            this.Insert = this.Insert.bind(this)
             this.Login = this.Login.bind(this)
             this.Me = this.Me.bind(this)
             this.Update = this.Update.bind(this)
@@ -1287,22 +1298,10 @@ export namespace profiles {
         }
 
         /**
-         * Insert registers a new profile with a server-generated UUID v4, delegating
-         * credential setup to the auth service.
-         */
-        public async Insert(params: RegisterParams): Promise<Profile> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/profiles`, JSON.stringify(params))
-            return await resp.json() as Profile
-        }
-
-        /**
-         * Login is the public entry point for authenticating a user. It first
-         * resolves the given email to a user ID via the local profiles database.
-         * The actual credential check lives in the auth service; rather than calling
-         * it directly, this hands the request off over Pub/Sub (publishing to
-         * auth.LoginRequests) and waits for the matching auth.LoginCompleted reply
-         * on auth.LoginResults before responding to the caller.
+         * Login is the public entry point for authenticating a user. It resolves the
+         * given email to a user ID via the local profiles database, rejects profiles
+         * that are not active, and then asks the auth service to check the password
+         * and issue a session, which is returned as an HttpOnly cookie.
          */
         public async Login(params: LoginParams): Promise<LoginResponse> {
             // Now make the actual call to the API
@@ -1585,7 +1584,7 @@ export namespace videochat {
         "client_message_id": string
         text: string
         /**
-         * facoltativo, default 'text'
+         * ignorato: i client inviano solo 'text'
          */
         kind: string
     }
@@ -1718,7 +1717,7 @@ export namespace videochat {
         }
 
         /**
-         * ListMessages recupera lo storico cronologico dei messaggi di chat della stanza.
+         * ListMessages recupera gli ultimi messaggi di chat della stanza, in ordine cronologico.
          */
         public async ListMessages(roomName: string, params: ListMessagesParams): Promise<ListMessagesResponse> {
             // Convert our params into the objects we need for the request
@@ -1814,6 +1813,7 @@ export namespace videochat {
 
         /**
          * SendCommand pubblica un comando amministrativo o di moderazione sul topic Pub/Sub della stanza.
+         * Richiede il proprietario della stanza o un admin.
          */
         public async SendCommand(roomName: string, params: SendCommandParams): Promise<RoomCommandResponse> {
             // Now make the actual call to the API
@@ -2141,7 +2141,7 @@ class BaseClient {
         // Add User-Agent header if the script is running in the server
         // because browsers do not allow setting User-Agent headers to requests
         if (!BROWSER) {
-            this.headers["User-Agent"] = "q55oi-Generated-TS-Client (Encore/v1.58.6)";
+            this.headers["User-Agent"] = "q55cl-Generated-TS-Client (Encore/v1.58.6)";
         }
 
         this.requestInit = options.requestInit ?? {};

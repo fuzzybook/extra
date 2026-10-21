@@ -32,11 +32,11 @@
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import Client, { Local } from '@/encore/client';
+import { api } from '@/encore/api';
 
 const { t } = useI18n();
 const route = useRoute();
-const client = new Client(Local);
+const client = api;
 const loading = ref(false);
 const success = ref(false);
 const error = ref('');

@@ -86,11 +86,11 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import Client, { Local } from '@/encore/client';
+import { api } from '@/encore/api';
 
 const { t } = useI18n();
 const route = useRoute();
-const client = new Client(Local);
+const client = api;
 
 const token = computed(() => (typeof route.query.token === 'string' ? route.query.token : ''));
 const pageTitle = computed(() => (token.value ? t('passwordReset.newPasswordTitle') : t('passwordReset.title')));

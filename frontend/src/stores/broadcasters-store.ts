@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import Client, { Local, broadcasters as BroadcastersNS, config as ConfigNS } from '@/encore/client';
-import { useProfilesStore } from '@/stores/profiles-store';
+import { broadcasters as BroadcastersNS, config as ConfigNS } from '@/encore/client';
+import { api } from '@/encore/api';
 
 export type Category = ConfigNS.Category;
 export type Broadcaster = BroadcastersNS.Broadcaster;
@@ -31,11 +31,8 @@ export const useBroadcastersStore = defineStore('broadcasters', () => {
     proportion: '2:3',
   });
 
-  const profilesStore = useProfilesStore();
 
-  const client = new Client(Local, {
-    auth: () => (profilesStore.token ? { Authorization: `Bearer ${profilesStore.token}` } : undefined),
-  });
+  const client = api;
 
   async function withLoading<T>(fn: () => Promise<T>): Promise<T> {
     loading.value = true;

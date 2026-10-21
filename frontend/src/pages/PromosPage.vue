@@ -792,7 +792,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QTableColumn } from 'quasar';
 import { Notify } from 'quasar';
-import Client, { Local, advertising as AdvertisingNS } from '@/encore/client';
+import { advertising as AdvertisingNS } from '@/encore/client';
+import { api } from '@/encore/api';
 import {
   PromoPosition,
   PROMO_SECTION_OPTIONS,
@@ -817,7 +818,7 @@ type CreatePromoParams = AdvertisingNS.CreatePromoParams;
 type UpdatePromoParams = AdvertisingNS.UpdatePromoParams;
 
 const { t } = useI18n();
-const client = new Client(Local);
+const client = api;
 const imagesStore = useImagesStore();
 
 const promosList = ref<Promo[]>([]);

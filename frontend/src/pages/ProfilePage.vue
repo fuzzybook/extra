@@ -471,12 +471,6 @@ async function focusFirstField() {
 }
 
 onMounted(async () => {
-  if (profilesStore.isAuthenticated && !profilesStore.profile) {
-    try {
-      await profilesStore.me();
-    } catch {
-      // profilesStore.error already holds the failure message
-    }
-  }
+  await profilesStore.ensureSession();
 });
 </script>

@@ -20,6 +20,20 @@ export default defineConfig((/* ctx */) => {
     const secure = url.protocol === 'https:' || url.protocol === 'wss:';
     livekitSources.push(`${secure ? 'https' : 'http'}://${url.host}`, `${secure ? 'wss' : 'ws'}://${url.host}`);
   }
+  // The app calls the API on its own origin, so the HttpOnly session cookie is
+  // first-party. In development the dev server proxies the API routes to the
+  // Encore backend (override with QCLI_API_BASE_URL=http://host:port); in
+  // production the reverse proxy (Caddy) must route the same paths.
+  const apiBaseUrl = new URL(process.env.QCLI_API_BASE_URL || 'http://127.0.0.1:4002');
+  if (!['http:', 'https:'].includes(apiBaseUrl.protocol) || apiBaseUrl.username || apiBaseUrl.password) {
+    throw new Error('QCLI_API_BASE_URL must be an HTTP(S) URL without credentials');
+  }
+  const apiOrigin = apiBaseUrl.origin;
+  // Top-level paths served by the Encore backend (see src/encore/client.ts).
+  const apiPaths = [
+    'admin', 'advertising', 'auth', 'broadcasters', 'extrahome', 'image', 'images',
+    'profiles', 'promo', 'promotions', 'registration', 'videochat',
+  ];
   return {
     htmlVariables: { livekitConnectSources: livekitSources.join(' ') },
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
@@ -106,8 +120,8 @@ export default defineConfig((/* ctx */) => {
       // https: true,
       open: true, // opens browser window automatically
       proxy: {
-        '/broadcasters': {
-          target: 'http://127.0.0.1:4000',
+        [`^/(${apiPaths.join('|')})(/|\\?|$)`]: {
+          target: apiOrigin,
           changeOrigin: true,
         },
       },

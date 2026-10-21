@@ -1,4 +1,4 @@
-import { Local } from './client';
+import { API_BASE_URL } from './base-url';
 
 // Mirrors the videochat service until it is included in the generated client.
 export interface Room {
@@ -62,13 +62,14 @@ export interface SendCommandParams {
   payload?: string;
 }
 
-export function createVideochatClient(getToken: () => string | null) {
+// Authentication uses the HttpOnly session cookie, sent automatically because
+// the API is on the same origin as the app.
+export function createVideochatClient() {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const token = getToken();
-    const response = await fetch(`${Local}/videochat${path}`, {
+    const response = await fetch(`${API_BASE_URL}/videochat${path}`, {
       method,
+      credentials: 'same-origin',
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),

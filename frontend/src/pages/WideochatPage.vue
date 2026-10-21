@@ -150,7 +150,7 @@ import { createVideochatClient, type Room } from '@/encore/videochat';
 const { t, locale } = useI18n();
 const $q = useQuasar();
 const profiles = useProfilesStore();
-const client = createVideochatClient(() => profiles.token);
+const client = createVideochatClient();
 const isAdmin = computed(() => profiles.isAuthenticated && profiles.profile?.role === 'admin');
 const rooms = ref<Room[]>([]);
 const loading = ref(false);
@@ -219,10 +219,10 @@ async function createRoom() {
   if (creating.value || !isAdmin.value) return;
   creating.value = true;
   createError.value = '';
-  const token = profiles.token;
+  const userId = profiles.profile?.user_id;
   try {
     await client.createRoom({ name: name.value.trim(), max_participants: maxParticipants.value, empty_timeout: emptyTimeout.value });
-    if (token !== profiles.token || !isAdmin.value) return;
+    if (userId !== profiles.profile?.user_id || !isAdmin.value) return;
     showCreate.value = false;
     $q.notify({ type: 'positive', message: t('videochat.createdSuccess') });
     await loadRooms();
@@ -233,7 +233,7 @@ async function createRoom() {
   }
 }
 
-watch(() => profiles.token, () => {
+watch(() => profiles.profile?.user_id, () => {
   ++requestVersion;
   rooms.value = [];
   listError.value = '';

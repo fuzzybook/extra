@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import Client, { Local, admin as AdminNS, auth as AuthNS, profiles as ProfilesNS } from '@/encore/client';
-import { useProfilesStore } from '@/stores/profiles-store';
+import { admin as AdminNS, auth as AuthNS, profiles as ProfilesNS } from '@/encore/client';
+import { api } from '@/encore/api';
 
 export type Profile = AdminNS.Profile;
 export type ProfileParams = AdminNS.ProfileParams;
@@ -23,11 +23,8 @@ export const useAdminStore = defineStore('admin', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  const profilesStore = useProfilesStore();
 
-  const client = new Client(Local, {
-    auth: () => (profilesStore.token ? { Authorization: `Bearer ${profilesStore.token}` } : undefined),
-  });
+  const client = api;
 
   async function withLoading<T>(fn: () => Promise<T>): Promise<T> {
     loading.value = true;

@@ -108,13 +108,14 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import Client, { Local, type registration } from '@/encore/client';
+import { type registration } from '@/encore/client';
+import { api } from '@/encore/api';
 import { RegistrationRegisterParamsSchema } from '@/encore/zod';
 
 type Focusable = { focus: () => void };
 
 const { t } = useI18n();
-const client = new Client(Local);
+const client = api;
 const displayNameInputRef = ref<Focusable | null>(null);
 const loading = ref(false);
 const checkingEmail = ref(false);

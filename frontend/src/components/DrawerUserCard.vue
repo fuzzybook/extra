@@ -63,7 +63,7 @@ const profileName = computed(() => {
 });
 
 async function logout() {
-  profilesStore.logout();
+  await profilesStore.logout();
   await router.push('/');
 }
 
