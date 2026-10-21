@@ -58,10 +58,9 @@ func TestCreatePromoParamsValidate(t *testing.T) {
 						Title: "Banner Estivo",
 						Content: []PromoContent{
 							{
-								Width:    300,
-								Height:   250,
-								ImageURL: "https://example.com/banner.jpg",
-								URL:      "https://example.com",
+								Width:              300,
+								Height:             250,
+								BroadcasterShortID: "ab12cd",
 							},
 						},
 					},
@@ -266,21 +265,29 @@ func TestIsPromoActiveInWeek(t *testing.T) {
 }
 
 
-func TestPromoParamsRejectNonHTTPURLs(t *testing.T) {
-	for _, field := range []func(*PromoContent){
-		func(c *PromoContent) { c.URL = "javascript:alert(document.cookie)" },
-		func(c *PromoContent) { c.ImageURL = "data:image/svg+xml,<svg onload=alert(1)>" },
-		func(c *PromoContent) { c.MobileImageURL = "vbscript:x" },
-	} {
-		c := PromoContent{URL: "https://example.com", ImageURL: "https://example.com/i.png"}
-		field(&c)
-		create := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{c}}}}
+func TestPromoParamsRequireBroadcasterShortID(t *testing.T) {
+	for _, shortID := range []string{"", "abc", "abc-12", "abcdefg", "àbc123"} {
+		create := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{BroadcasterShortID: shortID}}}}}
 		if err := create.Validate(); err == nil {
-			t.Errorf("CreatePromoParams.Validate() accepted %+v", c)
+			t.Errorf("CreatePromoParams.Validate() accepted short_id %q", shortID)
 		}
-		update := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{c}}}}
+		update := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{BroadcasterShortID: shortID}}}}}
 		if err := update.Validate(); err == nil {
-			t.Errorf("UpdatePromoParams.Validate() accepted %+v", c)
+			t.Errorf("UpdatePromoParams.Validate() accepted short_id %q", shortID)
 		}
+	}
+
+	// Lo short_id viene normalizzato e i dati del broadcaster inviati dal
+	// client vengono scartati (sono solo in lettura).
+	p := &CreatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{
+		BroadcasterShortID: " Ab12Cd ",
+		Broadcaster:        &PromoBroadcaster{ShortID: "zzzzzz", ImageURL: "javascript:alert(1)"},
+	}}}}}
+	if err := p.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	c := p.Item[0].Content[0]
+	if c.BroadcasterShortID != "ab12cd" || c.Broadcaster != nil {
+		t.Fatalf("content after Validate = %+v", c)
 	}
 }

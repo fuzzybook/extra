@@ -1188,3 +1188,67 @@ func DeleteByUser(ctx context.Context, userID uuid.UUID) error {
 	}
 	return nil
 }
+
+// BroadcasterCard sono i dati pubblici minimi di un broadcaster usati da altri
+// servizi (es. le promo): short_id, nome e prima foto.
+type BroadcasterCard struct {
+	ShortID     string `json:"short_id"`
+	DisplayName string `json:"display_name"`
+	ImageURL    string `json:"image_url"`
+	Enabled     bool   `json:"enabled"`
+}
+
+type LookupByShortIDsParams struct {
+	ShortIDs []string `json:"short_ids"`
+}
+
+type LookupByShortIDsResponse struct {
+	Broadcasters []*BroadcasterCard `json:"broadcasters"`
+}
+
+// LookupByShortIDs restituisce i dati minimi dei broadcaster indicati tramite
+// short_id. Gli short_id inesistenti vengono semplicemente omessi.
+// Privato: usato dal servizio advertising per le promo.
+//
+//encore:api private method=POST path=/broadcasters/internal/by-short-ids
+func LookupByShortIDs(ctx context.Context, p *LookupByShortIDsParams) (*LookupByShortIDsResponse, error) {
+	resp := &LookupByShortIDsResponse{Broadcasters: []*BroadcasterCard{}}
+	if p == nil || len(p.ShortIDs) == 0 {
+		return resp, nil
+	}
+	rows, err := db.Query(ctx, `
+		SELECT short_id, display_name, photos, enabled
+		FROM broadcasters
+		WHERE short_id = ANY($1)
+	`, p.ShortIDs)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			card        BroadcasterCard
+			photosBytes []byte
+		)
+		if err := rows.Scan(&card.ShortID, &card.DisplayName, &photosBytes, &card.Enabled); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+		}
+		var photos []BroadcasterPhoto
+		if len(photosBytes) > 0 {
+			if err := json.Unmarshal(photosBytes, &photos); err != nil {
+				return nil, errs.WrapCode(err, errs.Internal, "foto del broadcaster non valide")
+			}
+		}
+		for _, ph := range photos {
+			if strings.TrimSpace(ph.ImageURL) != "" {
+				card.ImageURL = ph.ImageURL
+				break
+			}
+		}
+		resp.Broadcasters = append(resp.Broadcasters, &card)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante l'iterazione dei broadcaster")
+	}
+	return resp, nil
+}

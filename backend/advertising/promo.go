@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	authsvc "encore.app/auth"
-	"encore.app/validate"
+	broadcasterssvc "encore.app/broadcasters"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
 )
@@ -67,15 +69,25 @@ const (
 	PromoRight2Selected PromoRight2Sections = "selected"
 )
 
+// PromoContent è un contenuto della promo: un broadcaster, identificato dal
+// suo short_id, mostrato con le dimensioni indicate.
 type PromoContent struct {
-	Width          int    `json:"width"`
-	Height         int    `json:"height"`
-	MobileOnly     bool   `json:"mobile_only"`
-	MobileImageURL string `json:"mobile_image_url"`
-	NewWindow      bool   `json:"new_window"`
-	ImageURL       string `json:"image_url"`
-	URL            string `json:"url"`
+	Width              int    `json:"width"`
+	Height             int    `json:"height"`
+	MobileOnly         bool   `json:"mobile_only"`
+	BroadcasterShortID string `json:"broadcaster_short_id"`
+	// Broadcaster è aggiunto in lettura (nome e prima foto) e non viene salvato.
+	Broadcaster *PromoBroadcaster `json:"broadcaster,omitempty" encore:"optional"`
 }
+
+// PromoBroadcaster sono i dati del broadcaster mostrati dalla promo.
+type PromoBroadcaster struct {
+	ShortID     string `json:"short_id"`
+	DisplayName string `json:"display_name"`
+	ImageURL    string `json:"image_url"`
+}
+
+var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
 
 type PromoItem struct {
 	Title   string         `json:"title"`
@@ -123,15 +135,91 @@ func validatePromoFields(position PromoPosition, section string) error {
 	return nil
 }
 
-// validatePromoItems accetta solo URL http/https: i link e le immagini delle
-// promo finiscono in href/src del sito pubblico.
+// validatePromoItems richiede per ogni contenuto lo short_id di un
+// broadcaster e scarta i dati del broadcaster inviati dal client, che sono
+// solo in lettura.
 func validatePromoItems(items []PromoItem) error {
+	for i := range items {
+		for j := range items[i].Content {
+			c := &items[i].Content[j]
+			c.Broadcaster = nil
+			c.BroadcasterShortID = strings.ToLower(strings.TrimSpace(c.BroadcasterShortID))
+			if !shortIDPattern.MatchString(c.BroadcasterShortID) {
+				return &errs.Error{Code: errs.InvalidArgument, Message: "ogni contenuto della promo deve indicare un broadcaster (short_id di 6 caratteri)"}
+			}
+		}
+	}
+	return nil
+}
+
+// requireExistingBroadcasters verifica che tutti i broadcaster indicati nella
+// promo esistano.
+func requireExistingBroadcasters(ctx context.Context, items []PromoItem) error {
+	cards, err := lookupBroadcasters(ctx, collectShortIDs(items))
+	if err != nil {
+		return err
+	}
 	for _, item := range items {
 		for _, c := range item.Content {
-			for _, u := range []string{c.URL, c.ImageURL, c.MobileImageURL} {
-				if err := validate.HTTPURL(u); err != nil {
-					return err
+			if _, ok := cards[c.BroadcasterShortID]; !ok {
+				return &errs.Error{Code: errs.InvalidArgument, Message: "broadcaster non trovato: " + c.BroadcasterShortID}
+			}
+		}
+	}
+	return nil
+}
+
+func collectShortIDs(items []PromoItem) []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, item := range items {
+		for _, c := range item.Content {
+			if c.BroadcasterShortID != "" && !seen[c.BroadcasterShortID] {
+				seen[c.BroadcasterShortID] = true
+				ids = append(ids, c.BroadcasterShortID)
+			}
+		}
+	}
+	return ids
+}
+
+func lookupBroadcasters(ctx context.Context, shortIDs []string) (map[string]*broadcasterssvc.BroadcasterCard, error) {
+	cards := map[string]*broadcasterssvc.BroadcasterCard{}
+	if len(shortIDs) == 0 {
+		return cards, nil
+	}
+	resp, err := broadcasterssvc.LookupByShortIDs(ctx, &broadcasterssvc.LookupByShortIDsParams{ShortIDs: shortIDs})
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster delle promo")
+	}
+	for _, card := range resp.Broadcasters {
+		cards[card.ShortID] = card
+	}
+	return cards, nil
+}
+
+// attachBroadcasters aggiunge a ogni contenuto nome e prima foto del suo
+// broadcaster. I broadcaster disabilitati sono mostrati solo agli admin.
+func attachBroadcasters(ctx context.Context, promos []*Promo) error {
+	var items []PromoItem
+	for _, p := range promos {
+		items = append(items, p.Item...)
+	}
+	cards, err := lookupBroadcasters(ctx, collectShortIDs(items))
+	if err != nil {
+		return err
+	}
+	isAdmin := authsvc.IsAdmin()
+	for _, p := range promos {
+		for i := range p.Item {
+			for j := range p.Item[i].Content {
+				c := &p.Item[i].Content[j]
+				card, ok := cards[c.BroadcasterShortID]
+				if !ok || (!card.Enabled && !isAdmin) {
+					c.Broadcaster = nil
+					continue
 				}
+				c.Broadcaster = &PromoBroadcaster{ShortID: card.ShortID, DisplayName: card.DisplayName, ImageURL: card.ImageURL}
 			}
 		}
 	}
@@ -258,6 +346,9 @@ func queryPromos(ctx context.Context) ([]*Promo, error) {
 	if promos == nil {
 		promos = []*Promo{}
 	}
+	if err := attachBroadcasters(ctx, promos); err != nil {
+		return nil, err
+	}
 
 	return promos, nil
 }
@@ -294,6 +385,9 @@ func CreatePromo(ctx context.Context, p *CreatePromoParams) (*Promo, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
+	if err := requireExistingBroadcasters(ctx, p.Item); err != nil {
+		return nil, err
+	}
 
 	itemJSON, err := json.Marshal(p.Item)
 	if err != nil {
@@ -327,6 +421,9 @@ func CreatePromo(ctx context.Context, p *CreatePromoParams) (*Promo, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "impossibile creare la promozione")
 	}
 
+	if err := attachBroadcasters(ctx, []*Promo{&promo}); err != nil {
+		return nil, err
+	}
 	return &promo, nil
 }
 
@@ -338,6 +435,9 @@ func UpdatePromo(ctx context.Context, id int64, p *UpdatePromoParams) (*Promo, e
 		return nil, err
 	}
 	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	if err := requireExistingBroadcasters(ctx, p.Item); err != nil {
 		return nil, err
 	}
 
@@ -374,6 +474,9 @@ func UpdatePromo(ctx context.Context, id int64, p *UpdatePromoParams) (*Promo, e
 		return nil, errs.WrapCode(err, errs.Internal, "impossibile aggiornare la promozione")
 	}
 
+	if err := attachBroadcasters(ctx, []*Promo{&promo}); err != nil {
+		return nil, err
+	}
 	return &promo, nil
 }
 
