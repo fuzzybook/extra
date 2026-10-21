@@ -149,7 +149,6 @@ const messages = {
     broadcasters: {
       title: "Broadcasters",
       subtitle: "Channel, broadcaster profile, attribute, schedule, and photo gallery management",
-      switchView: "Toggle view (cards or table)",
       reloadList: "Reload list",
       retry: "Retry",
       searchPlaceholder: "Search by name or biography...",
@@ -674,7 +673,6 @@ const messages = {
     broadcasters: {
       title: "Broadcasters",
       subtitle: "Gestione canali, profili trasmettitori, attributi, orari e galleria fotografica",
-      switchView: "Cambia vista (schede o tabella)",
       reloadList: "Ricarica elenco",
       retry: "Riprova",
       searchPlaceholder: "Cerca per nome o biografia...",
@@ -1198,7 +1196,6 @@ const messages = {
     broadcasters: {
       title: "Diffuseurs",
       subtitle: "Gestion des chaînes, profils de diffuseurs, attributs, horaires et galerie photo",
-      switchView: "Basculer la vue (cartes ou tableau)",
       reloadList: "Recharger la liste",
       retry: "Réessayer",
       searchPlaceholder: "Rechercher par nom ou biographie...",
@@ -1722,7 +1719,6 @@ const messages = {
     broadcasters: {
       title: "Broadcaster",
       subtitle: "Verwaltung von Kanälen, Broadcaster-Profilen, Attributen, Zeitplänen und Fotogalerien",
-      switchView: "Ansicht umschalten (Karten oder Tabelle)",
       reloadList: "Liste neu laden",
       retry: "Wiederholen",
       searchPlaceholder: "Nach Name oder Biografie suchen...",
@@ -2246,7 +2242,6 @@ const messages = {
     broadcasters: {
       title: "Transmisores",
       subtitle: "Gestión de canales, perfiles de emisores, atributos, horarios y galería de fotos",
-      switchView: "Cambiar vista (tarjetas o tabla)",
       reloadList: "Recargar lista",
       retry: "Reintentar",
       searchPlaceholder: "Buscar por nombre o biografía...",
