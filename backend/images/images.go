@@ -4,7 +4,10 @@ package images
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -35,15 +38,108 @@ const (
 	ImageCategoryBanner  ImageCategory = "banner"
 )
 
+type ImageDescription struct {
+	Text  string `json:"text"`
+	Box_X int    `json:"box_x"`
+	Box_y int    `json:"box_y"`
+}
+
+// UnmarshalJSON supports both plain text string ("description text") and structured object ({ "text": "...", "box_x": ..., "box_y": ... }).
+func (d *ImageDescription) UnmarshalJSON(data []byte) error {
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		*d = ImageDescription{
+			Text: text,
+		}
+		return nil
+	}
+
+	type Alias ImageDescription
+	var aux struct {
+		Alias
+		AltBoxY  int `json:"box_Y"`
+		AltBoxX  int `json:"box_X"`
+		CapBoxX  int `json:"Box_X"`
+		CapBoxY  int `json:"Box_y"`
+		CapBoxY2 int `json:"Box_Y"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = ImageDescription(aux.Alias)
+	if d.Box_X == 0 {
+		if aux.AltBoxX != 0 {
+			d.Box_X = aux.AltBoxX
+		} else if aux.CapBoxX != 0 {
+			d.Box_X = aux.CapBoxX
+		}
+	}
+	if d.Box_y == 0 {
+		if aux.AltBoxY != 0 {
+			d.Box_y = aux.AltBoxY
+		} else if aux.CapBoxY != 0 {
+			d.Box_y = aux.CapBoxY
+		} else if aux.CapBoxY2 != 0 {
+			d.Box_y = aux.CapBoxY2
+		}
+	}
+	return nil
+}
+
+// Value implements driver.Valuer for database storage.
+func (d ImageDescription) Value() (driver.Value, error) {
+	b, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+	return string(b), nil
+}
+
+// Scan implements sql.Scanner for database retrieval.
+func (d *ImageDescription) Scan(src any) error {
+	if src == nil {
+		*d = ImageDescription{}
+		return nil
+	}
+	var str string
+	switch v := src.(type) {
+	case string:
+		str = v
+	case []byte:
+		str = string(v)
+	default:
+		return fmt.Errorf("unsupported Scan type for ImageDescription: %T", src)
+	}
+
+	str = strings.TrimSpace(str)
+	if str == "" {
+		*d = ImageDescription{}
+		return nil
+	}
+
+	if strings.HasPrefix(str, "{") {
+		if err := json.Unmarshal([]byte(str), d); err == nil {
+			return nil
+		}
+	}
+
+	*d = ImageDescription{
+		Text: str,
+	}
+	return nil
+}
+
 // Image rappresenta una risorsa immagine salvata nel database e nello storage.
 type Image struct {
-	UUID        uuid.UUID `json:"uuid"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	URL         string    `json:"url"`
-	Proportion  string    `json:"proportion"`
-	Width       int       `json:"width"`
-	Height      int       `json:"height"`
+	UUID        uuid.UUID        `json:"uuid"`
+	Owner       uuid.UUID        `json:"owner"`
+	Description ImageDescription `json:"description"`
+	Approved    bool             `json:"approved"`
+	CreatedAt   time.Time        `json:"created_at"`
+	URL         string           `json:"url"`
+	Proportion  string           `json:"proportion"`
+	Width       int              `json:"width"`
+	Height      int              `json:"height"`
 }
 
 type ListImagesResponse struct {
@@ -51,20 +147,20 @@ type ListImagesResponse struct {
 }
 
 type SaveImageParams struct {
-	UUID        string `json:"uuid,omitempty"`
-	Description string `json:"description"`
-	Data        string `json:"data,omitempty"`
-	ContentType string `json:"content_type,omitempty"`
-	Proportion  string `json:"proportion,omitempty"`
-	Width       int    `json:"width,omitempty"`
-	Height      int    `json:"height,omitempty"`
+	UUID        string           `json:"uuid,omitempty"`
+	Description ImageDescription `json:"description"`
+	Data        string           `json:"data,omitempty"`
+	ContentType string           `json:"content_type,omitempty"`
+	Proportion  string           `json:"proportion,omitempty"`
+	Width       int              `json:"width,omitempty"`
+	Height      int              `json:"height,omitempty"`
 }
 
 func (p *SaveImageParams) Validate() error {
 	if p == nil {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "i parametri immagine sono obbligatori"}
 	}
-	if strings.TrimSpace(p.Description) == "" {
+	if strings.TrimSpace(p.Description.Text) == "" {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "la descrizione dell'immagine è obbligatoria"}
 	}
 	if strings.TrimSpace(p.UUID) == "" && strings.TrimSpace(p.Data) == "" {
@@ -107,7 +203,7 @@ func parseImageData(data string, fallbackContentType string) ([]byte, string, er
 //encore:api public method=GET path=/images
 func ListImages(ctx context.Context) (*ListImagesResponse, error) {
 	rows, err := db.Query(ctx, `
-		SELECT uuid, description, created_at
+		SELECT uuid, owner, description, approved, proportion, width, height, created_at
 		FROM images
 		ORDER BY created_at DESC
 	`)
@@ -119,7 +215,16 @@ func ListImages(ctx context.Context) (*ListImagesResponse, error) {
 	var list []*Image
 	for rows.Next() {
 		var img Image
-		if err := rows.Scan(&img.UUID, &img.Description, &img.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&img.UUID,
+			&img.Owner,
+			&img.Description,
+			&img.Approved,
+			&img.Proportion,
+			&img.Width,
+			&img.Height,
+			&img.CreatedAt,
+		); err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del record immagine")
 		}
 		img.URL = imagesBucket.PublicURL(img.UUID.String()).String()
@@ -218,23 +323,41 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 		}
 	}
 
-	var createdAt time.Time
+	desc := p.Description
+	desc.Text = strings.TrimSpace(desc.Text)
+
+	var (
+		createdAt time.Time
+		resOwner  uuid.UUID
+		resAppr   bool
+		resProp   string
+		resWidth  int
+		resHeight int
+	)
+
 	if isUpdate {
 		err := db.QueryRow(ctx, `
 			UPDATE images
-			SET description = $1
-			WHERE uuid = $2
-			RETURNING created_at
-		`, strings.TrimSpace(p.Description), targetUUID).Scan(&createdAt)
+			SET description = $1,
+			    proportion = CASE WHEN $2 = '' THEN proportion ELSE $2 END,
+			    width = CASE WHEN $3 = 0 THEN width ELSE $3 END,
+			    height = CASE WHEN $4 = 0 THEN height ELSE $4 END
+			WHERE uuid = $5
+			RETURNING created_at, owner, approved, proportion, width, height
+		`, desc, p.Proportion, p.Width, p.Height, targetUUID).Scan(
+			&createdAt, &resOwner, &resAppr, &resProp, &resWidth, &resHeight,
+		)
 		if err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "impossibile aggiornare l'immagine nel database")
 		}
 	} else {
 		err := db.QueryRow(ctx, `
-			INSERT INTO images (uuid, description)
-			VALUES ($1, $2)
-			RETURNING created_at
-		`, targetUUID, strings.TrimSpace(p.Description)).Scan(&createdAt)
+			INSERT INTO images (uuid, description, proportion, width, height)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING created_at, owner, approved, proportion, width, height
+		`, targetUUID, desc, p.Proportion, p.Width, p.Height).Scan(
+			&createdAt, &resOwner, &resAppr, &resProp, &resWidth, &resHeight,
+		)
 		if err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "impossibile creare il record immagine nel database")
 		}
@@ -242,11 +365,13 @@ func SaveImage(ctx context.Context, p *SaveImageParams) (*Image, error) {
 
 	return &Image{
 		UUID:        targetUUID,
-		Description: strings.TrimSpace(p.Description),
+		Owner:       resOwner,
+		Description: desc,
+		Approved:    resAppr,
 		CreatedAt:   createdAt,
 		URL:         imagesBucket.PublicURL(targetUUID.String()).String(),
-		Proportion:  p.Proportion,
-		Width:       p.Width,
-		Height:      p.Height,
+		Proportion:  resProp,
+		Width:       resWidth,
+		Height:      resHeight,
 	}, nil
 }
