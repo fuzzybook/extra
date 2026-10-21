@@ -128,7 +128,7 @@
                     :alt="props.row.item?.[0]?.title || t('promos.columns.preview')"
                     class="promo-table-thumb"
                     :class="{ 'cursor-pointer': !!props.value }"
-                    @click="props.value ? openTableImagePreview(props.value) : undefined"
+                    @click="props.value ? openTableImagePreview(props.row) : undefined"
                     @error="onImageError"
                   />
                   <q-tooltip v-if="props.value">
@@ -238,7 +238,7 @@
                     :alt="props.row.item?.[0]?.title || t('promos.columns.preview')"
                     class="promo-table-thumb"
                     :class="{ 'cursor-pointer': !!props.value }"
-                    @click="props.value ? openTableImagePreview(props.value) : undefined"
+                    @click="props.value ? openTableImagePreview(props.row) : undefined"
                     @error="onImageError"
                   />
                   <q-tooltip v-if="props.value">
@@ -348,7 +348,7 @@
                     :alt="props.row.item?.[0]?.title || t('promos.columns.preview')"
                     class="promo-table-thumb"
                     :class="{ 'cursor-pointer': !!props.value }"
-                    @click="props.value ? openTableImagePreview(props.value) : undefined"
+                    @click="props.value ? openTableImagePreview(props.row) : undefined"
                     @error="onImageError"
                   />
                   <q-tooltip v-if="props.value">
@@ -581,13 +581,25 @@
     <q-dialog v-model="tableImagePreviewOpen">
       <q-card style="max-width: 90vw; max-height: 90vh;" class="bg-grey-1">
         <q-card-section class="row items-center justify-between q-pb-none">
-          <div class="text-subtitle1 text-weight-bold">{{ t('promos.previewDialog.tablePreviewTitle') }}</div>
+          <div>
+            <div class="text-subtitle1 text-weight-bold">{{ t('promos.previewDialog.tablePreviewTitle') }}</div>
+            <div v-if="tableImagePreviewBroadcaster?.display_name" class="text-caption text-grey-7">
+              {{ tableImagePreviewBroadcaster.display_name }}
+            </div>
+          </div>
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
-        <q-card-section class="flex flex-center q-pa-md">
+        <q-card-section class="column items-center q-pa-md">
           <img
             :src="tableImagePreviewUrl"
-            style="max-width: 85vw; max-height: 75vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+            :alt="tableImagePreviewBroadcaster?.display_name || t('promos.previewDialog.tablePreviewTitle')"
+            style="max-width: 85vw; max-height: 70vh; object-fit: contain; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+          />
+          <!-- Didascalia della foto (HTML con sola formattazione di base) -->
+          <div
+            v-if="tableImagePreviewDescription"
+            class="promo-preview-description text-body2 text-grey-9 q-mt-md"
+            v-html="tableImagePreviewDescription"
           />
         </q-card-section>
       </q-card>
@@ -612,11 +624,13 @@ import {
 import PromoCalendarView from '@/components/PromoCalendarView.vue';
 import WeekSelector from '@/components/WeekSelector.vue';
 import { useBroadcastersStore } from '@/stores/broadcasters-store';
+import { sanitizeInlineHtml } from '@/utils/sanitize';
 
 // 5. Tipi fortemente tipizzati generati da Encore
 type Promo = AdvertisingNS.Promo;
 type PromoItem = AdvertisingNS.PromoItem;
 type PromoContent = AdvertisingNS.PromoContent;
+type PromoBroadcaster = AdvertisingNS.PromoBroadcaster;
 type CreatePromoParams = AdvertisingNS.CreatePromoParams;
 type UpdatePromoParams = AdvertisingNS.UpdatePromoParams;
 
@@ -717,28 +731,34 @@ const contentMobileOnly = ref<boolean>(false);
 const noImagePlaceholder = '/no-image.svg';
 const tableImagePreviewOpen = ref<boolean>(false);
 const tableImagePreviewUrl = ref<string>('');
+const tableImagePreviewBroadcaster = ref<PromoBroadcaster | null>(null);
+const tableImagePreviewDescription = computed(() =>
+  sanitizeInlineHtml(tableImagePreviewBroadcaster.value?.description),
+);
 
-function getPromoImageUrl(promo: Promo): string {
-  if (promo.item && Array.isArray(promo.item)) {
-    for (const it of promo.item) {
-      if (it.content && Array.isArray(it.content)) {
-        for (const cnt of it.content) {
-          const image = cnt.broadcaster?.image_url?.trim();
-          if (image) {
-            return image;
-          }
-        }
+// Primo broadcaster della promo con una foto: è quello mostrato in tabella.
+function getPromoBroadcaster(promo: Promo): PromoBroadcaster | null {
+  for (const it of promo.item ?? []) {
+    for (const cnt of it.content ?? []) {
+      if (cnt.broadcaster?.image_url?.trim()) {
+        return cnt.broadcaster;
       }
     }
   }
-  return '';
+  return null;
 }
 
-function openTableImagePreview(url: string) {
-  if (url) {
-    tableImagePreviewUrl.value = url;
-    tableImagePreviewOpen.value = true;
-  }
+function getPromoImageUrl(promo: Promo): string {
+  return getPromoBroadcaster(promo)?.image_url?.trim() ?? '';
+}
+
+// Popup con la foto, il nome del broadcaster come sottotitolo e la didascalia.
+function openTableImagePreview(promo: Promo) {
+  const broadcaster = getPromoBroadcaster(promo);
+  if (!broadcaster?.image_url) return;
+  tableImagePreviewUrl.value = broadcaster.image_url;
+  tableImagePreviewBroadcaster.value = broadcaster;
+  tableImagePreviewOpen.value = true;
 }
 
 function onImageError(e: Event) {
@@ -937,6 +957,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.promo-preview-description {
+  max-width: min(85vw, 600px);
+  text-align: center;
+  white-space: pre-line;
+}
+
 .promo-thumb-wrapper {
   min-height: 60px;
   height: 60px;
