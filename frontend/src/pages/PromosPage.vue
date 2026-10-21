@@ -558,104 +558,6 @@
               </template>
             </q-select>
 
-            <!-- Dimensioni Immagine Promo -->
-            <div class="q-pa-sm bg-grey-1 rounded-borders">
-              <div class="row items-center justify-between q-mb-xs">
-                <span class="text-caption text-weight-bold text-grey-8">
-                  {{ t('promos.dialog.imageDimensionsTitle') }}
-                  <span v-if="!isImageSizeEditable" class="text-caption text-grey-6 text-weight-normal">{{ t('promos.dialog.fixedPromoLeft') }}</span>
-                  <span v-else class="text-caption text-primary text-weight-normal">{{ t('promos.dialog.editableForPos', { pos: getPositionMeta(selectedPosition).label }) }}</span>
-                </span>
-                <q-badge
-                  v-if="effectiveDimensions"
-                  color="blue-grey-2"
-                  text-color="primary"
-                  :label="`${effectiveDimensions.width}x${effectiveDimensions.height} px`"
-                  rounded
-                />
-              </div>
-
-              <!-- Se PromoLeft: readonly con lucchetto -->
-              <div v-if="!isImageSizeEditable" class="row q-col-gutter-sm">
-                <div class="col-4">
-                  <q-input
-                    :model-value="promoWidth"
-                    :label="t('promos.dialog.widthLabel')"
-                    outlined
-                    dense
-                    readonly
-                  >
-                    <template #append>
-                      <q-icon name="lock" size="xs" color="grey-6" />
-                    </template>
-                  </q-input>
-                </div>
-                <div class="col-4">
-                  <q-input
-                    :model-value="promoHeight"
-                    :label="t('promos.dialog.heightLabel')"
-                    outlined
-                    dense
-                    readonly
-                    :hint="t('promos.dialog.heightHint')"
-                  >
-                    <template #append>
-                      <q-icon name="lock" size="xs" color="grey-6" />
-                    </template>
-                  </q-input>
-                </div>
-                <div class="col-4">
-                  <q-input
-                    :model-value="promoProportion"
-                    :label="t('promos.dialog.proportionLabel')"
-                    outlined
-                    dense
-                    readonly
-                  >
-                    <template #append>
-                      <q-icon name="lock" size="xs" color="grey-6" />
-                    </template>
-                  </q-input>
-                </div>
-              </div>
-
-              <!-- Se PromoRight1 o PromoRight2: edit abilitato -->
-              <div v-else class="row q-col-gutter-sm">
-                <div class="col-4">
-                  <q-input
-                    v-model.number="promoWidth"
-                    type="number"
-                    :label="t('promos.dialog.widthLabelRequired')"
-                    outlined
-                    dense
-                    min="1"
-                    :rules="[(val: number) => val > 0 || t('promos.dialog.invalidWidth')]"
-                  />
-                </div>
-                <div class="col-4">
-                  <q-input
-                    v-model.number="promoHeight"
-                    type="number"
-                    :label="t('promos.dialog.heightLabel')"
-                    outlined
-                    dense
-                    min="0"
-                    :hint="t('promos.dialog.heightHint')"
-                  />
-                </div>
-                <div class="col-4">
-                  <q-input
-                    v-model="promoProportion"
-                    :label="t('promos.dialog.proportionLabel')"
-                    outlined
-                    dense
-                    :disable="promoHeight !== 0"
-                    :hint="promoHeight !== 0 ? t('promos.dialog.proportionIgnored') : t('promos.dialog.proportionHint')"
-                  />
-                </div>
-              </div>
-            </div>
-
             <div class="row items-center q-gutter-md q-pt-xs">
               <q-toggle v-model="contentMobileOnly" :label="t('promos.dialog.mobileOnly')" dense />
             </div>
@@ -705,8 +607,6 @@ import {
   PROMO_SECTION_OPTIONS,
   getPositionMeta,
   getSectionMeta,
-  getPromoImageSize,
-  calculatePromoDimensions,
   type PromoSectionOption,
 } from '@/types/promo';
 import PromoCalendarView from '@/components/PromoCalendarView.vue';
@@ -773,22 +673,6 @@ const selectedSection = ref<string>('');
 // Opzioni sezioni reattive in base alla posizione selezionata
 const sectionOptions = computed<PromoSectionOption[]>(() => {
   return PROMO_SECTION_OPTIONS[selectedPosition.value] ?? [];
-});
-
-const promoWidth = ref<number>(230);
-const promoHeight = ref<number>(0);
-const promoProportion = ref<string>('2:3');
-
-const isImageSizeEditable = computed(() => {
-  return selectedPosition.value === PromoPosition.PromoRight1 || selectedPosition.value === PromoPosition.PromoRight2;
-});
-
-const effectiveDimensions = computed(() => {
-  return calculatePromoDimensions(
-    promoWidth.value,
-    promoHeight.value,
-    promoProportion.value
-  );
 });
 
 const itemTitle = ref<string>('');
@@ -935,11 +819,6 @@ function openDialog() {
   selectedWeeks.value = [];
   selectedYear.value = new Date().getFullYear();
 
-  const defaultSize = getPromoImageSize(selectedPosition.value);
-  promoWidth.value = defaultSize.width;
-  promoHeight.value = defaultSize.height;
-  promoProportion.value = defaultSize.proportion;
-
   itemTitle.value = '';
   contentBroadcasterShortId.value = null;
   contentMobileOnly.value = false;
@@ -954,8 +833,6 @@ function openEditDialog(promo: Promo) {
   selectedYear.value = promo.year || (promo.active_from ? new Date(promo.active_from).getFullYear() : new Date().getFullYear());
   selectedWeeks.value = promo.weeks ? [...promo.weeks] : [];
 
-  const defaultSize = getPromoImageSize(promo.position);
-
   const firstItem = promo.item?.[0];
   if (firstItem) {
     itemTitle.value = firstItem.title || '';
@@ -963,23 +840,14 @@ function openEditDialog(promo: Promo) {
     if (firstContent) {
       contentBroadcasterShortId.value = firstContent.broadcaster_short_id || null;
       contentMobileOnly.value = !!firstContent.mobile_only;
-      promoWidth.value = firstContent.width > 0 ? firstContent.width : defaultSize.width;
-      promoHeight.value = firstContent.height !== undefined ? firstContent.height : defaultSize.height;
-      promoProportion.value = promoHeight.value === 0 ? (defaultSize.proportion || '2:3') : '';
     } else {
       contentBroadcasterShortId.value = null;
       contentMobileOnly.value = false;
-      promoWidth.value = defaultSize.width;
-      promoHeight.value = defaultSize.height;
-      promoProportion.value = defaultSize.proportion;
     }
   } else {
     itemTitle.value = '';
     contentBroadcasterShortId.value = null;
     contentMobileOnly.value = false;
-    promoWidth.value = defaultSize.width;
-    promoHeight.value = defaultSize.height;
-    promoProportion.value = defaultSize.proportion;
   }
 
   dialogOpen.value = true;
@@ -991,8 +859,6 @@ async function onSubmit() {
   try {
     const promoContent: PromoContent = {
       broadcaster_short_id: contentBroadcasterShortId.value ?? '',
-      width: promoWidth.value,
-      height: promoHeight.value,
       mobile_only: contentMobileOnly.value,
     };
 

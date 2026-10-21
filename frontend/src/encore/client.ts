@@ -374,21 +374,28 @@ export namespace advertising {
     }
 
     /**
-     * PromoBroadcaster sono i dati del broadcaster mostrati dalla promo.
+     * PromoBroadcaster sono i dati del broadcaster mostrati dalla promo: la sua
+     * prima foto con dimensioni e proporzione, la didascalia della foto (HTML con
+     * sola formattazione di base) e la posizione in cui la didascalia va mostrata
+     * sopra la foto (box_x, box_y, come nell'editor delle foto).
      */
     export interface PromoBroadcaster {
         "short_id": string
         "display_name": string
         "image_url": string
+        width: number
+        height: number
+        proportion: string
+        description: string
+        "box_x": number
+        "box_y": number
     }
 
     /**
      * PromoContent è un contenuto della promo: un broadcaster, identificato dal
-     * suo short_id, mostrato con le dimensioni indicate.
+     * suo short_id.
      */
     export interface PromoContent {
-        width: number
-        height: number
         "mobile_only": boolean
         "broadcaster_short_id": string
         /**
