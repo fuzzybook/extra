@@ -1,0 +1,46 @@
+{
+  "name": "frontend",
+  "version": "0.0.1",
+  "description": "A Quasar Project",
+  "productName": "Quasar App",
+  "author": "fabio <prada.fabio@gmail.com>",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "quasar dev",
+    "build": "quasar build",
+    "typecheck": "vue-tsc --noEmit",
+    "zod:sync": "node tools/zod-sync.mjs",
+    "postinstall": "quasar prepare --silent"
+  },
+  "dependencies": {
+    "@quasar/extras": "^2.0.0",
+    "livekit-client": "^2.22.3",
+    "pinia": "^3.0.4",
+    "quasar": "^2.20.0",
+    "vue": "^3.5.22",
+    "vue-advanced-cropper": "^2.8.9",
+    "vue-i18n": "^11.4.6",
+    "vue-router": "^5.0.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@quasar/app-vite": "^3.0.0-rc.2",
+    "@types/node": "^22.19.11",
+    "autoprefixer": "^10.4.27",
+    "typescript": "^6.0.0",
+    "vue-tsc": "^3.3.3"
+  },
+  "keywords": [
+    "quasar",
+    "quasar-app",
+    "quasar-cli",
+    "quasar-app-vite",
+    "vite",
+    "vue",
+    "vuejs"
+  ],
+  "engines": {
+    "node": ">= 26 || ^24 || ^22.12"
+  }
+}
