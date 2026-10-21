@@ -167,7 +167,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -277,7 +277,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -387,7 +387,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster_short_id || '-' }) }}
+                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -838,7 +838,7 @@ function openEditDialog(promo: Promo) {
     itemTitle.value = firstItem.title || '';
     const firstContent = firstItem.content?.[0];
     if (firstContent) {
-      contentBroadcasterShortId.value = firstContent.broadcaster_short_id || null;
+      contentBroadcasterShortId.value = firstContent.broadcaster?.short_id || null;
       contentMobileOnly.value = !!firstContent.mobile_only;
     } else {
       contentBroadcasterShortId.value = null;
@@ -858,7 +858,7 @@ async function onSubmit() {
   submitting.value = true;
   try {
     const promoContent: PromoContent = {
-      broadcaster_short_id: contentBroadcasterShortId.value ?? '',
+      broadcaster: { short_id: contentBroadcasterShortId.value ?? '' },
       mobile_only: contentMobileOnly.value,
     };
 

@@ -374,32 +374,33 @@ export namespace advertising {
     }
 
     /**
-     * PromoBroadcaster sono i dati del broadcaster mostrati dalla promo: la sua
-     * prima foto con dimensioni e proporzione, la didascalia della foto (HTML con
-     * sola formattazione di base) e la posizione in cui la didascalia va mostrata
-     * sopra la foto (box_x, box_y, come nell'editor delle foto).
+     * PromoBroadcaster identifica il broadcaster della promo tramite short_id,
+     * l'unico campo salvato. Gli altri campi sono solo in lettura: la sua prima
+     * foto con dimensioni e proporzione, la didascalia della foto (HTML con sola
+     * formattazione di base) e la posizione in cui la didascalia va mostrata sopra
+     * la foto (box_x, box_y, come nell'editor delle foto).
      */
     export interface PromoBroadcaster {
         "short_id": string
-        "display_name": string
-        "image_url": string
-        width: number
-        height: number
-        proportion: string
-        description: string
-        "box_x": number
-        "box_y": number
+        "display_name"?: string
+        "image_url"?: string
+        width?: number
+        height?: number
+        proportion?: string
+        description?: string
+        "box_x"?: number
+        "box_y"?: number
     }
 
     /**
-     * PromoContent è un contenuto della promo: un broadcaster, identificato dal
-     * suo short_id.
+     * PromoContent è un contenuto della promo: il broadcaster da mostrare.
      */
     export interface PromoContent {
         "mobile_only": boolean
-        "broadcaster_short_id": string
         /**
-         * Broadcaster è aggiunto in lettura (nome e prima foto) e non viene salvato.
+         * Broadcaster è obbligatorio in scrittura (basta short_id). In lettura è
+         * completato con i dati del broadcaster; agli utenti non admin viene
+         * omesso se il broadcaster è disabilitato o non esiste più.
          */
         broadcaster?: PromoBroadcaster
     }

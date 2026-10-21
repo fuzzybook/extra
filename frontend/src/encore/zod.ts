@@ -56,24 +56,19 @@ export const AdvertisingCreatePromoParamsSchema = z.object({
 
 export const AdvertisingPromoBroadcasterSchema = z.object({
   short_id: z.string(),
-  display_name: z.string(),
-  image_url: z.string(),
-  width: z.number(),
-  height: z.number(),
-  proportion: z.string(),
-  description: z.string(),
-  box_x: z.number(),
-  box_y: z.number(),
+  display_name: z.string().optional(),
+  image_url: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  proportion: z.string().optional(),
+  description: z.string().optional(),
+  box_x: z.number().optional(),
+  box_y: z.number().optional(),
 });
 
 export const AdvertisingPromoContentSchema = z.object({
   mobile_only: z.boolean(),
-  broadcaster_short_id: z.string(),
   broadcaster: z.lazy(() => AdvertisingPromoBroadcasterSchema).optional(),
-  // TODO: no longer present in Encore type advertising.PromoContent
-  width: z.number(),
-  // TODO: no longer present in Encore type advertising.PromoContent
-  height: z.number(),
 });
 
 export const AdvertisingPromoItemSchema = z.object({
