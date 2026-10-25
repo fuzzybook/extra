@@ -425,3 +425,35 @@ func TestLookupByShortIDsReturnsFirstPhotoCaptionAndSize(t *testing.T) {
 		t.Fatalf("size = %dx%d %q, want standard broadcaster size", c.Width, c.Height, c.Proportion)
 	}
 }
+
+func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
+	ctx := context.Background()
+	insert := func(name string, enabled bool) string {
+		id, _ := uuid.NewV4()
+		userID, _ := uuid.NewV4()
+		if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, phone, enabled) VALUES ($1, $2, $3, '+41 79 000 00 00', $4)`, id, userID, name, enabled); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+		var shortID string
+		if err := db.QueryRow(ctx, `SELECT short_id FROM broadcasters WHERE id = $1`, id).Scan(&shortID); err != nil {
+			t.Fatalf("select short_id: %v", err)
+		}
+		return shortID
+	}
+
+	enabled := insert("Public page", true)
+	b, err := GetBroadcasterByShortID(ctx, strings.ToUpper(enabled))
+	if err != nil {
+		t.Fatalf("GetBroadcasterByShortID(enabled) = %v", err)
+	}
+	if b.DisplayName != "Public page" || b.Phone != "" || b.UserID != uuid.Nil {
+		t.Fatalf("public broadcaster = %+v, want name only, no phone/user_id", b)
+	}
+
+	disabled := insert("Hidden page", false)
+	for _, id := range []string{disabled, "000000", "bad", "../x"} {
+		if _, err := GetBroadcasterByShortID(ctx, id); err == nil {
+			t.Errorf("GetBroadcasterByShortID(%q) returned a profile", id)
+		}
+	}
+}

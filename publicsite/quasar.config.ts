@@ -14,7 +14,7 @@ export default defineConfig((/* ctx */) => {
   }
   // Only the backend paths used by the site: the site's own pages use history
   // routing, so a broader proxy could shadow them.
-  const apiPaths = ['promo', 'auth', 'registration'];
+  const apiPaths = ['promo', 'auth', 'registration', 'broadcasters'];
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -179,6 +179,12 @@ export default defineConfig((/* ctx */) => {
         '/dashboard',
         '/dashboard/**',
         '/auth/**',
+        // Profili broadcaster: dinamici, renderizzati nel browser
+        '/br/**',
+        '/it/br/**',
+        '/fr/br/**',
+        '/de/br/**',
+        '/en/br/**',
       ],
       // noPreloadTagRoutes: []
 

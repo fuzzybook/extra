@@ -51,6 +51,12 @@ const routes: RouteRecordRaw[] = [
         name: 'terms',
         component: () => import('@/pages/TermsPage.vue'),
       },
+      {
+        // Pagina pubblica del broadcaster, per short_id (6 caratteri)
+        path: 'br/:shortId',
+        name: 'broadcaster',
+        component: () => import('@/pages/BroadcasterPage.vue'),
+      },
     ],
   },
 

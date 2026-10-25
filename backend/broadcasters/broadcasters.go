@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -674,6 +675,41 @@ func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 	}
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return b, nil
+}
+
+var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
+
+// GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
+// short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
+// visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo
+// al proprietario e agli admin).
+//
+//encore:api public method=GET path=/broadcasters/short/:shortID
+func GetBroadcasterByShortID(ctx context.Context, shortID string) (*Broadcaster, error) {
+	shortID = strings.ToLower(strings.TrimSpace(shortID))
+	if !shortIDPattern.MatchString(shortID) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	row := db.QueryRow(ctx, `
+		SELECT id, short_id, user_id, display_name, category, category_color, bio, certified,
+		       availability, phone, services, languages, attributes, hours, photos,
+		       enabled, used, created_at, updated_at
+		FROM broadcasters
+		WHERE short_id = $1
+	`, shortID)
+
+	b, err := scanBroadcaster(row)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	callerID, isAdmin := callerInfo()
+	if !forViewer(b, callerID, isAdmin) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
 	}
 	return b, nil
 }

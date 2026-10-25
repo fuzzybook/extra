@@ -104,6 +104,24 @@ export interface MessageSchema {
     body: string;
     updated: string;
   };
+  broadcaster: {
+    introduction: string;
+    availabilityTitle: string;
+    availability: string;
+    hours: string;
+    profile: string;
+    languages: string;
+    services: string;
+    certified: string;
+    prevPhoto: string;
+    nextPhoto: string;
+    showPhoto: string;
+    photoGallery: string;
+    noPhotos: string;
+    loading: string;
+    notFound: string;
+    backHome: string;
+  };
 }
 
 const it: MessageSchema = {
@@ -209,6 +227,24 @@ const it: MessageSchema = {
     subtitle: 'Termini e condizioni di utilizzo del sito.',
     body: 'Testo dei termini e delle condizioni di utilizzo da definire.',
     updated: 'Ultimo aggiornamento: da definire.',
+  },
+  broadcaster: {
+    introduction: 'Introduzione',
+    availabilityTitle: 'Disponibilità',
+    availability: 'Stato',
+    hours: 'Orari',
+    profile: 'Profilo',
+    languages: 'Lingue',
+    services: 'Servizi',
+    certified: 'Certificato',
+    prevPhoto: 'Foto precedente',
+    nextPhoto: 'Foto successiva',
+    showPhoto: 'Visualizza foto {n}',
+    photoGallery: 'Galleria fotografica',
+    noPhotos: 'Nessuna foto',
+    loading: 'Caricamento…',
+    notFound: 'Profilo non trovato.',
+    backHome: 'Torna alla Home',
   },
 };
 
@@ -316,6 +352,24 @@ const fr: MessageSchema = {
     body: "Texte des conditions générales d'utilisation à définir.",
     updated: 'Dernière mise à jour : à définir.',
   },
+  broadcaster: {
+    introduction: 'Présentation',
+    availabilityTitle: 'Disponibilité',
+    availability: 'Statut',
+    hours: 'Horaires',
+    profile: 'Profil',
+    languages: 'Langues',
+    services: 'Services',
+    certified: 'Certifié',
+    prevPhoto: 'Photo précédente',
+    nextPhoto: 'Photo suivante',
+    showPhoto: 'Afficher la photo {n}',
+    photoGallery: 'Galerie photo',
+    noPhotos: 'Aucune photo',
+    loading: 'Chargement…',
+    notFound: 'Profil introuvable.',
+    backHome: "Retour à l'accueil",
+  },
 };
 
 const de: MessageSchema = {
@@ -422,6 +476,24 @@ const de: MessageSchema = {
     body: 'Text der Nutzungsbedingungen folgt.',
     updated: 'Letzte Aktualisierung: folgt.',
   },
+  broadcaster: {
+    introduction: 'Vorstellung',
+    availabilityTitle: 'Verfügbarkeit',
+    availability: 'Status',
+    hours: 'Zeiten',
+    profile: 'Profil',
+    languages: 'Sprachen',
+    services: 'Leistungen',
+    certified: 'Zertifiziert',
+    prevPhoto: 'Vorheriges Foto',
+    nextPhoto: 'Nächstes Foto',
+    showPhoto: 'Foto {n} anzeigen',
+    photoGallery: 'Fotogalerie',
+    noPhotos: 'Keine Fotos',
+    loading: 'Wird geladen…',
+    notFound: 'Profil nicht gefunden.',
+    backHome: 'Zur Startseite',
+  },
 };
 
 const en: MessageSchema = {
@@ -527,6 +599,24 @@ const en: MessageSchema = {
     subtitle: 'Terms and conditions of use of the site.',
     body: 'Text of the terms and conditions of use to be defined.',
     updated: 'Last updated: to be defined.',
+  },
+  broadcaster: {
+    introduction: 'Introduction',
+    availabilityTitle: 'Availability',
+    availability: 'Status',
+    hours: 'Hours',
+    profile: 'Profile',
+    languages: 'Languages',
+    services: 'Services',
+    certified: 'Certified',
+    prevPhoto: 'Previous photo',
+    nextPhoto: 'Next photo',
+    showPhoto: 'Show photo {n}',
+    photoGallery: 'Photo gallery',
+    noPhotos: 'No photos',
+    loading: 'Loading…',
+    notFound: 'Profile not found.',
+    backHome: 'Back to home',
   },
 };
 

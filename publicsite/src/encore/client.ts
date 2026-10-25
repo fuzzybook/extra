@@ -832,6 +832,7 @@ export namespace broadcasters {
             this.GetBroadcaster = this.GetBroadcaster.bind(this)
             this.GetBroadcasterAttributePresets = this.GetBroadcasterAttributePresets.bind(this)
             this.GetBroadcasterAttributes = this.GetBroadcasterAttributes.bind(this)
+            this.GetBroadcasterByShortID = this.GetBroadcasterByShortID.bind(this)
             this.GetBroadcasterByUserID = this.GetBroadcasterByUserID.bind(this)
             this.GetBroadcasterHours = this.GetBroadcasterHours.bind(this)
             this.GetBroadcasterImageConfig = this.GetBroadcasterImageConfig.bind(this)
@@ -911,6 +912,18 @@ export namespace broadcasters {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/broadcasters/id/${encodeURIComponent(id)}/attributes`)
             return await resp.json() as BroadcasterAttributesResponse
+        }
+
+        /**
+         * GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
+         * short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
+         * visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo
+         * al proprietario e agli admin).
+         */
+        public async GetBroadcasterByShortID(shortID: string): Promise<Broadcaster> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/broadcasters/short/${encodeURIComponent(shortID)}`)
+            return await resp.json() as Broadcaster
         }
 
         /**
