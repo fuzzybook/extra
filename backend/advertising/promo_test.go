@@ -1,8 +1,14 @@
 package advertising
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	authsvc "encore.app/auth"
+	encoreauth "encore.dev/beta/auth"
+	"encore.dev/et"
+	"encore.dev/types/uuid"
 )
 
 func TestCreatePromoParamsValidate(t *testing.T) {
@@ -58,7 +64,8 @@ func TestCreatePromoParamsValidate(t *testing.T) {
 						Title: "Banner Estivo",
 						Content: []PromoContent{
 							{
-								Broadcaster: &PromoBroadcaster{ShortID: "ab12cd"},
+								ImageURL: "https://example.com/banner.jpg",
+								URL:      "https://example.com/landing",
 							},
 						},
 					},
@@ -291,5 +298,111 @@ func TestPromoParamsRequireBroadcaster(t *testing.T) {
 	c := p.Item[0].Content[0]
 	if c.Broadcaster == nil || *c.Broadcaster != (PromoBroadcaster{ShortID: "ab12cd"}) {
 		t.Fatalf("content after Validate = %+v, want only broadcaster.short_id = ab12cd", c.Broadcaster)
+	}
+}
+
+func TestPromoParamsRightImageContent(t *testing.T) {
+	right := func(c PromoContent) *CreatePromoParams {
+		return &CreatePromoParams{Position: PromoRight1, Section: string(PromoRight1Show), Item: []PromoItem{{Content: []PromoContent{c}}}}
+	}
+
+	// L'immagine è obbligatoria; immagine e link solo http/https.
+	for name, c := range map[string]PromoContent{
+		"no image":         {URL: "https://example.com"},
+		"javascript image": {ImageURL: "javascript:alert(1)"},
+		"javascript link":  {ImageURL: "https://example.com/a.jpg", URL: "javascript:alert(1)"},
+		"broadcaster only": {Broadcaster: &PromoBroadcaster{ShortID: "ab12cd"}},
+		"relative image":   {ImageURL: "/images/a.jpg"},
+	} {
+		if err := right(c).Validate(); err == nil {
+			t.Errorf("Validate() accepted right content %q", name)
+		}
+	}
+
+	// Il broadcaster inviato su una promo right viene scartato, new_window
+	// resta solo con un link.
+	p := right(PromoContent{
+		ImageURL:    " https://example.com/a.jpg ",
+		NewWindow:   true,
+		MobileOnly:  true,
+		Broadcaster: &PromoBroadcaster{ShortID: "ab12cd"},
+	})
+	if err := p.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	want := PromoContent{ImageURL: "https://example.com/a.jpg", MobileOnly: true}
+	if got := p.Item[0].Content[0]; got.Broadcaster != nil || got.ImageURL != want.ImageURL || got.URL != "" || got.NewWindow || !got.MobileOnly {
+		t.Fatalf("content after Validate = %+v, want %+v", got, want)
+	}
+
+	// Su PromoLeft immagine e link inviati dal client vengono scartati.
+	left := &UpdatePromoParams{Position: PromoLeft, Section: string(PromoLeftWeek), Item: []PromoItem{{Content: []PromoContent{{
+		Broadcaster: &PromoBroadcaster{ShortID: "ab12cd"},
+		ImageURL:    "https://example.com/a.jpg",
+		URL:         "https://example.com",
+		NewWindow:   true,
+	}}}}}
+	if err := left.Validate(); err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	if got := left.Item[0].Content[0]; got.ImageURL != "" || got.URL != "" || got.NewWindow {
+		t.Fatalf("left content after Validate = %+v, want only the broadcaster", got)
+	}
+}
+
+func TestRightPromoImageLinkRoundTrip(t *testing.T) {
+	adminID, _ := uuid.NewV4()
+	et.OverrideAuthInfo(encoreauth.UID(adminID.String()), &authsvc.AuthData{Role: "admin"})
+	defer et.OverrideAuthInfo("", nil)
+	ctx := context.Background()
+
+	created, err := CreatePromo(ctx, &CreatePromoParams{
+		Position: PromoRight2,
+		Section:  string(PromoRight2Top),
+		Item: []PromoItem{{Title: "Banner", Content: []PromoContent{{
+			ImageURL:  "https://example.com/banner.jpg",
+			URL:       "https://example.com/landing",
+			NewWindow: true,
+		}}}},
+	})
+	if err != nil {
+		t.Fatalf("CreatePromo() = %v", err)
+	}
+	want := PromoContent{ImageURL: "https://example.com/banner.jpg", URL: "https://example.com/landing", NewWindow: true}
+
+	updated, err := UpdatePromo(ctx, created.ID, &UpdatePromoParams{
+		Position: PromoRight2,
+		Section:  string(PromoRight2Selected),
+		Item:     created.Item,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePromo() = %v", err)
+	}
+	if got := updated.Item[0].Content[0]; got != want {
+		t.Fatalf("updated content = %+v, want %+v", got, want)
+	}
+
+	// Lettura da admin e da utente non loggato: il contenuto senza
+	// broadcaster resta com'è.
+	for _, asAdmin := range []bool{true, false} {
+		if !asAdmin {
+			et.OverrideAuthInfo("", nil)
+		}
+		list, err := ListPromotions(ctx)
+		if err != nil {
+			t.Fatalf("ListPromotions(admin=%v) = %v", asAdmin, err)
+		}
+		found := false
+		for _, p := range list.Promotions {
+			if p.ID == created.ID {
+				found = true
+				if got := p.Item[0].Content[0]; got != want {
+					t.Errorf("listed content (admin=%v) = %+v, want %+v", asAdmin, got, want)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("promo %d not listed (admin=%v)", created.ID, asAdmin)
+		}
 	}
 }

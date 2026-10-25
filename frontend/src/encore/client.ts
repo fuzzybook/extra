@@ -393,16 +393,27 @@ export namespace advertising {
     }
 
     /**
-     * PromoContent è un contenuto della promo: il broadcaster da mostrare.
+     * PromoContent è un contenuto della promo: in PromoLeft un broadcaster, in
+     * PromoRight1 e PromoRight2 un'immagine con un link.
      */
     export interface PromoContent {
         "mobile_only": boolean
         /**
-         * Broadcaster è obbligatorio in scrittura (basta short_id). In lettura è
-         * completato con i dati del broadcaster; agli utenti non admin viene
-         * omesso se il broadcaster è disabilitato o non esiste più.
+         * Broadcaster (solo PromoLeft) è obbligatorio in scrittura (basta
+         * short_id). In lettura è completato con i dati del broadcaster; agli
+         * utenti non admin viene omesso se il broadcaster è disabilitato o non
+         * esiste più.
          */
         broadcaster?: PromoBroadcaster
+
+        /**
+         * ImageURL (obbligatoria), URL di destinazione e apertura in una nuova
+         * finestra: solo PromoRight1 e PromoRight2.
+         */
+        "image_url"?: string
+
+        url?: string
+        "new_window"?: boolean
     }
 
     export interface PromoItem {

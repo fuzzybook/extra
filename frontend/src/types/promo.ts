@@ -73,3 +73,10 @@ export function getSectionMeta(position: number, section: string): { label: stri
   return { label: section || 'N/A', color: 'grey-6' };
 }
 
+
+// Dimensioni dell'immagine delle promo right (come PromoRight1ImageSize e
+// PromoRight2ImageSize in promo.go): height 0 = calcolata dalla proporzione.
+export const PROMO_RIGHT_IMAGE_SIZE: Partial<Record<PromoPosition, { width: number; height: number; proportion: string }>> = {
+  [PromoPosition.PromoRight1]: { width: 230, height: 0, proportion: '2:3' },
+  [PromoPosition.PromoRight2]: { width: 230, height: 345, proportion: '' },
+};

@@ -167,7 +167,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
+                        {{ contentTooltip(cnt) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -277,7 +277,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
+                        {{ contentTooltip(cnt) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -387,7 +387,7 @@
                     {{ it.title || `Item #${Number(idx) + 1}` }}
                     <q-tooltip v-if="it.content && it.content.length > 0">
                       <div v-for="(cnt, cIdx) in it.content" :key="cIdx">
-                        {{ t('promos.itemContentTooltip', { name: cnt.broadcaster?.display_name || '-', id: cnt.broadcaster?.short_id || '-' }) }}
+                        {{ contentTooltip(cnt) }}
                       </div>
                     </q-tooltip>
                   </q-chip>
@@ -509,8 +509,9 @@
               :rules="[(val: string) => (!!val && val.trim().length > 0) || t('promos.dialog.itemTitleRequired')]"
             />
 
-            <!-- Broadcaster mostrato dalla promo (immagine: la sua prima foto) -->
+            <!-- PromoLeft: broadcaster mostrato dalla promo (immagine: la sua prima foto) -->
             <q-select
+              v-if="isBroadcasterPromo"
               v-model="contentBroadcasterShortId"
               :options="filteredBroadcasterOptions"
               :label="t('promos.dialog.broadcasterLabel')"
@@ -558,8 +559,58 @@
               </template>
             </q-select>
 
+            <!-- PromoRight1 / PromoRight2: immagine (galleria o caricamento) e link -->
+            <template v-else>
+              <q-input
+                v-model="contentImageUrl"
+                :label="t('promos.dialog.imageUrlLabel')"
+                outlined
+                dense
+                placeholder="https://example.com/promo.jpg"
+                :rules="[(val: string) => (!!val && val.trim().length > 0) || t('promos.dialog.imageRequired')]"
+              >
+                <template #append>
+                  <q-btn
+                    v-if="contentImageUrl"
+                    round
+                    flat
+                    dense
+                    color="teal"
+                    icon="visibility"
+                    @click="openImagePreview(contentImageUrl)"
+                  >
+                    <q-tooltip>{{ t('promos.dialog.viewImageTooltip') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn round flat dense color="primary" icon="photo_library" @click="selectImageDialogOpen = true">
+                    <q-tooltip>{{ t('promos.dialog.selectFromGalleryTooltip') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn round flat dense color="secondary" icon="add_photo_alternate" @click="uploadImageDialogOpen = true">
+                    <q-tooltip>{{ t('promos.dialog.uploadNewImageTooltip') }}</q-tooltip>
+                  </q-btn>
+                  <q-btn v-if="contentImageUrl" round flat dense color="grey-6" icon="close" @click="contentImageUrl = ''">
+                    <q-tooltip>{{ t('promos.dialog.removeImageTooltip') }}</q-tooltip>
+                  </q-btn>
+                </template>
+              </q-input>
+
+              <q-input
+                v-model="contentUrl"
+                :label="t('promos.dialog.destinationUrlLabel')"
+                outlined
+                dense
+                placeholder="https://example.com/landing"
+              />
+            </template>
+
             <div class="row items-center q-gutter-md q-pt-xs">
               <q-toggle v-model="contentMobileOnly" :label="t('promos.dialog.mobileOnly')" dense />
+              <q-toggle
+                v-if="!isBroadcasterPromo"
+                v-model="contentNewWindow"
+                :label="t('promos.dialog.newWindow')"
+                :disable="!contentUrl.trim()"
+                dense
+              />
             </div>
 
             <div class="row justify-end q-gutter-sm q-pt-md">
@@ -576,6 +627,23 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Selezione da galleria e caricamento dell'immagine delle promo right -->
+    <SelectImageDialog
+      v-model="selectImageDialogOpen"
+      :target-width="rightImageSize?.width"
+      :target-height="rightImageSize?.height"
+      :proportion="rightImageSize?.proportion"
+      @selected="onImageChosen"
+    />
+    <ImmageDialog
+      v-model="uploadImageDialogOpen"
+      :initial-category="ImageCategory.Promo"
+      :target-width="rightImageSize?.width"
+      :target-height="rightImageSize?.height"
+      :proportion="rightImageSize?.proportion"
+      @saved="onImageChosen"
+    />
 
     <!-- Dialog ingrandimento anteprima immagine dalla tabella -->
     <q-dialog v-model="tableImagePreviewOpen">
@@ -630,10 +698,15 @@ import {
   PROMO_SECTION_OPTIONS,
   getPositionMeta,
   getSectionMeta,
+  PROMO_RIGHT_IMAGE_SIZE,
   type PromoSectionOption,
 } from '@/types/promo';
 import PromoCalendarView from '@/components/PromoCalendarView.vue';
 import WeekSelector from '@/components/WeekSelector.vue';
+import SelectImageDialog from '@/components/SelectImageDialog.vue';
+import ImmageDialog from '@/components/ImmageDialog.vue';
+import { ImageCategory } from '@/types/images';
+import type { ImageItem } from '@/stores/images-store';
 import { useBroadcastersStore } from '@/stores/broadcasters-store';
 import { sanitizeInlineHtml } from '@/utils/sanitize';
 
@@ -739,6 +812,27 @@ function filterBroadcasters(val: string, update: (fn: () => void) => void) {
 
 const contentMobileOnly = ref<boolean>(false);
 
+// PromoLeft mostra un broadcaster; PromoRight1 e PromoRight2 un'immagine con un link.
+const isBroadcasterPromo = computed(() => selectedPosition.value === PromoPosition.PromoLeft);
+const rightImageSize = computed(() => PROMO_RIGHT_IMAGE_SIZE[selectedPosition.value]);
+
+const contentImageUrl = ref<string>('');
+const contentUrl = ref<string>('');
+const contentNewWindow = ref<boolean>(false);
+const selectImageDialogOpen = ref<boolean>(false);
+const uploadImageDialogOpen = ref<boolean>(false);
+
+function onImageChosen(image: ImageItem) {
+  contentImageUrl.value = image.url;
+}
+
+function contentTooltip(cnt: PromoContent): string {
+  if (cnt.broadcaster) {
+    return t('promos.itemContentTooltip', { name: cnt.broadcaster.display_name || '-', id: cnt.broadcaster.short_id || '-' });
+  }
+  return t('promos.itemContentImageTooltip', { url: cnt.url || '-', image: cnt.image_url || '-' });
+}
+
 const noImagePlaceholder = '/no-image.svg';
 const tableImagePreviewOpen = ref<boolean>(false);
 const tableImagePreviewUrl = ref<string>('');
@@ -799,16 +893,46 @@ function getPromoBroadcaster(promo: Promo): PromoBroadcaster | null {
   return null;
 }
 
-function getPromoImageUrl(promo: Promo): string {
-  return getPromoBroadcaster(promo)?.image_url?.trim() ?? '';
+// Prima immagine di una promo right (contenuto con immagine e link).
+function getPromoContentImage(promo: Promo): string {
+  for (const it of promo.item ?? []) {
+    for (const cnt of it.content ?? []) {
+      if (cnt.image_url?.trim()) {
+        return cnt.image_url.trim();
+      }
+    }
+  }
+  return '';
 }
 
-// Popup con la foto, il nome del broadcaster come sottotitolo e la didascalia.
+function getPromoImageUrl(promo: Promo): string {
+  return getPromoBroadcaster(promo)?.image_url?.trim() || getPromoContentImage(promo);
+}
+
+// Popup con la foto; per un broadcaster anche il suo nome come sottotitolo e
+// la didascalia.
 function openTableImagePreview(promo: Promo) {
   const broadcaster = getPromoBroadcaster(promo);
-  if (!broadcaster?.image_url) return;
+  if (broadcaster?.image_url) {
+    showImagePreview(broadcaster.image_url, broadcaster);
+    return;
+  }
+  const imageUrl = getPromoContentImage(promo);
+  if (imageUrl) {
+    showImagePreview(imageUrl, null);
+  }
+}
+
+// Anteprima dell'immagine scelta nel dialog di una promo right.
+function openImagePreview(url: string) {
+  if (url.trim()) {
+    showImagePreview(url.trim(), null);
+  }
+}
+
+function showImagePreview(url: string, broadcaster: PromoBroadcaster | null) {
   tableImagePreviewSize.value = null;
-  tableImagePreviewUrl.value = broadcaster.image_url;
+  tableImagePreviewUrl.value = url;
   tableImagePreviewBroadcaster.value = broadcaster;
   tableImagePreviewOpen.value = true;
 }
@@ -892,9 +1016,16 @@ function openDialog() {
   selectedYear.value = new Date().getFullYear();
 
   itemTitle.value = '';
-  contentBroadcasterShortId.value = null;
-  contentMobileOnly.value = false;
+  resetContentFields();
   dialogOpen.value = true;
+}
+
+function resetContentFields(content?: PromoContent) {
+  contentBroadcasterShortId.value = content?.broadcaster?.short_id || null;
+  contentImageUrl.value = content?.image_url || '';
+  contentUrl.value = content?.url || '';
+  contentNewWindow.value = !!content?.new_window;
+  contentMobileOnly.value = !!content?.mobile_only;
 }
 
 // Apertura del dialogo per la modifica di una promozione esistente
@@ -906,21 +1037,8 @@ function openEditDialog(promo: Promo) {
   selectedWeeks.value = promo.weeks ? [...promo.weeks] : [];
 
   const firstItem = promo.item?.[0];
-  if (firstItem) {
-    itemTitle.value = firstItem.title || '';
-    const firstContent = firstItem.content?.[0];
-    if (firstContent) {
-      contentBroadcasterShortId.value = firstContent.broadcaster?.short_id || null;
-      contentMobileOnly.value = !!firstContent.mobile_only;
-    } else {
-      contentBroadcasterShortId.value = null;
-      contentMobileOnly.value = false;
-    }
-  } else {
-    itemTitle.value = '';
-    contentBroadcasterShortId.value = null;
-    contentMobileOnly.value = false;
-  }
+  itemTitle.value = firstItem?.title || '';
+  resetContentFields(firstItem?.content?.[0]);
 
   dialogOpen.value = true;
 }
@@ -929,10 +1047,18 @@ function openEditDialog(promo: Promo) {
 async function onSubmit() {
   submitting.value = true;
   try {
-    const promoContent: PromoContent = {
-      broadcaster: { short_id: contentBroadcasterShortId.value ?? '' },
-      mobile_only: contentMobileOnly.value,
-    };
+    const link = contentUrl.value.trim();
+    const promoContent: PromoContent = isBroadcasterPromo.value
+      ? {
+          broadcaster: { short_id: contentBroadcasterShortId.value ?? '' },
+          mobile_only: contentMobileOnly.value,
+        }
+      : {
+          image_url: contentImageUrl.value.trim(),
+          url: link,
+          new_window: !!link && contentNewWindow.value,
+          mobile_only: contentMobileOnly.value,
+        };
 
     const promoItem: PromoItem = {
       title: itemTitle.value.trim(),

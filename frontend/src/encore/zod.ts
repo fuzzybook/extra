@@ -69,6 +69,9 @@ export const AdvertisingPromoBroadcasterSchema = z.object({
 export const AdvertisingPromoContentSchema = z.object({
   mobile_only: z.boolean(),
   broadcaster: z.lazy(() => AdvertisingPromoBroadcasterSchema).optional(),
+  image_url: z.string().optional(),
+  url: z.string().optional(),
+  new_window: z.boolean().optional(),
 });
 
 export const AdvertisingPromoItemSchema = z.object({

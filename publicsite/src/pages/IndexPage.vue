@@ -62,6 +62,11 @@
                       :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
                     />
+                    <PromoImageLink
+                      v-else-if="c.image_url"
+                      :content="c"
+                      :alt="it.title || promo.section"
+                    />
                   </div>
                 </div>
               </div>
@@ -84,6 +89,11 @@
                       :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
                     />
+                    <PromoImageLink
+                      v-else-if="c.image_url"
+                      :content="c"
+                      :alt="it.title || promo.section"
+                    />
                   </div>
                 </div>
               </div>
@@ -102,6 +112,7 @@ import { useI18n } from 'vue-i18n';
 import { type advertising } from '@/encore/client';
 import { api } from '@/encore/api';
 import PromoBroadcaster from '@/components/PromoBroadcaster.vue';
+import PromoImageLink from '@/components/PromoImageLink.vue';
 
 const { t } = useI18n();
 
