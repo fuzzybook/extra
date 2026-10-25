@@ -87,14 +87,38 @@
           />
 
           <template v-if="registerDetails">
-            <label class="account-label" for="register-name">{{ t('login.displayNameLabel') }}</label>
+            <label class="account-label" for="register-language">{{ t('login.languageLabel') }}</label>
+            <select id="register-language" ref="registerLanguageInput" v-model="registerLanguage" class="account-input account-select">
+              <option v-for="lang in LANGUAGES" :key="lang.value" :value="lang.value">{{ lang.label }}</option>
+            </select>
+
+            <label class="account-label" for="register-status">{{ t('login.statusLabel') }}</label>
+            <select id="register-status" v-model="registerStatus" class="account-input account-select" required>
+              <option value="" disabled hidden></option>
+              <option v-for="type in MEMBER_TYPES" :key="type" :value="type">{{ t(`login.memberTypes.${type}`) }}</option>
+            </select>
+            <p v-if="registerStatus === 'broadcaster'" class="account-field-hint">{{ t('login.broadcasterHint') }}</p>
+
+            <label class="account-label" for="register-nickname">{{ t('login.nicknameLabel') }}</label>
             <input
-              id="register-name"
-              ref="registerNameInput"
-              v-model.trim="registerName"
+              id="register-nickname"
+              v-model.trim="registerNickname"
               class="account-input"
               type="text"
               autocomplete="nickname"
+              minlength="2"
+              maxlength="32"
+              required
+            />
+
+            <label class="account-label" for="register-name">{{ t('login.nameLabel') }}</label>
+            <input
+              id="register-name"
+              v-model.trim="registerPrivateName"
+              class="account-input"
+              type="text"
+              autocomplete="name"
+              maxlength="120"
               required
             />
 
@@ -117,6 +141,52 @@
               autocomplete="new-password"
               required
             />
+
+            <label class="account-label" for="register-phone">
+              {{ t('login.phoneLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+            </label>
+            <input
+              id="register-phone"
+              v-model.trim="registerPhone"
+              class="account-input"
+              type="tel"
+              autocomplete="tel"
+              maxlength="30"
+            />
+
+            <label class="account-label" for="register-country">
+              {{ t('login.countryLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+            </label>
+            <select id="register-country" v-model="registerCountry" class="account-input account-select" autocomplete="country">
+              <option value=""></option>
+              <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
+            </select>
+
+            <label class="account-label" for="register-address">
+              {{ t('login.addressLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+            </label>
+            <textarea
+              id="register-address"
+              v-model="registerAddress"
+              class="account-input account-textarea"
+              autocomplete="street-address"
+              maxlength="500"
+              rows="3"
+            />
+
+            <label class="account-check">
+              <input v-model="registerNewsletter" type="checkbox" />
+              <span>{{ t('login.newsletter') }}</span>
+            </label>
+
+            <label class="account-check">
+              <input v-model="registerTerms" type="checkbox" required />
+              <i18n-t keypath="login.acceptTerms" tag="span" scope="global">
+                <template #terms>
+                  <a :href="termsHref" target="_blank" rel="noopener" class="account-inline-link">{{ t('login.termsLink') }}</a>
+                </template>
+              </i18n-t>
+            </label>
           </template>
 
           <p v-if="registerError" class="account-message account-message--error" role="alert">{{ registerError }}</p>
@@ -131,15 +201,17 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { APIError, ErrCode } from '@/encore/client';
 import { api } from '@/encore/api';
+import { countryOptions } from '@/utils/countries';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const router = useRouter();
+const route = useRoute();
 
 useMeta(() => ({
   title: `${t('login.title')} - PublicSite`,
@@ -222,15 +294,49 @@ async function onReset() {
 }
 
 // --- Registrazione ---
+// Lingue del sito (nomi nella propria lingua) e tipi di membro richiedibili.
+const LANGUAGES = [
+  { value: 'en', label: 'English' },
+  { value: 'it', label: 'Italiano' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+] as const;
+const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser'] as const;
+const PHONE_PATTERN = /^\+?[0-9 ()./-]{5,30}$/;
+
+const siteLanguage = computed(() => {
+  const lang = String(route.params.locale || locale.value).slice(0, 2);
+  return LANGUAGES.some((l) => l.value === lang) ? lang : 'en';
+});
+const termsHref = computed(() => `/${siteLanguage.value}/terms`);
+const countries = computed(() => countryOptions(siteLanguage.value));
+
 const registerEmail = ref('');
-const registerName = ref('');
+const registerLanguage = ref<string>(siteLanguage.value);
+const registerStatus = ref('');
+const registerNickname = ref('');
+const registerPrivateName = ref('');
 const registerPassword = ref('');
 const registerConfirm = ref('');
+const registerPhone = ref('');
+const registerCountry = ref('');
+const registerAddress = ref('');
+const registerNewsletter = ref(false);
+const registerTerms = ref(false);
 const registerDetails = ref(false);
 const registerLoading = ref(false);
 const registerError = ref('');
 const registerDone = ref(false);
-const registerNameInput = ref<HTMLInputElement | null>(null);
+const registerLanguageInput = ref<HTMLSelectElement | null>(null);
+
+// Controlli lato client del secondo passo; il backend li ripete.
+function registerFormError(): string {
+  if (!registerStatus.value) return t('login.statusRequired');
+  if (registerPassword.value !== registerConfirm.value) return t('login.passwordMismatch');
+  if (registerPhone.value && !PHONE_PATTERN.test(registerPhone.value)) return t('login.phoneInvalid');
+  if (!registerTerms.value) return t('login.termsRequired');
+  return '';
+}
 
 async function onRegister() {
   registerError.value = '';
@@ -250,19 +356,28 @@ async function onRegister() {
       } else {
         registerDetails.value = true;
         await nextTick();
-        registerNameInput.value?.focus();
+        registerLanguageInput.value?.focus();
       }
       return;
     }
-    if (registerPassword.value !== registerConfirm.value) {
-      registerError.value = t('login.passwordMismatch');
+    const formError = registerFormError();
+    if (formError) {
+      registerError.value = formError;
       return;
     }
     await api.registration.Register({
       email: registerEmail.value,
-      display_name: registerName.value,
+      display_name: registerNickname.value,
       avatar_url: '',
       password: registerPassword.value,
+      language: registerLanguage.value,
+      member_type: registerStatus.value,
+      name: registerPrivateName.value,
+      ...(registerPhone.value ? { phone: registerPhone.value } : {}),
+      ...(registerCountry.value ? { country: registerCountry.value } : {}),
+      ...(registerAddress.value.trim() ? { address: registerAddress.value.trim() } : {}),
+      newsletter: registerNewsletter.value,
+      accept_terms: registerTerms.value,
     });
     registerPassword.value = '';
     registerConfirm.value = '';
@@ -341,6 +456,81 @@ async function onRegister() {
 
 .account-input:focus {
   border-color: #8f8f8f;
+}
+
+/* Select con la freccia piena a destra, come nel modello */
+.account-select {
+  padding-right: 40px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='10' viewBox='0 0 12 10'%3E%3Cpath d='M0 0h12L6 10z' fill='%23cfcfcf'/%3E%3C/svg%3E");
+  background-position: right 14px center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.account-select option {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.account-textarea {
+  height: auto;
+  min-height: 90px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.account-optional {
+  color: #9a9a9a;
+  font-size: 0.8rem;
+}
+
+.account-field-hint {
+  margin: -12px 0 20px;
+  color: #9a9a9a;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.account-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.account-check input {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  border: 3px solid #555555;
+  background-color: #1a1a1a;
+  appearance: none;
+  cursor: pointer;
+}
+
+.account-check input:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M2 8.5l4 4 8-9' fill='none' stroke='%23ffffff' stroke-width='2.5'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.account-check input:focus-visible {
+  border-color: #8f8f8f;
+  outline: none;
+}
+
+.account-check span {
+  padding-top: 3px;
+}
+
+.account-inline-link {
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 .account-button {

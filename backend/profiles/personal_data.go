@@ -22,6 +22,8 @@ type PersonalData struct {
 	Cap       string    `json:"cap"`
 	City      string    `json:"city"`
 	Country   string    `json:"country"`
+	// Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+	Phone     string    `json:"phone"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -68,9 +70,9 @@ func GetPersonalData(ctx context.Context) (*PersonalData, error) {
 	}
 	pd := PersonalData{UserID: userID}
 	err = db.QueryRow(ctx, `
-		SELECT first_name, last_name, address, cap, city, country, created_at, updated_at
+		SELECT first_name, last_name, address, cap, city, country, phone, created_at, updated_at
 		FROM personal_data WHERE user_id = $1
-	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.Cap, &pd.City, &pd.Country, &pd.CreatedAt, &pd.UpdatedAt)
+	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.Cap, &pd.City, &pd.Country, &pd.Phone, &pd.CreatedAt, &pd.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "personal data not found"}
 	}
@@ -111,8 +113,8 @@ func UpsertPersonalData(ctx context.Context, p *PersonalDataParams) (*PersonalDa
 		    city = EXCLUDED.city,
 		    country = EXCLUDED.country,
 		    updated_at = NOW()
-		RETURNING created_at, updated_at
-	`, userID, p.FirstName, p.LastName, p.Address, p.Cap, p.City, p.Country).Scan(&pd.CreatedAt, &pd.UpdatedAt)
+		RETURNING phone, created_at, updated_at
+	`, userID, p.FirstName, p.LastName, p.Address, p.Cap, p.City, p.Country).Scan(&pd.Phone, &pd.CreatedAt, &pd.UpdatedAt)
 	if isForeignKeyViolation(err) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}

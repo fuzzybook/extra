@@ -32,6 +32,12 @@
           <q-badge :color="memberTypeInfo(props.value).color">
             {{ memberTypeInfo(props.value).label }}
           </q-badge>
+          <!-- Tipo di membro chiesto alla registrazione, da confermare -->
+          <div v-if="props.row.requested_member_type && props.row.requested_member_type !== props.value" class="q-mt-xs">
+            <q-badge outline color="orange-8">
+              {{ t('admin.requestedMemberType', { type: memberTypeInfo(props.row.requested_member_type).label }) }}
+            </q-badge>
+          </div>
           <div v-if="props.row.broadcaster" class="text-caption text-grey ellipsis q-mt-xs" style="max-width: 140px">
             ID: {{ props.row.broadcaster.slice(0, 8) }}...
             <q-tooltip>Broadcaster ID: {{ props.row.broadcaster }}</q-tooltip>

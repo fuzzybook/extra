@@ -119,6 +119,11 @@ export namespace admin {
         cap: string
         city: string
         country: string
+        /**
+         * Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+         */
+        phone: string
+
         "created_at": string
         "updated_at": string
     }
@@ -138,6 +143,14 @@ export namespace admin {
         "display_name": string
         "avatar_url": string
         "member_type": string
+        /**
+         * RequestedMemberType è il tipo di membro chiesto alla registrazione
+         * ("" se nessuna richiesta aperta); si azzera cambiando il tipo di membro.
+         */
+        "requested_member_type": string
+
+        language: string
+        newsletter: boolean
         broadcaster: string
         role: string
         status: profiles.Status
@@ -1214,6 +1227,11 @@ export namespace profiles {
         cap: string
         city: string
         country: string
+        /**
+         * Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+         */
+        phone: string
+
         "created_at": string
         "updated_at": string
     }
@@ -1423,11 +1441,24 @@ export namespace registration {
         "email_sent": boolean
     }
 
+    /**
+     * RegisterParams è il modulo di registrazione pubblico. DisplayName è il
+     * nickname pubblico, Name il nome privato; telefono, paese e indirizzo sono
+     * facoltativi. L'accettazione dei termini è obbligatoria.
+     */
     export interface RegisterParams {
         email: string
         "display_name": string
         "avatar_url": string
         password: string
+        language: string
+        "member_type": string
+        name: string
+        phone?: string
+        country?: string
+        address?: string
+        newsletter: boolean
+        "accept_terms": boolean
     }
 
     export interface RegisterResponse {

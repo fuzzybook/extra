@@ -70,13 +70,39 @@ export interface MessageSchema {
     backToLogin: string;
     registerTitle: string;
     registerButton: string;
-    displayNameLabel: string;
     confirmPasswordLabel: string;
     passwordMismatch: string;
     emailInvalid: string;
     emailUnavailable: string;
     emailDomainInvalid: string;
     registerSuccess: string;
+    languageLabel: string;
+    statusLabel: string;
+    nicknameLabel: string;
+    nameLabel: string;
+    phoneLabel: string;
+    countryLabel: string;
+    addressLabel: string;
+    optional: string;
+    newsletter: string;
+    acceptTerms: string;
+    termsLink: string;
+    termsRequired: string;
+    statusRequired: string;
+    phoneInvalid: string;
+    broadcasterHint: string;
+    memberTypes: {
+      visitor: string;
+      broadcaster: string;
+      affiliate: string;
+      advertiser: string;
+    };
+  };
+  terms: {
+    title: string;
+    subtitle: string;
+    body: string;
+    updated: string;
   };
 }
 
@@ -150,13 +176,39 @@ const it: MessageSchema = {
     backToLogin: 'Torna al login',
     registerTitle: 'Crea un account',
     registerButton: 'Registrati',
-    displayNameLabel: 'Nome visualizzato',
     confirmPasswordLabel: 'Conferma password',
     passwordMismatch: 'Le password non coincidono.',
     emailInvalid: 'Inserisci un indirizzo email valido.',
     emailUnavailable: 'Questa email è già registrata.',
     emailDomainInvalid: 'Il dominio di questa email non riceve posta.',
     registerSuccess: 'Account creato! Controlla la tua email per confermarlo.',
+    languageLabel: 'La tua lingua',
+    statusLabel: 'Status',
+    nicknameLabel: 'Nickname (pubblico)',
+    nameLabel: 'Nome (privato)',
+    phoneLabel: 'Numero di telefono (privato)',
+    countryLabel: 'Paese (privato)',
+    addressLabel: 'Indirizzo (privato)',
+    optional: '- Facoltativo',
+    newsletter: 'Tienimi aggiornato sulle novità.',
+    acceptTerms: 'Accetto i {terms}',
+    termsLink: 'termini e le condizioni di utilizzo',
+    termsRequired: 'Devi accettare i termini e le condizioni di utilizzo.',
+    statusRequired: 'Scegli il tuo status.',
+    phoneInvalid: 'Numero di telefono non valido.',
+    broadcasterHint: "Il profilo broadcaster viene abilitato dopo l'approvazione di un amministratore.",
+    memberTypes: {
+      visitor: 'Visitatore',
+      broadcaster: 'Broadcaster',
+      affiliate: 'Affiliato',
+      advertiser: 'Inserzionista',
+    },
+  },
+  terms: {
+    title: 'Termini e condizioni',
+    subtitle: 'Termini e condizioni di utilizzo del sito.',
+    body: 'Testo dei termini e delle condizioni di utilizzo da definire.',
+    updated: 'Ultimo aggiornamento: da definire.',
   },
 };
 
@@ -230,13 +282,39 @@ const fr: MessageSchema = {
     backToLogin: 'Retour à la connexion',
     registerTitle: 'Créer un compte',
     registerButton: "S'inscrire",
-    displayNameLabel: "Nom d'affichage",
     confirmPasswordLabel: 'Confirmer le mot de passe',
     passwordMismatch: 'Les mots de passe ne correspondent pas.',
     emailInvalid: 'Saisissez une adresse e-mail valide.',
     emailUnavailable: 'Cet e-mail est déjà enregistré.',
     emailDomainInvalid: 'Le domaine de cet e-mail ne reçoit pas de courrier.',
     registerSuccess: 'Compte créé ! Vérifiez votre e-mail pour le confirmer.',
+    languageLabel: 'Votre langue',
+    statusLabel: 'Statut',
+    nicknameLabel: 'Pseudo (public)',
+    nameLabel: 'Nom (privé)',
+    phoneLabel: 'Numéro de téléphone (privé)',
+    countryLabel: 'Pays (privé)',
+    addressLabel: 'Adresse (privée)',
+    optional: '- Facultatif',
+    newsletter: 'Tenez-moi informé des nouveautés.',
+    acceptTerms: "J'accepte les {terms}",
+    termsLink: "conditions générales d'utilisation",
+    termsRequired: "Vous devez accepter les conditions générales d'utilisation.",
+    statusRequired: 'Choisissez votre statut.',
+    phoneInvalid: 'Numéro de téléphone non valide.',
+    broadcasterHint: "Le profil broadcaster est activé après l'approbation d'un administrateur.",
+    memberTypes: {
+      visitor: 'Visiteur',
+      broadcaster: 'Broadcaster',
+      affiliate: 'Affilié',
+      advertiser: 'Annonceur',
+    },
+  },
+  terms: {
+    title: 'Conditions générales',
+    subtitle: "Conditions générales d'utilisation du site.",
+    body: "Texte des conditions générales d'utilisation à définir.",
+    updated: 'Dernière mise à jour : à définir.',
   },
 };
 
@@ -310,13 +388,39 @@ const de: MessageSchema = {
     backToLogin: 'Zurück zur Anmeldung',
     registerTitle: 'Konto erstellen',
     registerButton: 'Registrieren',
-    displayNameLabel: 'Anzeigename',
     confirmPasswordLabel: 'Passwort bestätigen',
     passwordMismatch: 'Die Passwörter stimmen nicht überein.',
     emailInvalid: 'Geben Sie eine gültige E-Mail-Adresse ein.',
     emailUnavailable: 'Diese E-Mail ist bereits registriert.',
     emailDomainInvalid: 'Die Domain dieser E-Mail empfängt keine Post.',
     registerSuccess: 'Konto erstellt! Prüfen Sie Ihre E-Mail, um es zu bestätigen.',
+    languageLabel: 'Ihre Sprache',
+    statusLabel: 'Status',
+    nicknameLabel: 'Nickname (öffentlich)',
+    nameLabel: 'Name (privat)',
+    phoneLabel: 'Telefonnummer (privat)',
+    countryLabel: 'Land (privat)',
+    addressLabel: 'Adresse (privat)',
+    optional: '- Optional',
+    newsletter: 'Halten Sie mich über Neuigkeiten auf dem Laufenden.',
+    acceptTerms: 'Ich akzeptiere die {terms}',
+    termsLink: 'Nutzungsbedingungen',
+    termsRequired: 'Sie müssen die Nutzungsbedingungen akzeptieren.',
+    statusRequired: 'Wählen Sie Ihren Status.',
+    phoneInvalid: 'Ungültige Telefonnummer.',
+    broadcasterHint: 'Das Broadcaster-Profil wird nach Freigabe durch einen Administrator aktiviert.',
+    memberTypes: {
+      visitor: 'Besucher',
+      broadcaster: 'Broadcaster',
+      affiliate: 'Affiliate',
+      advertiser: 'Werbetreibender',
+    },
+  },
+  terms: {
+    title: 'Nutzungsbedingungen',
+    subtitle: 'Nutzungsbedingungen der Website.',
+    body: 'Text der Nutzungsbedingungen folgt.',
+    updated: 'Letzte Aktualisierung: folgt.',
   },
 };
 
@@ -390,13 +494,39 @@ const en: MessageSchema = {
     backToLogin: 'Back to login',
     registerTitle: 'Create an account',
     registerButton: 'Register',
-    displayNameLabel: 'Display name',
     confirmPasswordLabel: 'Confirm password',
     passwordMismatch: 'Passwords do not match.',
     emailInvalid: 'Enter a valid email address.',
     emailUnavailable: 'This email is already registered.',
     emailDomainInvalid: "This email's domain does not receive mail.",
     registerSuccess: 'Account created! Check your email to confirm it.',
+    languageLabel: 'Your language',
+    statusLabel: 'Status',
+    nicknameLabel: 'Nickname (Public)',
+    nameLabel: 'Name (Private)',
+    phoneLabel: 'Phone Number (Private)',
+    countryLabel: 'Country (Private)',
+    addressLabel: 'Address (Private)',
+    optional: '- Optional',
+    newsletter: "Keep me posted on what's new.",
+    acceptTerms: 'I accept the {terms}',
+    termsLink: 'terms and conditions of use',
+    termsRequired: 'You must accept the terms and conditions of use.',
+    statusRequired: 'Choose your status.',
+    phoneInvalid: 'Invalid phone number.',
+    broadcasterHint: 'The broadcaster profile is enabled after an administrator approves it.',
+    memberTypes: {
+      visitor: 'Visitor',
+      broadcaster: 'Broadcaster',
+      affiliate: 'Affiliate',
+      advertiser: 'Advertiser',
+    },
+  },
+  terms: {
+    title: 'Terms and conditions',
+    subtitle: 'Terms and conditions of use of the site.',
+    body: 'Text of the terms and conditions of use to be defined.',
+    updated: 'Last updated: to be defined.',
   },
 };
 

@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"net/mail"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	authsvc "encore.app/auth"
 	broadcasterssvc "encore.app/broadcasters"
@@ -77,6 +79,82 @@ type RegisterParams struct {
 	DisplayName string `json:"display_name"`
 	AvatarURL   string `json:"avatar_url"`
 	Password    string `json:"password" encore:"sensitive"`
+
+	// Dati del modulo di registrazione pubblico, facoltativi qui (gli admin
+	// creano profili senza): registration.Register li rende obbligatori.
+	Language            string          `json:"language,omitempty" encore:"optional"`
+	RequestedMemberType string          `json:"requested_member_type,omitempty" encore:"optional"`
+	Newsletter          bool            `json:"newsletter,omitempty" encore:"optional"`
+	TermsAccepted       bool            `json:"terms_accepted,omitempty" encore:"optional"`
+	Personal            *SignupPersonal `json:"personal,omitempty" encore:"optional"`
+}
+
+// SignupPersonal sono i dati privati raccolti alla registrazione: il nome è
+// obbligatorio, gli altri campi facoltativi.
+type SignupPersonal struct {
+	Name    string `json:"name"`
+	Phone   string `json:"phone,omitempty" encore:"optional"`
+	Country string `json:"country,omitempty" encore:"optional"`
+	Address string `json:"address,omitempty" encore:"optional"`
+}
+
+// Languages sono le lingue del sito; la prima è quella predefinita.
+var Languages = []string{"en", "it", "fr", "de"}
+
+// SignupMemberTypes sono i tipi di membro che si possono richiedere alla
+// registrazione (non admin).
+var SignupMemberTypes = []string{MemberTypeVisitor, MemberTypeBroadcaster, MemberTypeAffiliate, MemberTypeAdvertiser}
+
+var (
+	phonePattern   = regexp.MustCompile(`^\+?[0-9 ()./-]{5,30}$`)
+	countryPattern = regexp.MustCompile(`^[A-Z]{2}$`)
+)
+
+const (
+	maxNameLength    = 120
+	maxAddressLength = 500
+)
+
+func contains(values []string, v string) bool {
+	for _, x := range values {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// initialMemberType è il tipo di membro assegnato alla registrazione: quello
+// richiesto, tranne broadcaster che dà subito accesso alle stanze e quindi
+// resta una richiesta da confermare da un admin.
+func initialMemberType(requested string) string {
+	if requested == "" || requested == MemberTypeBroadcaster {
+		return MemberTypeVisitor
+	}
+	return requested
+}
+
+func (p *SignupPersonal) validate() error {
+	p.Name = normalizeText(p.Name)
+	p.Phone = normalizeText(p.Phone)
+	p.Country = strings.ToUpper(strings.TrimSpace(p.Country))
+	p.Address = strings.TrimSpace(p.Address)
+	if p.Name == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "name is required"}
+	}
+	if utf8.RuneCountInString(p.Name) > maxNameLength {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "name is too long"}
+	}
+	if p.Phone != "" && !phonePattern.MatchString(p.Phone) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "phone number is invalid"}
+	}
+	if p.Country != "" && !countryPattern.MatchString(p.Country) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "country must be a 2-letter code"}
+	}
+	if utf8.RuneCountInString(p.Address) > maxAddressLength {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "address is too long"}
+	}
+	return nil
 }
 
 func (p *RegisterParams) Validate() error {
@@ -96,6 +174,19 @@ func (p *RegisterParams) Validate() error {
 	if p.AvatarURL != "" {
 		if err := validate.HTTPURL(p.AvatarURL); err != nil {
 			return &errs.Error{Code: errs.InvalidArgument, Message: "avatar url is invalid"}
+		}
+	}
+	p.Language = strings.ToLower(strings.TrimSpace(p.Language))
+	if p.Language != "" && !contains(Languages, p.Language) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "language is not supported"}
+	}
+	p.RequestedMemberType = strings.TrimSpace(p.RequestedMemberType)
+	if p.RequestedMemberType != "" && !contains(SignupMemberTypes, p.RequestedMemberType) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "member type is not valid"}
+	}
+	if p.Personal != nil {
+		if err := p.Personal.validate(); err != nil {
+			return err
 		}
 	}
 	return authsvc.ValidatePassword(p.Password)
@@ -154,15 +245,46 @@ func Insert(ctx context.Context, p *RegisterParams) (*Profile, error) {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to generate profile id")
 	}
 	profile := Profile{UserID: userID, Email: p.Email, DisplayName: p.DisplayName, AvatarURL: p.AvatarURL}
-	err = db.QueryRow(ctx, `
-		INSERT INTO user_profiles (user_id, email, display_name, avatar_url)
-		VALUES ($1, $2, $3, $4)
+	language := p.Language
+	if language == "" {
+		language = Languages[0]
+	}
+	var termsAcceptedAt *time.Time
+	if p.TermsAccepted {
+		now := time.Now()
+		termsAcceptedAt = &now
+	}
+
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to create profile")
+	}
+	defer func() { _ = tx.Rollback() }()
+	err = tx.QueryRow(ctx, `
+		INSERT INTO user_profiles (
+			user_id, email, display_name, avatar_url,
+			member_type, requested_member_type, language, newsletter, terms_accepted_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING role, status, member_type, broadcaster, created_at, updated_at
-	`, userID, p.Email, p.DisplayName, p.AvatarURL).Scan(&profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
+	`, userID, p.Email, p.DisplayName, p.AvatarURL,
+		initialMemberType(p.RequestedMemberType), p.RequestedMemberType, language, p.Newsletter, termsAcceptedAt,
+	).Scan(&profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if isUniqueViolation(err) {
 		return nil, &errs.Error{Code: errs.AlreadyExists, Message: "email already registered"}
 	}
 	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to create profile")
+	}
+	if pd := p.Personal; pd != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO personal_data (user_id, first_name, phone, country, address)
+			VALUES ($1, $2, $3, $4, $5)
+		`, userID, pd.Name, pd.Phone, pd.Country, pd.Address); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to save personal data")
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "failed to create profile")
 	}
 	if err := authsvc.Register(ctx, &authsvc.RegisterParams{UserID: userID, Password: p.Password}); err != nil {

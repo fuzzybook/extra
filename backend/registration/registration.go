@@ -45,11 +45,56 @@ func init() {
 	}
 }
 
+// RegisterParams è il modulo di registrazione pubblico. DisplayName è il
+// nickname pubblico, Name il nome privato; telefono, paese e indirizzo sono
+// facoltativi. L'accettazione dei termini è obbligatoria.
 type RegisterParams struct {
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
 	AvatarURL   string `json:"avatar_url"`
 	Password    string `json:"password" encore:"sensitive"`
+	Language    string `json:"language"`
+	MemberType  string `json:"member_type"`
+	Name        string `json:"name"`
+	Phone       string `json:"phone,omitempty" encore:"optional"`
+	Country     string `json:"country,omitempty" encore:"optional"`
+	Address     string `json:"address,omitempty" encore:"optional"`
+	Newsletter  bool   `json:"newsletter"`
+	AcceptTerms bool   `json:"accept_terms"`
+}
+
+// profileParams converte il modulo nei parametri del servizio profiles,
+// verificando prima i campi obbligatori solo nella registrazione pubblica.
+func (p *RegisterParams) profileParams() (*profilessvc.RegisterParams, error) {
+	if !p.AcceptTerms {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "terms and conditions must be accepted"}
+	}
+	if strings.TrimSpace(p.Language) == "" {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "language is required"}
+	}
+	if strings.TrimSpace(p.MemberType) == "" {
+		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "member type is required"}
+	}
+	params := &profilessvc.RegisterParams{
+		Email:               p.Email,
+		DisplayName:         p.DisplayName,
+		AvatarURL:           p.AvatarURL,
+		Password:            p.Password,
+		Language:            p.Language,
+		RequestedMemberType: p.MemberType,
+		Newsletter:          p.Newsletter,
+		TermsAccepted:       true,
+		Personal: &profilessvc.SignupPersonal{
+			Name:    p.Name,
+			Phone:   p.Phone,
+			Country: p.Country,
+			Address: p.Address,
+		},
+	}
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	return params, nil
 }
 
 type RegisterResponse struct {
@@ -136,21 +181,12 @@ func Register(ctx context.Context, p *RegisterParams) (*RegisterResponse, error)
 	if p == nil {
 		return nil, &errs.Error{Code: errs.InvalidArgument, Message: "register params are required"}
 	}
-	if err := (&profilessvc.RegisterParams{
-		Email:       p.Email,
-		DisplayName: p.DisplayName,
-		AvatarURL:   p.AvatarURL,
-		Password:    p.Password,
-	}).Validate(); err != nil {
+	params, err := p.profileParams()
+	if err != nil {
 		return nil, err
 	}
 	pruneExpiredTokens(ctx)
-	profile, err := profilessvc.Insert(ctx, &profilessvc.RegisterParams{
-		Email:       p.Email,
-		DisplayName: p.DisplayName,
-		AvatarURL:   p.AvatarURL,
-		Password:    p.Password,
-	})
+	profile, err := profilessvc.Insert(ctx, params)
 	if err != nil {
 		return nil, err
 	}

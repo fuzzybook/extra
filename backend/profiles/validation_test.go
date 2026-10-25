@@ -34,3 +34,17 @@ func TestPersonalDataParamsValidate(t *testing.T) {
 		t.Fatalf("Validate() returned unexpected error: %v", err)
 	}
 }
+
+func TestInitialMemberType(t *testing.T) {
+	for requested, want := range map[string]string{
+		"":                    MemberTypeVisitor,
+		MemberTypeVisitor:     MemberTypeVisitor,
+		MemberTypeBroadcaster: MemberTypeVisitor,
+		MemberTypeAffiliate:   MemberTypeAffiliate,
+		MemberTypeAdvertiser:  MemberTypeAdvertiser,
+	} {
+		if got := initialMemberType(requested); got != want {
+			t.Errorf("initialMemberType(%q) = %q, want %q", requested, got, want)
+		}
+	}
+}

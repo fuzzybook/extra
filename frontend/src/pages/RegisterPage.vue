@@ -24,9 +24,28 @@
               ref="displayNameInputRef"
               v-model="form.display_name"
               :label="t('fields.displayName')"
-              autocomplete="name"
+              autocomplete="nickname"
               :error="Boolean(fieldErrors.display_name)"
               :error-message="fieldErrors.display_name"
+            />
+
+            <q-input
+              v-model="form.name"
+              :label="t('register.nameLabel')"
+              autocomplete="name"
+              :error="Boolean(fieldErrors.name)"
+              :error-message="fieldErrors.name"
+            />
+
+            <q-select
+              v-model="form.member_type"
+              :options="memberTypeOptions"
+              :label="t('register.memberTypeLabel')"
+              emit-value
+              map-options
+              :hint="form.member_type === 'broadcaster' ? t('register.broadcasterHint') : undefined"
+              :error="Boolean(fieldErrors.member_type)"
+              :error-message="fieldErrors.member_type"
             />
 
             <q-input
@@ -84,6 +103,15 @@
               </template>
             </q-input>
 
+            <q-checkbox v-model="form.newsletter" :label="t('register.newsletter')" dense />
+
+            <div>
+              <q-checkbox v-model="form.accept_terms" :label="t('register.acceptTerms')" dense />
+              <div v-if="fieldErrors.accept_terms" class="text-negative text-caption q-mt-xs">
+                {{ fieldErrors.accept_terms }}
+              </div>
+            </div>
+
             <q-banner v-if="error" class="bg-negative text-white" rounded>
               {{ error }}
             </q-banner>
@@ -106,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type registration } from '@/encore/client';
 import { api } from '@/encore/api';
@@ -114,7 +142,7 @@ import { RegistrationRegisterParamsSchema } from '@/encore/zod';
 
 type Focusable = { focus: () => void };
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const client = api;
 const displayNameInputRef = ref<Focusable | null>(null);
 const loading = ref(false);
@@ -131,7 +159,23 @@ const form = reactive({
   password: '',
   confirm_password: '',
   avatar_url: '',
+  name: '',
+  member_type: 'visitor',
+  newsletter: false,
+  accept_terms: false,
 });
+
+const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser'] as const;
+const memberTypeOptions = computed(() =>
+  MEMBER_TYPES.map((value) => ({ value, label: t(`register.memberTypes.${value}`) })),
+);
+
+// Lingua del profilo: quella dell'interfaccia, se il sito la supporta.
+const SITE_LANGUAGES = ['en', 'it', 'fr', 'de'];
+function profileLanguage(): string {
+  const lang = String(locale.value).slice(0, 2).toLowerCase();
+  return SITE_LANGUAGES.includes(lang) ? lang : 'en';
+}
 
 onMounted(async () => {
   await nextTick();
@@ -186,11 +230,14 @@ async function checkEmailAvailability(): Promise<boolean> {
 function validateForm(): registration.RegisterParams | null {
   clearFieldErrors();
   const { confirm_password, ...payload } = form;
-  const result = RegistrationRegisterParamsSchema.safeParse(payload);
+  const result = RegistrationRegisterParamsSchema.safeParse({ ...payload, language: profileLanguage() });
   if (!result.success) {
     const flattened = result.error.flatten().fieldErrors;
     for (const key of Object.keys(flattened) as (keyof registration.RegisterParams)[]) {
       fieldErrors[key] = flattened[key]?.[0] ?? '';
+    }
+    if (fieldErrors.accept_terms) {
+      fieldErrors.accept_terms = t('register.termsRequired');
     }
     return null;
   }
@@ -198,7 +245,13 @@ function validateForm(): registration.RegisterParams | null {
     fieldErrors.confirm_password = t('register.passwordMismatch');
     return null;
   }
-  return result.data;
+  const { phone, country, address, ...required } = result.data;
+  return {
+    ...required,
+    ...(phone ? { phone } : {}),
+    ...(country ? { country } : {}),
+    ...(address ? { address } : {}),
+  };
 }
 
 function clearFieldErrors() {
@@ -207,6 +260,9 @@ function clearFieldErrors() {
   fieldErrors.password = '';
   fieldErrors.confirm_password = '';
   fieldErrors.avatar_url = '';
+  fieldErrors.name = '';
+  fieldErrors.member_type = '';
+  fieldErrors.accept_terms = '';
 }
 
 function resetForm() {
@@ -215,5 +271,9 @@ function resetForm() {
   form.password = '';
   form.confirm_password = '';
   form.avatar_url = '';
+  form.name = '';
+  form.member_type = 'visitor';
+  form.newsletter = false;
+  form.accept_terms = false;
 }
 </script>
