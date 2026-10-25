@@ -14,7 +14,7 @@ export default defineConfig((/* ctx */) => {
   }
   // Only the backend paths used by the site: the site's own pages use history
   // routing, so a broader proxy could shadow them.
-  const apiPaths = ['promo'];
+  const apiPaths = ['promo', 'auth', 'registration'];
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,

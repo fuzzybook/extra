@@ -56,7 +56,27 @@ export interface MessageSchema {
   login: {
     title: string;
     subtitle: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    passwordLabel: string;
     button: string;
+    forgotPassword: string;
+    invalidCredentials: string;
+    genericError: string;
+    resetTitle: string;
+    resetHint: string;
+    resetButton: string;
+    resetSent: string;
+    backToLogin: string;
+    registerTitle: string;
+    registerButton: string;
+    displayNameLabel: string;
+    confirmPasswordLabel: string;
+    passwordMismatch: string;
+    emailInvalid: string;
+    emailUnavailable: string;
+    emailDomainInvalid: string;
+    registerSuccess: string;
   };
 }
 
@@ -115,8 +135,28 @@ const it: MessageSchema = {
   },
   login: {
     title: 'Login',
-    subtitle: "Accedi all'area riservata o alla dashboard amministrativa.",
-    button: 'Accedi alla Dashboard',
+    subtitle: 'Accedi al tuo account o creane uno nuovo.',
+    emailLabel: 'Indirizzo email',
+    emailPlaceholder: "example{'@'}example.com",
+    passwordLabel: 'Password',
+    button: 'Login',
+    forgotPassword: 'Password dimenticata?',
+    invalidCredentials: 'Email o password non corretti.',
+    genericError: 'Si è verificato un errore, riprova.',
+    resetTitle: 'Recupera password',
+    resetHint: "Inserisci l'email del tuo account: ti invieremo un link per impostare una nuova password.",
+    resetButton: 'Invia link',
+    resetSent: "Se l'email è registrata, riceverai a breve un link per reimpostare la password.",
+    backToLogin: 'Torna al login',
+    registerTitle: 'Crea un account',
+    registerButton: 'Registrati',
+    displayNameLabel: 'Nome visualizzato',
+    confirmPasswordLabel: 'Conferma password',
+    passwordMismatch: 'Le password non coincidono.',
+    emailInvalid: 'Inserisci un indirizzo email valido.',
+    emailUnavailable: 'Questa email è già registrata.',
+    emailDomainInvalid: 'Il dominio di questa email non riceve posta.',
+    registerSuccess: 'Account creato! Controlla la tua email per confermarlo.',
   },
 };
 
@@ -175,8 +215,28 @@ const fr: MessageSchema = {
   },
   login: {
     title: 'Connexion',
-    subtitle: 'Accédez à votre espace réservé ou au tableau de bord.',
-    button: 'Accéder au tableau de bord',
+    subtitle: 'Connectez-vous à votre compte ou créez-en un nouveau.',
+    emailLabel: 'Adresse e-mail',
+    emailPlaceholder: "example{'@'}example.com",
+    passwordLabel: 'Mot de passe',
+    button: 'Connexion',
+    forgotPassword: 'Mot de passe oublié ?',
+    invalidCredentials: 'E-mail ou mot de passe incorrect.',
+    genericError: 'Une erreur est survenue, veuillez réessayer.',
+    resetTitle: 'Récupérer le mot de passe',
+    resetHint: "Saisissez l'e-mail de votre compte : nous vous enverrons un lien pour définir un nouveau mot de passe.",
+    resetButton: 'Envoyer le lien',
+    resetSent: "Si l'e-mail est enregistré, vous recevrez bientôt un lien pour réinitialiser le mot de passe.",
+    backToLogin: 'Retour à la connexion',
+    registerTitle: 'Créer un compte',
+    registerButton: "S'inscrire",
+    displayNameLabel: "Nom d'affichage",
+    confirmPasswordLabel: 'Confirmer le mot de passe',
+    passwordMismatch: 'Les mots de passe ne correspondent pas.',
+    emailInvalid: 'Saisissez une adresse e-mail valide.',
+    emailUnavailable: 'Cet e-mail est déjà enregistré.',
+    emailDomainInvalid: 'Le domaine de cet e-mail ne reçoit pas de courrier.',
+    registerSuccess: 'Compte créé ! Vérifiez votre e-mail pour le confirmer.',
   },
 };
 
@@ -235,8 +295,28 @@ const de: MessageSchema = {
   },
   login: {
     title: 'Anmeldung',
-    subtitle: 'Melden Sie sich für den geschützten Bereich oder das Dashboard an.',
-    button: 'Zum Dashboard anmelden',
+    subtitle: 'Melden Sie sich an oder erstellen Sie ein neues Konto.',
+    emailLabel: 'E-Mail-Adresse',
+    emailPlaceholder: "example{'@'}example.com",
+    passwordLabel: 'Passwort',
+    button: 'Anmelden',
+    forgotPassword: 'Passwort vergessen?',
+    invalidCredentials: 'E-Mail oder Passwort ist falsch.',
+    genericError: 'Ein Fehler ist aufgetreten, bitte erneut versuchen.',
+    resetTitle: 'Passwort wiederherstellen',
+    resetHint: 'Geben Sie die E-Mail Ihres Kontos ein: Wir senden Ihnen einen Link, um ein neues Passwort festzulegen.',
+    resetButton: 'Link senden',
+    resetSent: 'Wenn die E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen des Passworts.',
+    backToLogin: 'Zurück zur Anmeldung',
+    registerTitle: 'Konto erstellen',
+    registerButton: 'Registrieren',
+    displayNameLabel: 'Anzeigename',
+    confirmPasswordLabel: 'Passwort bestätigen',
+    passwordMismatch: 'Die Passwörter stimmen nicht überein.',
+    emailInvalid: 'Geben Sie eine gültige E-Mail-Adresse ein.',
+    emailUnavailable: 'Diese E-Mail ist bereits registriert.',
+    emailDomainInvalid: 'Die Domain dieser E-Mail empfängt keine Post.',
+    registerSuccess: 'Konto erstellt! Prüfen Sie Ihre E-Mail, um es zu bestätigen.',
   },
 };
 
@@ -295,8 +375,28 @@ const en: MessageSchema = {
   },
   login: {
     title: 'Login',
-    subtitle: 'Access the private area or administrative dashboard.',
-    button: 'Access Dashboard',
+    subtitle: 'Log in to your account or create a new one.',
+    emailLabel: 'Email address',
+    emailPlaceholder: "example{'@'}example.com",
+    passwordLabel: 'Password',
+    button: 'Login',
+    forgotPassword: 'Forgotten your password?',
+    invalidCredentials: 'Wrong email or password.',
+    genericError: 'Something went wrong, please try again.',
+    resetTitle: 'Recover password',
+    resetHint: "Enter your account's email: we will send you a link to set a new password.",
+    resetButton: 'Send link',
+    resetSent: 'If the email is registered, you will shortly receive a link to reset your password.',
+    backToLogin: 'Back to login',
+    registerTitle: 'Create an account',
+    registerButton: 'Register',
+    displayNameLabel: 'Display name',
+    confirmPasswordLabel: 'Confirm password',
+    passwordMismatch: 'Passwords do not match.',
+    emailInvalid: 'Enter a valid email address.',
+    emailUnavailable: 'This email is already registered.',
+    emailDomainInvalid: "This email's domain does not receive mail.",
+    registerSuccess: 'Account created! Check your email to confirm it.',
   },
 };
 
