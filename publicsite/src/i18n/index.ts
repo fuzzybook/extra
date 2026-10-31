@@ -27,6 +27,8 @@ export interface MessageSchema {
   one: {
     title: string;
     subtitle: string;
+    empty: string;
+    error: string;
   };
   two: {
     title: string;
@@ -151,6 +153,8 @@ const it: MessageSchema = {
   one: {
     title: 'ONE',
     subtitle: 'Sezione esclusiva ONE del portale pubblico.',
+    empty: 'Nessun broadcaster da mostrare.',
+    error: 'Impossibile caricare i broadcaster.',
   },
   two: {
     title: 'TWO',
@@ -275,6 +279,8 @@ const fr: MessageSchema = {
   one: {
     title: 'ONE',
     subtitle: 'Section exclusive ONE du portail public.',
+    empty: 'Aucun broadcaster à afficher.',
+    error: 'Impossible de charger les broadcasters.',
   },
   two: {
     title: 'TWO',
@@ -399,6 +405,8 @@ const de: MessageSchema = {
   one: {
     title: 'ONE',
     subtitle: 'Exklusiver ONE-Bereich des öffentlichen Portals.',
+    empty: 'Keine Broadcaster vorhanden.',
+    error: 'Broadcaster konnten nicht geladen werden.',
   },
   two: {
     title: 'TWO',
@@ -523,6 +531,8 @@ const en: MessageSchema = {
   one: {
     title: 'ONE',
     subtitle: 'Exclusive ONE section of the public portal.',
+    empty: 'No broadcasters to show.',
+    error: 'Unable to load broadcasters.',
   },
   two: {
     title: 'TWO',
