@@ -105,6 +105,11 @@ type LiveList struct {
 //
 //encore:api public method=GET path=/videochat/live
 func ListLive(ctx context.Context) (*LiveList, error) {
+	return liveList(ctx)
+}
+
+// liveList calcola lo stato per ListLive e per lo stream SSE (live_stream.go).
+func liveList(ctx context.Context) (*LiveList, error) {
 	list := &LiveList{Enabled: []string{}, Open: []string{}, Video: []string{}, Audio: []string{}}
 	rows, err := profilesDB.Query(ctx, `SELECT user_id::text FROM personal_setup WHERE can_broadcast = TRUE`)
 	if err != nil {
