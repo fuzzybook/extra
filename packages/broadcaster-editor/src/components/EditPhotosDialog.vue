@@ -5,13 +5,13 @@
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
     @show="onShow"
   >
-    <q-card style="width: 780px; max-width: 95vw; max-height: 90vh" class="column no-wrap">
+    <q-card style="width: 780px; max-width: 95vw; max-height: 90vh" class="bg-white text-dark column no-wrap">
       <!-- Header Principale -->
       <q-card-section class="row items-center justify-between bg-deep-orange-7 text-white q-py-sm" style="flex-shrink: 0">
         <div class="row items-center q-gutter-sm">
           <q-icon name="photo_library" size="24px" />
           <div>
-            <div class="text-h6 text-weight-bold">{{ t('broadcasters.photosDialog.title') }}</div>
+            <div class="text-h6 text-weight-bold">{{ t('brEditor.photosDialog.title') }}</div>
             <div class="text-caption opacity-80" v-if="broadcaster">
               {{ broadcaster.display_name }} (ID #{{ broadcaster.id }})
             </div>
@@ -30,15 +30,15 @@
         <div class="row items-center justify-between q-mb-md bg-grey-2 q-pa-sm rounded-borders">
           <div class="row items-center q-gutter-xs">
             <q-badge color="deep-orange" text-color="white" class="q-py-xs q-px-sm">
-              {{ t('broadcasters.photosDialog.cropFormat', { proportion: imageConfig.proportion || '2:3', width: imageConfig.width || 600 }) }}
+              {{ t('brEditor.photosDialog.cropFormat', { proportion: imageConfig.proportion || '2:3', width: imageConfig.width || 600 }) }}
             </q-badge>
-            <span class="text-caption text-grey-7">{{ t('broadcasters.photosDialog.coverHint') }}</span>
+            <span class="text-caption text-grey-7">{{ t('brEditor.photosDialog.coverHint') }}</span>
           </div>
           <div>
             <q-btn
               color="deep-orange-7"
               icon="add_photo_alternate"
-              :label="t('broadcasters.photosDialog.addPhoto')"
+              :label="t('brEditor.photosDialog.addPhoto')"
               unelevated
               dense
               class="q-px-sm text-weight-bold"
@@ -66,14 +66,14 @@
         <!-- Stato Vuoto -->
         <div v-if="photosList.length === 0" class="text-center q-pa-xl text-grey-6">
           <q-icon name="photo_camera" size="52px" class="q-mb-sm text-deep-orange-4" />
-          <div class="text-body1 text-weight-medium">{{ t('broadcasters.photosDialog.emptyTitle') }}</div>
+          <div class="text-body1 text-weight-medium">{{ t('brEditor.photosDialog.emptyTitle') }}</div>
           <div class="text-caption q-mb-md">
-            {{ t('broadcasters.photosDialog.emptySubtitle', { proportion: imageConfig.proportion || '2:3' }) }}
+            {{ t('brEditor.photosDialog.emptySubtitle', { proportion: imageConfig.proportion || '2:3' }) }}
           </div>
           <q-btn
             color="deep-orange-7"
             icon="add_photo_alternate"
-            :label="t('broadcasters.photosDialog.uploadAndCrop')"
+            :label="t('brEditor.photosDialog.uploadAndCrop')"
             unelevated
             @click="triggerPickFile"
           />
@@ -101,7 +101,7 @@
                   <q-badge
                     v-if="index === 0"
                     color="positive"
-                    :label="t('broadcasters.photosDialog.coverBadge')"
+                    :label="t('brEditor.photosDialog.coverBadge')"
                     class="text-weight-bold q-px-xs"
                   />
                   <q-badge color="dark" class="opacity-80"> #{{ index + 1 }} </q-badge>
@@ -144,7 +144,7 @@
                         color="deep-orange-7"
                         @update:model-value="onToggleCaption(photo, $event)"
                       />
-                      <span class="text-caption text-weight-bold text-grey-8">{{ t('broadcasters.photosDialog.captionLabel') }}</span>
+                      <span class="text-caption text-weight-bold text-grey-8">{{ t('brEditor.photosDialog.captionLabel') }}</span>
                     </div>
                     <div v-if="photo.caption_enabled" class="row items-center q-gutter-xs">
                       <span class="text-caption text-grey-6 text-weight-medium">(X: {{ photo.box_x ?? 0 }}%, Y: {{ photo.box_y ?? 0 }}%)</span>
@@ -157,7 +157,7 @@
                         icon="edit_note"
                         @click="openCaptionDialog(index)"
                       >
-                        <q-tooltip>{{ t('broadcasters.photosDialog.editCaption') }}</q-tooltip>
+                        <q-tooltip>{{ t('brEditor.photosDialog.editCaption') }}</q-tooltip>
                       </q-btn>
                     </div>
                   </div>
@@ -174,7 +174,7 @@
                       v-html="sanitizeInlineHtml(photo.alt)"
                     />
                     <div v-else class="text-caption text-italic text-grey-5 flex items-center q-gutter-xs">
-                      <span>{{ t('broadcasters.photosDialog.noCaption') }}</span>
+                      <span>{{ t('brEditor.photosDialog.noCaption') }}</span>
                     </div>
                   </div>
                   <!-- Se disabilitata: non cliccabile / non editabile -->
@@ -184,7 +184,7 @@
                   >
                     <div class="text-caption text-grey-5 flex items-center q-gutter-xs">
                       <q-icon name="subtitles_off" size="14px" color="grey-5" />
-                      <span>{{ t('broadcasters.photosDialog.captionDisabled') }}</span>
+                      <span>{{ t('brEditor.photosDialog.captionDisabled') }}</span>
                     </div>
                   </div>
                 </div>
@@ -203,7 +203,7 @@
                     :disable="index === 0"
                     @click="movePhoto(index, -1)"
                   >
-                    <q-tooltip>{{ t('broadcasters.photosDialog.moveUp') }}</q-tooltip>
+                    <q-tooltip>{{ t('brEditor.photosDialog.moveUp') }}</q-tooltip>
                   </q-btn>
                   <q-btn
                     flat
@@ -214,7 +214,7 @@
                     :disable="index === photosList.length - 1"
                     @click="movePhoto(index, 1)"
                   >
-                    <q-tooltip>{{ t('broadcasters.photosDialog.moveDown') }}</q-tooltip>
+                    <q-tooltip>{{ t('brEditor.photosDialog.moveDown') }}</q-tooltip>
                   </q-btn>
                   <q-btn
                     v-if="index !== 0"
@@ -222,7 +222,7 @@
                     dense
                     size="xs"
                     color="primary"
-                    :label="t('broadcasters.photosDialog.makeCover')"
+                    :label="t('brEditor.photosDialog.makeCover')"
                     @click="makeCover(index)"
                   />
                 </div>
@@ -242,7 +242,7 @@
                     @click="openEditCurrentPhoto(index)"
                   >
                     <template #label>
-                      <span class="q-ml-xs text-caption gt-xs">{{ t('broadcasters.photosDialog.editPhoto') }}</span>
+                      <span class="q-ml-xs text-caption gt-xs">{{ t('brEditor.photosDialog.editPhoto') }}</span>
                     </template>
                     <q-list dense style="min-width: 220px">
                       <q-item clickable @click="openEditCurrentPhoto(index)">
@@ -250,7 +250,7 @@
                           <q-icon name="crop" color="deep-orange-7" size="20px" />
                         </q-item-section>
                         <q-item-section>
-                          <q-item-label>{{ t('broadcasters.photosDialog.cropCurrentPhoto') }}</q-item-label>
+                          <q-item-label>{{ t('brEditor.photosDialog.cropCurrentPhoto') }}</q-item-label>
                           <q-item-label caption>Usa il cropper sulla foto attuale</q-item-label>
                         </q-item-section>
                       </q-item>
@@ -259,7 +259,7 @@
                           <q-icon name="add_photo_alternate" color="primary" size="20px" />
                         </q-item-section>
                         <q-item-section>
-                          <q-item-label>{{ t('broadcasters.photosDialog.replaceWithNewPhoto') }}</q-item-label>
+                          <q-item-label>{{ t('brEditor.photosDialog.replaceWithNewPhoto') }}</q-item-label>
                           <q-item-label caption>Carica una nuova immagine da sostituire</q-item-label>
                         </q-item-section>
                       </q-item>
@@ -277,7 +277,7 @@
                     icon="edit_note"
                     @click="openCaptionDialog(index)"
                   >
-                    <q-tooltip>{{ t('broadcasters.photosDialog.editCaption') }}</q-tooltip>
+                    <q-tooltip>{{ t('brEditor.photosDialog.editCaption') }}</q-tooltip>
                   </q-btn>
 
                   <!-- Bottone Elimina Foto -->
@@ -290,7 +290,7 @@
                     icon="delete"
                     @click="confirmRemovePhoto(index)"
                   >
-                    <q-tooltip>{{ t('broadcasters.photosDialog.deletePhoto') }}</q-tooltip>
+                    <q-tooltip>{{ t('brEditor.photosDialog.deletePhoto') }}</q-tooltip>
                   </q-btn>
                 </div>
               </q-card-actions>
@@ -303,12 +303,12 @@
 
       <!-- Footer Buttons Dialog Principale -->
       <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-        <q-btn flat :label="t('actions.cancel')" :disable="loading" @click="closeDialog" />
+        <q-btn flat :label="t('brEditor.actions.cancel')" :disable="loading" @click="closeDialog" />
         <q-btn
           color="deep-orange-7"
           icon="save"
           :loading="loading"
-          :label="t('broadcasters.photosDialog.save')"
+          :label="t('brEditor.photosDialog.save')"
           unelevated
           @click="onSave"
         />
@@ -319,17 +319,17 @@
     <!-- DIALOG RITAGLIO FOTO TRAMITE CROPPER                    -->
     <!-- ======================================================== -->
     <q-dialog v-model="cropperDialogOpen" persistent @show="onCropperShow" @hide="onCropperHide">
-      <q-card style="width: 700px; max-width: 95vw; max-height: 92vh" class="column no-wrap">
+      <q-card style="width: 700px; max-width: 95vw; max-height: 92vh" class="bg-white text-dark column no-wrap">
         <!-- Header Cropper -->
         <q-card-section class="row items-center justify-between bg-deep-orange-7 text-white q-py-sm" style="flex-shrink: 0">
           <div class="row items-center q-gutter-sm">
             <q-icon :name="editingPhotoIndex !== null ? 'edit' : 'crop'" size="22px" />
             <div>
               <div class="text-subtitle1 text-weight-bold">
-                {{ editingPhotoIndex !== null ? t('broadcasters.photosDialog.editTitle', { index: editingPhotoIndex + 1 }) : t('broadcasters.photosDialog.cropTitle') }}
+                {{ editingPhotoIndex !== null ? t('brEditor.photosDialog.editTitle', { index: editingPhotoIndex + 1 }) : t('brEditor.photosDialog.cropTitle') }}
               </div>
               <div class="text-caption text-orange-1">
-                {{ t('broadcasters.photosDialog.cropFormatSubtitle', { proportion: imageConfig.proportion || '2:3', width: targetCropWidth, height: targetCropHeight }) }}
+                {{ t('brEditor.photosDialog.cropFormatSubtitle', { proportion: imageConfig.proportion || '2:3', width: targetCropWidth, height: targetCropHeight }) }}
               </div>
             </div>
           </div>
@@ -339,7 +339,7 @@
               color="white"
               text-color="deep-orange-9"
               icon="add_photo_alternate"
-              :label="t('broadcasters.photosDialog.replaceWithNewPhoto')"
+              :label="t('brEditor.photosDialog.replaceWithNewPhoto')"
               dense
               unelevated
               size="sm"
@@ -348,7 +348,7 @@
               @click="triggerReplaceFile"
             />
             <q-badge v-if="photoNaturalDimensions" color="white" text-color="deep-orange-9" class="q-py-xs q-px-sm text-weight-bold">
-              {{ t('broadcasters.photosDialog.naturalDimensions', { width: photoNaturalDimensions.width, height: photoNaturalDimensions.height }) }}
+              {{ t('brEditor.photosDialog.naturalDimensions', { width: photoNaturalDimensions.width, height: photoNaturalDimensions.height }) }}
             </q-badge>
             <q-btn icon="close" flat round dense color="white" v-close-popup :disable="croppingLoading" />
           </div>
@@ -361,11 +361,11 @@
               <template #avatar>
                 <q-icon name="info" color="deep-orange-7" size="20px" />
               </template>
-              Stai modificando la foto #{{ editingPhotoIndex + 1 }}. Puoi riposizionarla/ritagliarla, oppure cliccare su <strong>"{{ t('broadcasters.photosDialog.replaceWithNewPhoto') }}"</strong> per sceglierne un'altra.
+              Stai modificando la foto #{{ editingPhotoIndex + 1 }}. Puoi riposizionarla/ritagliarla, oppure cliccare su <strong>"{{ t('brEditor.photosDialog.replaceWithNewPhoto') }}"</strong> per sceglierne un'altra.
             </q-banner>
           </div>
           <div v-else class="text-caption text-grey-7 q-mb-sm text-center">
-            {{ t('broadcasters.photosDialog.cropInstructions') }}
+            {{ t('brEditor.photosDialog.cropInstructions') }}
           </div>
 
           <div class="cropper-container row justify-center items-center q-mb-md">
@@ -395,7 +395,7 @@
                   color="deep-orange-7"
                 />
                 <span class="text-caption text-weight-bold text-grey-8">
-                  {{ t('broadcasters.photosDialog.captionCropLabel') }}
+                  {{ t('brEditor.photosDialog.captionCropLabel') }}
                 </span>
               </div>
             </div>
@@ -404,7 +404,7 @@
               :disable="!newPhotoCaptionEnabled"
               min-height="4.5rem"
               max-height="9rem"
-              :placeholder="newPhotoCaptionEnabled ? t('broadcasters.photosDialog.captionCropPlaceholder') : t('broadcasters.photosDialog.captionDisabled')"
+              :placeholder="newPhotoCaptionEnabled ? t('brEditor.photosDialog.captionCropPlaceholder') : t('brEditor.photosDialog.captionDisabled')"
               :toolbar="editorToolbar"
               :fonts="editorFonts"
               dense
@@ -417,11 +417,11 @@
 
         <!-- Footer Cropper -->
         <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-          <q-btn flat :label="t('actions.cancel')" v-close-popup :disable="croppingLoading" />
+          <q-btn flat :label="t('brEditor.actions.cancel')" v-close-popup :disable="croppingLoading" />
           <q-btn
             color="deep-orange-7"
             :icon="editingPhotoIndex !== null ? 'save' : 'crop'"
-            :label="editingPhotoIndex !== null ? t('broadcasters.photosDialog.confirmAndSave') : t('broadcasters.photosDialog.confirmAndAdd')"
+            :label="editingPhotoIndex !== null ? t('brEditor.photosDialog.confirmAndSave') : t('brEditor.photosDialog.confirmAndAdd')"
             unelevated
             :loading="croppingLoading"
             @click="onCropConfirm"
@@ -434,17 +434,17 @@
     <!-- DIALOG MODIFICA DIDASCALIA FOTO                         -->
     <!-- ======================================================== -->
     <q-dialog v-model="captionDialogOpen" persistent>
-      <q-card style="width: 580px; max-width: 95vw" class="column no-wrap">
+      <q-card style="width: 580px; max-width: 95vw" class="bg-white text-dark column no-wrap">
         <!-- Header Dialog Didascalia -->
         <q-card-section class="row items-center justify-between bg-deep-orange-7 text-white q-py-sm" style="flex-shrink: 0">
           <div class="row items-center q-gutter-sm">
             <q-icon name="edit_note" size="22px" />
             <div>
               <div class="text-subtitle1 text-weight-bold">
-                {{ editingCaptionIndex !== null ? t('broadcasters.photosDialog.captionDialogTitle', { index: editingCaptionIndex + 1 }) : t('broadcasters.photosDialog.captionLabel') }}
+                {{ editingCaptionIndex !== null ? t('brEditor.photosDialog.captionDialogTitle', { index: editingCaptionIndex + 1 }) : t('brEditor.photosDialog.captionLabel') }}
               </div>
               <div class="text-caption text-orange-1">
-                {{ t('broadcasters.photosDialog.captionDialogSubtitle') }}
+                {{ t('brEditor.photosDialog.captionDialogSubtitle') }}
               </div>
             </div>
           </div>
@@ -468,11 +468,11 @@
               <div class="text-subtitle2 text-weight-bold text-grey-9">
                 Foto #{{ editingCaptionIndex + 1 }}
                 <q-badge v-if="editingCaptionIndex === 0" color="positive" class="q-ml-xs">
-                  {{ t('broadcasters.photosDialog.coverBadge') }}
+                  {{ t('brEditor.photosDialog.coverBadge') }}
                 </q-badge>
               </div>
               <div class="text-caption text-grey-6">
-                {{ t('broadcasters.photosDialog.captionDialogHint') }}
+                {{ t('brEditor.photosDialog.captionDialogHint') }}
               </div>
             </div>
           </div>
@@ -488,7 +488,7 @@
                 @update:model-value="onToggleCaption(currentEditingCaptionPhoto, $event)"
               />
               <span class="text-caption text-weight-bold text-grey-8">
-                {{ t('broadcasters.photosDialog.captionLabel') }}
+                {{ t('brEditor.photosDialog.captionLabel') }}
               </span>
             </div>
             <span
@@ -503,7 +503,7 @@
             :disable="!currentEditingCaptionPhoto?.caption_enabled"
             min-height="6.5rem"
             max-height="15rem"
-            :placeholder="currentEditingCaptionPhoto?.caption_enabled ? t('broadcasters.photosDialog.captionPlaceholder') : t('broadcasters.photosDialog.captionDisabled')"
+            :placeholder="currentEditingCaptionPhoto?.caption_enabled ? t('brEditor.photosDialog.captionPlaceholder') : t('brEditor.photosDialog.captionDisabled')"
             :toolbar="editorToolbar"
             :fonts="editorFonts"
             dense
@@ -516,11 +516,11 @@
 
         <!-- Footer Azioni -->
         <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-          <q-btn flat :label="t('actions.cancel')" v-close-popup />
+          <q-btn flat :label="t('brEditor.actions.cancel')" v-close-popup />
           <q-btn
             color="deep-orange-7"
             icon="check"
-            :label="t('actions.save')"
+            :label="t('brEditor.actions.save')"
             unelevated
             @click="saveCaptionDraft"
           />
@@ -534,14 +534,10 @@
 import { ref, reactive, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Dialog, Notify } from 'quasar';
-import {
-  useBroadcastersStore,
-  type Broadcaster,
-  type BroadcasterPhoto,
-} from '@/stores/broadcasters-store';
-import { useImagesStore } from '@/stores/images-store';
-import { sanitizeInlineHtml, stripHtml } from '@/utils/sanitize';
-import CropperImage from '@/components/CropperImage.vue';
+import { useBroadcasterEditor } from '../editor';
+import { type Broadcaster, type BroadcasterPhoto } from '../types';
+import { sanitizeInlineHtml, stripHtml } from '../sanitize';
+import CropperImage from './CropperImage.vue';
 
 export type BroadcasterPhotoItem = BroadcasterPhoto & {
   caption_enabled?: boolean;
@@ -558,8 +554,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const broadcastersStore = useBroadcastersStore();
-const imagesStore = useImagesStore();
+const broadcastersStore = useBroadcasterEditor();
+const imagesStore = broadcastersStore;
 
 const loading = ref(false);
 const localError = ref<string | null>(null);
@@ -1025,7 +1021,7 @@ async function onCropConfirm() {
   if (!blob) {
     Notify.create({
       type: 'warning',
-      message: t('broadcasters.photosDialog.cropError'),
+      message: t('brEditor.photosDialog.cropError'),
     });
     return;
   }
@@ -1077,7 +1073,7 @@ async function onCropConfirm() {
       };
       Notify.create({
         type: 'positive',
-        message: t('broadcasters.photosDialog.photoEditedToast') || 'Foto modificata con successo',
+        message: t('brEditor.photosDialog.photoEditedToast') || 'Foto modificata con successo',
       });
     } else {
       // Aggiunta nuova foto alla lista
@@ -1095,7 +1091,7 @@ async function onCropConfirm() {
       });
       Notify.create({
         type: 'positive',
-        message: t('broadcasters.photosDialog.photoAddedToast'),
+        message: t('brEditor.photosDialog.photoAddedToast'),
       });
     }
 
@@ -1105,7 +1101,7 @@ async function onCropConfirm() {
   } catch (err: unknown) {
     Notify.create({
       type: 'negative',
-      message: err instanceof Error ? err.message : t('broadcasters.photosDialog.saveCropError'),
+      message: err instanceof Error ? err.message : t('brEditor.photosDialog.saveCropError'),
     });
   } finally {
     croppingLoading.value = false;
@@ -1114,14 +1110,14 @@ async function onCropConfirm() {
 
 function confirmRemovePhoto(index: number) {
   Dialog.create({
-    title: t('broadcasters.photosDialog.confirmDeleteTitle') || 'Elimina foto',
-    message: t('broadcasters.photosDialog.confirmDeleteMessage') || 'Sei sicuro di voler eliminare questa foto dalla galleria?',
+    title: t('brEditor.photosDialog.confirmDeleteTitle') || 'Elimina foto',
+    message: t('brEditor.photosDialog.confirmDeleteMessage') || 'Sei sicuro di voler eliminare questa foto dalla galleria?',
     cancel: {
-      label: t('actions.cancel') || 'Annulla',
+      label: t('brEditor.actions.cancel') || 'Annulla',
       flat: true,
     },
     ok: {
-      label: t('broadcasters.photosDialog.deletePhoto') || 'Elimina',
+      label: t('brEditor.photosDialog.deletePhoto') || 'Elimina',
       color: 'negative',
       unelevated: true,
     },
@@ -1135,7 +1131,7 @@ function removePhoto(index: number) {
   photosList.value.splice(index, 1);
   Notify.create({
     type: 'info',
-    message: t('broadcasters.photosDialog.photoRemovedToast'),
+    message: t('brEditor.photosDialog.photoRemovedToast'),
     timeout: 1500,
   });
 }
@@ -1220,7 +1216,7 @@ async function onSave() {
     }
     Notify.create({
       type: 'positive',
-      message: t('broadcasters.photosDialog.saveSuccess'),
+      message: t('brEditor.photosDialog.saveSuccess'),
     });
     emit('saved', updated);
     closeDialog();
@@ -1228,7 +1224,7 @@ async function onSave() {
     localError.value = err instanceof Error ? err.message : String(err);
     Notify.create({
       type: 'negative',
-      message: localError.value || t('broadcasters.photosDialog.saveError'),
+      message: localError.value || t('brEditor.photosDialog.saveError'),
     });
   } finally {
     loading.value = false;

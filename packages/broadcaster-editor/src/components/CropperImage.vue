@@ -129,7 +129,7 @@
 
     <!-- Controlli classici con pulsante ritaglio se richiesto -->
     <div v-if="showControls" class="cropper-controls">
-      <q-btn color="primary" unelevated :label="t('actions.crop')" @click="cropImage" />
+      <q-btn color="primary" unelevated :label="t('brEditor.actions.crop')" @click="cropImage" />
     </div>
 
     <!-- Canvas Preview nascosto o visibile -->
@@ -146,7 +146,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import cropperImageUrl from '@/assets/pexels-photo-4323307.jpg';
+import cropperImageUrl from '../assets/cropper-sample.jpg';
 
 const { t } = useI18n();
 

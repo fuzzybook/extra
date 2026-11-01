@@ -820,6 +820,10 @@ export namespace broadcasters {
         photos: BroadcasterPhoto[]
     }
 
+    export interface UpdateVisibilityParams {
+        enabled: boolean
+    }
+
     export class ServiceClient {
         private baseClient: BaseClient
 
@@ -846,6 +850,7 @@ export namespace broadcasters {
             this.UpdateBroadcasterAttributes = this.UpdateBroadcasterAttributes.bind(this)
             this.UpdateBroadcasterHours = this.UpdateBroadcasterHours.bind(this)
             this.UpdateBroadcasterPhotos = this.UpdateBroadcasterPhotos.bind(this)
+            this.UpdateBroadcasterVisibility = this.UpdateBroadcasterVisibility.bind(this)
         }
 
         /**
@@ -1055,6 +1060,17 @@ export namespace broadcasters {
         public async UpdateBroadcasterPhotos(id: string, params: UpdateBroadcasterPhotosParams): Promise<Broadcaster> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("PUT", `/broadcasters/id/${encodeURIComponent(id)}/photos`, JSON.stringify(params))
+            return await resp.json() as Broadcaster
+        }
+
+        /**
+         * UpdateBroadcasterVisibility mostra o nasconde il profilo nel sito pubblico
+         * (campo enabled). Lo può cambiare il proprietario, oltre all'amministratore;
+         * gli altri campi riservati (certified, used) restano solo all'admin.
+         */
+        public async UpdateBroadcasterVisibility(id: string, params: UpdateVisibilityParams): Promise<Broadcaster> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("PUT", `/broadcasters/id/${encodeURIComponent(id)}/visibility`, JSON.stringify(params))
             return await resp.json() as Broadcaster
         }
     }
@@ -1805,6 +1821,8 @@ export namespace videochat {
             this.ListRooms = this.ListRooms.bind(this)
             this.ListSessions = this.ListSessions.bind(this)
             this.ListSpeakRequests = this.ListSpeakRequests.bind(this)
+            this.LiveKitWebhook = this.LiveKitWebhook.bind(this)
+            this.LiveStream = this.LiveStream.bind(this)
             this.OpenMyLive = this.OpenMyLive.bind(this)
             this.OpenRoom = this.OpenRoom.bind(this)
             this.RejectSpeakRequest = this.RejectSpeakRequest.bind(this)
@@ -1917,7 +1935,7 @@ export namespace videochat {
         /**
          * ListLive restituisce i broadcaster abilitati al broadcasting e, per le foto
          * del sito pubblico, quali hanno la stanza aperta, la camera e il microfono
-         * accesi. Non richiede login.
+         * accesi, letti dalla tabella live_status. Non richiede login.
          */
         public async ListLive(): Promise<LiveList> {
             // Now make the actual call to the API
@@ -2001,6 +2019,24 @@ export namespace videochat {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests`, undefined, {query})
             return await resp.json() as ListSpeakRequestsResponse
+        }
+
+        /**
+         * LiveKitWebhook riceve i webhook di LiveKit (configurati in livekit.yaml con
+         * la stessa API key del backend), ne verifica la firma e inoltra gli eventi
+         * delle stanze sul topic videochat-live-status.
+         */
+        public async LiveKitWebhook(method: "POST", body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
+            return this.baseClient.callAPI(method, `/videochat/livekit/webhook`, body, options)
+        }
+
+        /**
+         * LiveStream manda lo stato delle dirette (stesso formato di ListLive) come
+         * Server-Sent Events: evento "status" alla connessione e a ogni cambiamento,
+         * commento di keepalive per non far chiudere la connessione ai proxy.
+         */
+        public async LiveStream(method: "GET", body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
+            return this.baseClient.callAPI(method, `/videochat/live-stream`, body, options)
         }
 
         /**

@@ -3,10 +3,13 @@
 
 import { defineConfig } from '#q-app';
 import { webchatSetup } from '../packages/webchat/quasar';
+import { broadcasterEditorSetup } from '../packages/broadcaster-editor/quasar';
 
 export default defineConfig((/* ctx */) => {
   // Webchat condivisa con l'altra app (packages/webchat).
   const webchat = webchatSetup(process.cwd());
+  // Dialoghi del profilo broadcaster condivisi (packages/broadcaster-editor).
+  const brEditor = broadcasterEditorSetup(process.cwd());
   // The site calls the API on its own origin. In development the dev server
   // proxies the API routes it uses to the Encore backend (override with
   // QCLI_API_BASE_URL=http://host:port); in production the reverse proxy
@@ -17,7 +20,10 @@ export default defineConfig((/* ctx */) => {
   }
   // Only the backend paths used by the site: the site's own pages use history
   // routing, so a broader proxy could shadow them.
-  const apiPaths = ['promo', 'auth', 'registration', 'broadcasters', 'videochat'];
+  // image/images: libreria immagini e caricamento delle foto nei dialoghi del
+  // profilo broadcaster (packages/broadcaster-editor); profiles: avatar e
+  // dati del profilo utente nella SPA.
+  const apiPaths = ['promo', 'auth', 'registration', 'broadcasters', 'videochat', 'image', 'images', 'profiles'];
   return {
     htmlVariables: { livekitConnectSources: webchat.livekitConnectSources },
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
@@ -28,6 +34,7 @@ export default defineConfig((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
       'i18n',
+      'broadcaster-editor',
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
@@ -58,10 +65,13 @@ export default defineConfig((/* ctx */) => {
       typescript: {
         strict: true,
         vueShim: true,
-        extendTsConfig: webchat.extendTsConfig,
+        extendTsConfig(tsConfig) {
+          webchat.extendTsConfig(tsConfig);
+          brEditor.extendTsConfig(tsConfig);
+        },
       },
 
-      alias: webchat.alias,
+      alias: { ...webchat.alias, ...brEditor.alias },
 
       // https://v2.quasar.dev/quasar-cli-vite/page-routing-with-vue-router#filename-based-routing
       // filenameBasedRouting: true,
@@ -76,7 +86,10 @@ export default defineConfig((/* ctx */) => {
       // minify: false,
       // distDir
 
-      extendViteConf: webchat.extendViteConf,
+      extendViteConf(viteConf) {
+        webchat.extendViteConf(viteConf);
+        brEditor.extendViteConf(viteConf);
+      },
       // viteVuePluginOptions: {},
 
       // to write components with JSX/TSX:
@@ -116,7 +129,10 @@ export default defineConfig((/* ctx */) => {
 
       // Quasar plugins
       plugins: [
-        'Meta'
+        'Meta',
+        // Messaggi e conferme dei dialoghi del profilo broadcaster.
+        'Notify',
+        'Dialog',
       ]
     },
 

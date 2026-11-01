@@ -1,4 +1,5 @@
 import { webchatMessages, type WebchatMessages } from '@extra/webchat/i18n';
+import { broadcasterEditorMessages, type BroadcasterEditorMessages } from '@extra/broadcaster-editor/i18n';
 
 export type SupportedLocale = 'it' | 'fr' | 'de' | 'en';
 
@@ -158,6 +159,34 @@ export interface MessageSchema {
     enableAudio: string;
     loginToChat: string;
   };
+  userProfile: {
+    title: string;
+    avatar: string;
+    avatarCaption: string;
+    data: string;
+    dataCaption: string;
+    avatarTitle: string;
+    dataTitle: string;
+    nickname: string;
+    nicknameHint: string;
+    email: string;
+    saved: string;
+    saveError: string;
+    nicknameInvalid: string;
+    personal: string;
+    personalCaption: string;
+    personalTitle: string;
+    firstName: string;
+    lastName: string;
+    address: string;
+    cap: string;
+    city: string;
+    country: string;
+    phone: string;
+    phoneHint: string;
+    fieldsRequired: string;
+    capInvalid: string;
+  };
   studio: {
     title: string;
     disabledTitle: string;
@@ -178,6 +207,7 @@ export interface MessageSchema {
     preview: string;
   };
   webchat: WebchatMessages;
+  brEditor: BroadcasterEditorMessages;
 }
 
 const it: MessageSchema = {
@@ -336,6 +366,34 @@ const it: MessageSchema = {
     enableAudio: 'Attiva audio',
     loginToChat: 'Accedi per scrivere in chat',
   },
+  userProfile: {
+    title: 'Profilo utente',
+    avatar: 'Avatar',
+    avatarCaption: 'Foto del profilo',
+    data: 'Dati del profilo',
+    dataCaption: 'Nickname ed email',
+    avatarTitle: 'Modifica avatar',
+    dataTitle: 'Dati del profilo',
+    nickname: 'Nickname (pubblico)',
+    nicknameHint: 'Da 2 a 32 caratteri, visibile agli altri utenti.',
+    email: 'Email',
+    saved: 'Profilo aggiornato',
+    saveError: 'Impossibile salvare il profilo.',
+    nicknameInvalid: 'Il nickname deve avere da 2 a 32 caratteri.',
+    personal: 'Dati personali',
+    personalCaption: 'Nome, indirizzo e paese (privati)',
+    personalTitle: 'Dati personali',
+    firstName: 'Nome',
+    lastName: 'Cognome',
+    address: 'Indirizzo',
+    cap: 'CAP',
+    city: 'Città',
+    country: 'Paese',
+    phone: 'Telefono',
+    phoneHint: 'Indicato alla registrazione, non modificabile qui.',
+    fieldsRequired: 'Compila tutti i campi.',
+    capInvalid: 'CAP non valido (da 4 a 10 caratteri).',
+  },
   studio: {
     title: 'La mia webcam',
     disabledTitle: 'Broadcasting non abilitato',
@@ -356,6 +414,7 @@ const it: MessageSchema = {
     preview: 'Accendi la webcam per andare in diretta.',
   },
   webchat: webchatMessages.it,
+  brEditor: broadcasterEditorMessages.it,
 };
 
 const fr: MessageSchema = {
@@ -514,6 +573,34 @@ const fr: MessageSchema = {
     enableAudio: 'Activer le son',
     loginToChat: 'Connectez-vous pour écrire dans le chat',
   },
+  userProfile: {
+    title: 'Profil utilisateur',
+    avatar: 'Avatar',
+    avatarCaption: 'Photo de profil',
+    data: 'Données du profil',
+    dataCaption: 'Pseudo et e-mail',
+    avatarTitle: "Modifier l'avatar",
+    dataTitle: 'Données du profil',
+    nickname: 'Pseudo (public)',
+    nicknameHint: 'De 2 à 32 caractères, visible par les autres utilisateurs.',
+    email: 'E-mail',
+    saved: 'Profil mis à jour',
+    saveError: "Impossible d'enregistrer le profil.",
+    nicknameInvalid: 'Le pseudo doit comporter de 2 à 32 caractères.',
+    personal: 'Données personnelles',
+    personalCaption: 'Nom, adresse et pays (privés)',
+    personalTitle: 'Données personnelles',
+    firstName: 'Prénom',
+    lastName: 'Nom',
+    address: 'Adresse',
+    cap: 'Code postal',
+    city: 'Ville',
+    country: 'Pays',
+    phone: 'Téléphone',
+    phoneHint: "Indiqué lors de l'inscription, non modifiable ici.",
+    fieldsRequired: 'Remplissez tous les champs.',
+    capInvalid: 'Code postal non valide (4 à 10 caractères).',
+  },
   studio: {
     title: 'Ma webcam',
     disabledTitle: 'Diffusion non activée',
@@ -534,6 +621,7 @@ const fr: MessageSchema = {
     preview: 'Allumez la webcam pour passer en direct.',
   },
   webchat: webchatMessages.fr,
+  brEditor: broadcasterEditorMessages.fr,
 };
 
 const de: MessageSchema = {
@@ -692,6 +780,34 @@ const de: MessageSchema = {
     enableAudio: 'Ton aktivieren',
     loginToChat: 'Anmelden, um im Chat zu schreiben',
   },
+  userProfile: {
+    title: 'Benutzerprofil',
+    avatar: 'Avatar',
+    avatarCaption: 'Profilbild',
+    data: 'Profildaten',
+    dataCaption: 'Nickname und E-Mail',
+    avatarTitle: 'Avatar bearbeiten',
+    dataTitle: 'Profildaten',
+    nickname: 'Nickname (öffentlich)',
+    nicknameHint: '2 bis 32 Zeichen, für andere Benutzer sichtbar.',
+    email: 'E-Mail',
+    saved: 'Profil aktualisiert',
+    saveError: 'Das Profil konnte nicht gespeichert werden.',
+    nicknameInvalid: 'Der Nickname muss 2 bis 32 Zeichen lang sein.',
+    personal: 'Persönliche Daten',
+    personalCaption: 'Name, Adresse und Land (privat)',
+    personalTitle: 'Persönliche Daten',
+    firstName: 'Vorname',
+    lastName: 'Nachname',
+    address: 'Adresse',
+    cap: 'PLZ',
+    city: 'Stadt',
+    country: 'Land',
+    phone: 'Telefon',
+    phoneHint: 'Bei der Registrierung angegeben, hier nicht änderbar.',
+    fieldsRequired: 'Füllen Sie alle Felder aus.',
+    capInvalid: 'Ungültige PLZ (4 bis 10 Zeichen).',
+  },
   studio: {
     title: 'Meine Webcam',
     disabledTitle: 'Broadcasting nicht aktiviert',
@@ -712,6 +828,7 @@ const de: MessageSchema = {
     preview: 'Schalte die Webcam ein, um live zu gehen.',
   },
   webchat: webchatMessages.de,
+  brEditor: broadcasterEditorMessages.de,
 };
 
 const en: MessageSchema = {
@@ -870,6 +987,34 @@ const en: MessageSchema = {
     enableAudio: 'Turn on sound',
     loginToChat: 'Log in to write in the chat',
   },
+  userProfile: {
+    title: 'User profile',
+    avatar: 'Avatar',
+    avatarCaption: 'Profile picture',
+    data: 'Profile data',
+    dataCaption: 'Nickname and email',
+    avatarTitle: 'Edit avatar',
+    dataTitle: 'Profile data',
+    nickname: 'Nickname (public)',
+    nicknameHint: '2 to 32 characters, visible to other users.',
+    email: 'Email',
+    saved: 'Profile updated',
+    saveError: 'Unable to save the profile.',
+    nicknameInvalid: 'The nickname must be 2 to 32 characters long.',
+    personal: 'Personal data',
+    personalCaption: 'Name, address and country (private)',
+    personalTitle: 'Personal data',
+    firstName: 'First name',
+    lastName: 'Last name',
+    address: 'Address',
+    cap: 'Postal code',
+    city: 'City',
+    country: 'Country',
+    phone: 'Phone',
+    phoneHint: 'Given at registration, cannot be changed here.',
+    fieldsRequired: 'Fill in all the fields.',
+    capInvalid: 'Invalid postal code (4 to 10 characters).',
+  },
   studio: {
     title: 'My webcam',
     disabledTitle: 'Broadcasting not enabled',
@@ -890,6 +1035,7 @@ const en: MessageSchema = {
     preview: 'Turn on the webcam to go live.',
   },
   webchat: webchatMessages.en,
+  brEditor: broadcasterEditorMessages.en,
 };
 
 export default {

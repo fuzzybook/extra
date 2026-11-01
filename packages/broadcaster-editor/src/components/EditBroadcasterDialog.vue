@@ -5,12 +5,12 @@
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
     @show="onShow"
   >
-    <q-card style="width: 640px; max-width: 95vw; max-height: 90vh" class="column no-wrap">
+    <q-card style="width: 640px; max-width: 95vw; max-height: 90vh" class="bg-white text-dark column no-wrap">
       <q-card-section class="row items-center justify-between bg-primary text-white q-py-sm" style="flex-shrink: 0">
         <div class="row items-center q-gutter-sm">
           <q-icon :name="isEdit ? 'edit' : 'person_add'" size="24px" />
           <div class="text-h6 text-weight-bold">
-            {{ isEdit ? t('broadcasters.dialog.editTitle') : t('broadcasters.dialog.newTitle') }}
+            {{ isEdit ? t('brEditor.dialog.editTitle') : t('brEditor.dialog.newTitle') }}
           </div>
         </div>
         <q-btn icon="close" flat round dense color="white" @click="closeDialog" />
@@ -25,10 +25,10 @@
           <!-- Nome d'arte / Display Name -->
           <q-input
             v-model="form.display_name"
-            :label="t('broadcasters.dialog.displayNameLabel')"
+            :label="t('brEditor.dialog.displayNameLabel')"
             outlined
             dense
-            :rules="[(val) => (val && val.trim().length > 0) || t('broadcasters.dialog.displayNameRequired')]"
+            :rules="[(val) => (val && val.trim().length > 0) || t('brEditor.dialog.displayNameRequired')]"
           >
             
           </q-input>
@@ -36,16 +36,17 @@
           <!-- Categoria (colore automatico da config Categories) -->
           <div>
             <q-select
+              popup-content-class="bg-white text-dark"
               v-model="form.category"
               :options="categoryOptions"
               option-label="label"
               option-value="value"
               emit-value
               map-options
-              :label="t('broadcasters.dialog.categoryLabel')"
+              :label="t('brEditor.dialog.categoryLabel')"
               outlined
               dense
-              :rules="[(val) => !!val || t('broadcasters.dialog.categoryRequired')]"
+              :rules="[(val) => !!val || t('brEditor.dialog.categoryRequired')]"
               @update:model-value="onCategoryChange"
             >
               <template #selected>
@@ -74,11 +75,12 @@
           <div class="row q-col-gutter-sm items-center">
             <div class="col-12 col-sm-6">
               <q-select
+                popup-content-class="bg-white text-dark"
                 v-model="form.availability"
                 :options="availabilityOptions"
                 emit-value
                 map-options
-                :label="t('broadcasters.dialog.availabilityLabel')"
+                :label="t('brEditor.dialog.availabilityLabel')"
                 outlined
                 dense
               >
@@ -88,7 +90,7 @@
             <div class="col-12 col-sm-6">
               <q-toggle
                 v-model="form.certified"
-                :label="t('broadcasters.dialog.certifiedLabel')"
+                :label="t('brEditor.dialog.certifiedLabel')"
                 color="positive"
                 checked-icon="verified"
                 unchecked-icon="verified_user"
@@ -97,7 +99,7 @@
             <div class="col-12 col-sm-6">
               <q-toggle
                 v-model="form.enabled"
-                :label="t('broadcasters.dialog.enabledLabel')"
+                :label="t('brEditor.dialog.enabledLabel')"
                 color="positive"
                 checked-icon="check_circle"
                 unchecked-icon="cancel"
@@ -106,7 +108,7 @@
             <div class="col-12 col-sm-6">
               <q-toggle
                 v-model="form.used"
-                :label="t('broadcasters.dialog.usedLabel')"
+                :label="t('brEditor.dialog.usedLabel')"
                 color="primary"
                 checked-icon="how_to_reg"
                 unchecked-icon="person_outline"
@@ -117,7 +119,7 @@
           <!-- Telefono -->
           <q-input
             v-model="form.phone"
-            :label="t('broadcasters.dialog.phoneLabel')"
+            :label="t('brEditor.dialog.phoneLabel')"
             outlined
             dense
           >
@@ -127,12 +129,12 @@
           <!-- Biografia -->
           <q-input
             v-model="form.bio"
-            :label="t('broadcasters.dialog.bioLabel')"
+            :label="t('brEditor.dialog.bioLabel')"
             type="textarea"
             outlined
             dense
             rows="3"
-            :placeholder="t('broadcasters.dialog.bioPlaceholder')"
+            :placeholder="t('brEditor.dialog.bioPlaceholder')"
           >
            
           </q-input>
@@ -140,9 +142,10 @@
           <!-- Servizi Offerti (Chips) -->
           <div>
             <div class="text-caption text-weight-bold text-grey-8 q-mb-xs">
-              {{ t('broadcasters.dialog.servicesLabel') }}
+              {{ t('brEditor.dialog.servicesLabel') }}
             </div>
             <q-select
+              popup-content-class="bg-white text-dark"
               v-model="form.services"
               multiple
               use-chips
@@ -151,12 +154,12 @@
               new-value-mode="add-unique"
               outlined
               dense
-              :placeholder="t('broadcasters.dialog.servicesPlaceholder')"
+              :placeholder="t('brEditor.dialog.servicesPlaceholder')"
             />
             <!-- Suggerimenti rapidi da config (come BroadcasterAttributes) -->
             <div v-if="availableServicesPresets.length > 0" class="q-mt-xs">
               <div class="text-caption text-grey-7 q-mb-xs" style="font-size: 11px">
-                {{ t('broadcasters.dialog.quickPresetsHint') }}
+                {{ t('brEditor.dialog.quickPresetsHint') }}
               </div>
               <div class="row q-gutter-xs">
                 <q-chip
@@ -178,9 +181,10 @@
           <!-- Lingue Parlate (Chips) -->
           <div>
             <div class="text-caption text-weight-bold text-grey-8 q-mb-xs">
-              {{ t('broadcasters.dialog.languagesLabel') }}
+              {{ t('brEditor.dialog.languagesLabel') }}
             </div>
             <q-select
+              popup-content-class="bg-white text-dark"
               v-model="form.languages"
               multiple
               use-chips
@@ -189,7 +193,7 @@
               new-value-mode="add-unique"
               outlined
               dense
-              :placeholder="t('broadcasters.dialog.languagesPlaceholder')"
+              :placeholder="t('brEditor.dialog.languagesPlaceholder')"
             >
               
             </q-select>
@@ -201,12 +205,12 @@
 
       <!-- Footer Buttons -->
       <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-        <q-btn flat :label="t('actions.cancel')" :disable="loading" @click="closeDialog" />
+        <q-btn flat :label="t('brEditor.actions.cancel')" :disable="loading" @click="closeDialog" />
         <q-btn
           color="primary"
           icon="save"
           :loading="loading"
-          :label="isEdit ? t('broadcasters.dialog.saveChanges') : t('broadcasters.dialog.createBroadcaster')"
+          :label="isEdit ? t('brEditor.dialog.saveChanges') : t('brEditor.dialog.createBroadcaster')"
           unelevated
           @click="onSubmit"
         />
@@ -219,7 +223,8 @@
 import { ref, computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Notify } from 'quasar';
-import { useBroadcastersStore, type Broadcaster } from '@/stores/broadcasters-store';
+import { useBroadcasterEditor } from '../editor';
+import { type Broadcaster } from '../types';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -232,7 +237,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const broadcastersStore = useBroadcastersStore();
+const broadcastersStore = useBroadcasterEditor();
 const formRef = ref();
 const loading = ref(false);
 const localError = ref<string | null>(null);
@@ -267,7 +272,7 @@ function onCategoryChange() {
 }
 
 function formatAvailabilityLabel(val: string): string {
-  const key = `broadcasters.availability.${val.toLowerCase()}`;
+  const key = `brEditor.availability.${val.toLowerCase()}`;
   return t(key, val);
 }
 
@@ -381,7 +386,7 @@ async function onSubmit() {
       });
       Notify.create({
         type: 'positive',
-        message: t('broadcasters.dialog.updateSuccess'),
+        message: t('brEditor.dialog.updateSuccess'),
       });
     } else {
       saved = await broadcastersStore.createBroadcaster({
@@ -403,7 +408,7 @@ async function onSubmit() {
       });
       Notify.create({
         type: 'positive',
-        message: t('broadcasters.dialog.createSuccess'),
+        message: t('brEditor.dialog.createSuccess'),
       });
     }
 
@@ -413,7 +418,7 @@ async function onSubmit() {
     localError.value = err instanceof Error ? err.message : String(err);
     Notify.create({
       type: 'negative',
-      message: localError.value || t('broadcasters.dialog.saveError'),
+      message: localError.value || t('brEditor.dialog.saveError'),
     });
   } finally {
     loading.value = false;

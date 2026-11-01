@@ -168,6 +168,10 @@ export const BroadcastersUpdateBroadcasterPhotosParamsSchema = z.object({
   photos: z.array(z.lazy(() => BroadcastersBroadcasterPhotoSchema)),
 });
 
+export const BroadcastersUpdateVisibilityParamsSchema = z.object({
+  enabled: z.boolean(),
+});
+
 export const ImagesImageDescriptionSchema = z.object({
   text: z.string(),
   box_x: z.number(),

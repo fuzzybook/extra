@@ -3,10 +3,13 @@
 
 import { defineConfig } from '#q-app';
 import { webchatSetup } from '../packages/webchat/quasar';
+import { broadcasterEditorSetup } from '../packages/broadcaster-editor/quasar';
 
 export default defineConfig((/* ctx */) => {
   // Webchat condivisa con l'altra app (packages/webchat).
   const webchat = webchatSetup(process.cwd());
+  // Dialoghi del profilo broadcaster condivisi (packages/broadcaster-editor).
+  const brEditor = broadcasterEditorSetup(process.cwd());
   // The app calls the API on its own origin, so the HttpOnly session cookie is
   // first-party. In development the dev server proxies the API routes to the
   // Encore backend (override with QCLI_API_BASE_URL=http://host:port); in
@@ -31,6 +34,7 @@ export default defineConfig((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
     boot: [
       'i18n',
+      'broadcaster-editor',
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
@@ -62,10 +66,13 @@ export default defineConfig((/* ctx */) => {
       typescript: {
         strict: true,
         vueShim: true,
-        extendTsConfig: webchat.extendTsConfig,
+        extendTsConfig(tsConfig) {
+          webchat.extendTsConfig(tsConfig);
+          brEditor.extendTsConfig(tsConfig);
+        },
       },
 
-      alias: webchat.alias,
+      alias: { ...webchat.alias, ...brEditor.alias },
 
       // https://v2.quasar.dev/quasar-cli-vite/page-routing-with-vue-router#filename-based-routing
       // filenameBasedRouting: true,
@@ -83,6 +90,7 @@ export default defineConfig((/* ctx */) => {
 
       extendViteConf(viteConf) {
         webchat.extendViteConf(viteConf);
+        brEditor.extendViteConf(viteConf);
         viteConf.optimizeDeps = {
           ...viteConf.optimizeDeps,
           include: [

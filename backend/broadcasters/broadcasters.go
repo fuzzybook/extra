@@ -1029,6 +1029,36 @@ func UpdateBroadcaster(ctx context.Context, id uuid.UUID, p *UpdateBroadcasterPa
 	return existing, nil
 }
 
+type UpdateVisibilityParams struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UpdateBroadcasterVisibility mostra o nasconde il profilo nel sito pubblico
+// (campo enabled). Lo può cambiare il proprietario, oltre all'amministratore;
+// gli altri campi riservati (certified, used) restano solo all'admin.
+//
+//encore:api auth method=PUT path=/broadcasters/id/:id/visibility
+func UpdateBroadcasterVisibility(ctx context.Context, id uuid.UUID, p *UpdateVisibilityParams) (*Broadcaster, error) {
+	callerID, isAdmin, err := authedUser()
+	if err != nil {
+		return nil, err
+	}
+	existing, err := getBroadcaster(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !isAdmin && existing.UserID != callerID {
+		return nil, &errs.Error{Code: errs.PermissionDenied, Message: "permesso negato: non sei il proprietario di questo profilo broadcaster"}
+	}
+	err = db.QueryRow(ctx, `UPDATE broadcasters SET enabled = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at`, p.Enabled, id).
+		Scan(&existing.UpdatedAt)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile aggiornare la visibilità del profilo broadcaster")
+	}
+	existing.Enabled = p.Enabled
+	return existing, nil
+}
+
 // DeleteBroadcaster rimuove il profilo broadcaster (richiede autenticazione dell'utente o di un admin).
 //
 //encore:api auth method=DELETE path=/broadcasters/id/:id

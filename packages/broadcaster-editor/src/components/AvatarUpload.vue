@@ -6,11 +6,11 @@
     </q-avatar>
 
     <div class="row items-center q-gutter-xs">
-      <q-btn round flat color="primary" icon="upload" :aria-label="t('actions.chooseFile')" @click="pickFile">
-        <q-tooltip>{{ t('actions.chooseFile') }}</q-tooltip>
+      <q-btn round flat color="primary" icon="upload" :aria-label="t('brEditor.avatar.chooseFile')" @click="pickFile">
+        <q-tooltip>{{ t('brEditor.avatar.chooseFile') }}</q-tooltip>
       </q-btn>
-      <q-btn round flat color="primary" icon="photo_camera" :aria-label="t('actions.camera')" @click="openCamera">
-        <q-tooltip>{{ t('actions.camera') }}</q-tooltip>
+      <q-btn round flat color="primary" icon="photo_camera" :aria-label="t('brEditor.avatar.camera')" @click="openCamera">
+        <q-tooltip>{{ t('brEditor.avatar.camera') }}</q-tooltip>
       </q-btn>
       <q-btn
         v-if="modelValue"
@@ -18,19 +18,19 @@
         flat
         color="warning"
         icon="delete"
-        :aria-label="t('actions.remove')"
+        :aria-label="t('brEditor.avatar.remove')"
         @click="$emit('update:modelValue', '')"
       >
-        <q-tooltip>{{ t('actions.remove') }}</q-tooltip>
+        <q-tooltip>{{ t('brEditor.avatar.remove') }}</q-tooltip>
       </q-btn>
     </div>
 
     <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileSelected" />
 
     <q-dialog v-model="cameraOpen" @hide="stopCamera">
-      <q-card style="min-width: 350px; max-width: 90vw;">
+      <q-card class="bg-white text-dark" style="min-width: 350px; max-width: 90vw;">
         <q-card-section>
-          <div class="text-h6">{{ t('actions.camera') }}</div>
+          <div class="text-h6">{{ t('brEditor.avatar.camera') }}</div>
         </q-card-section>
 
         <q-card-section>
@@ -47,16 +47,16 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn v-close-popup flat :label="t('actions.cancel')" />
-          <q-btn color="primary" :label="t('actions.takePhoto')" :disable="!cameraReady" @click="capturePhoto" />
+          <q-btn v-close-popup flat :label="t('brEditor.actions.cancel')" />
+          <q-btn color="primary" :label="t('brEditor.avatar.takePhoto')" :disable="!cameraReady" @click="capturePhoto" />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
     <q-dialog v-model="cropperOpen" @show="ready = true" @hide="onHide">
-      <q-card style="min-width: 350px; max-width: 90vw; position: relative;">
+      <q-card class="bg-white text-dark" style="min-width: 350px; max-width: 90vw; position: relative;">
         <q-card-section>
-          <div class="text-h6">{{ t('avatar.cropAvatar') }}</div>
+          <div class="text-h6">{{ t('brEditor.avatar.cropAvatar') }}</div>
         </q-card-section>
 
         <q-card-section>
@@ -73,8 +73,8 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn v-close-popup flat :label="t('actions.cancel')" />
-          <q-btn color="primary" :label="t('actions.save')" :loading="uploading" @click="cropAndUpload" />
+          <q-btn v-close-popup flat :label="t('brEditor.actions.cancel')" />
+          <q-btn color="primary" :label="t('brEditor.actions.save')" :loading="uploading" @click="cropAndUpload" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -100,7 +100,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import CropperImage from '@/components/CropperImage.vue';
+import CropperImage from './CropperImage.vue';
 
 const props = defineProps<{
   modelValue: string;
@@ -153,7 +153,7 @@ async function openCamera() {
 
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
-    cameraError.value = t('avatar.cameraUnavailable');
+    cameraError.value = t('brEditor.avatar.cameraUnavailable');
     return;
   }
 

@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	authsvc "encore.app/auth"
 	"encore.app/config"
+	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/types/uuid"
 )
@@ -488,3 +490,35 @@ func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateBroadcasterVisibilityByOwner(t *testing.T) {
+	ctx := context.Background()
+	id, _ := uuid.NewV4()
+	ownerID, _ := uuid.NewV4()
+	strangerID, _ := uuid.NewV4()
+	if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, enabled, certified) VALUES ($1, $2, 'Visibility test', TRUE, FALSE)`, id, ownerID); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	ownerCtx := auth.WithContext(ctx, auth.UID(ownerID.String()), &authsvc.AuthData{})
+	strangerCtx := auth.WithContext(ctx, auth.UID(strangerID.String()), &authsvc.AuthData{})
+
+	// Solo il proprietario (o un admin) cambia la visibilità.
+	if _, err := UpdateBroadcasterVisibility(strangerCtx, id, &UpdateVisibilityParams{Enabled: false}); errs.Code(err) != errs.PermissionDenied {
+		t.Fatalf("stranger: %v, want permission denied", err)
+	}
+	b, err := UpdateBroadcasterVisibility(ownerCtx, id, &UpdateVisibilityParams{Enabled: false})
+	if err != nil || b.Enabled {
+		t.Fatalf("owner hide = %+v, %v", b, err)
+	}
+	if _, err := GetBroadcasterByShortID(ctx, b.ShortID); err == nil {
+		t.Fatal("hidden profile still visible to the public")
+	}
+	b, err = UpdateBroadcasterVisibility(ownerCtx, id, &UpdateVisibilityParams{Enabled: true})
+	if err != nil || !b.Enabled || b.Certified {
+		t.Fatalf("owner show = %+v, %v (certified must not change)", b, err)
+	}
+	if _, err := GetBroadcasterByShortID(ctx, b.ShortID); err != nil {
+		t.Fatalf("visible profile not public: %v", err)
+	}
+}
+

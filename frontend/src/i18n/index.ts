@@ -1,5 +1,6 @@
 import { createI18n } from 'vue-i18n';
 import { webchatMessages } from '@extra/webchat/i18n';
+import { broadcasterEditorMessages } from '@extra/broadcaster-editor/i18n';
 
 export type SupportedLocale = 'en' | 'it' | 'fr' | 'de' | 'es';
 
@@ -17,6 +18,7 @@ const storageKey = 'app.locale';
 const messages = {
   en: {
     webchat: webchatMessages.en,
+    brEditor: broadcasterEditorMessages.en,
     personalSettings: {
       title: "Personal setting",
       canBroadcast: "Enable broadcasting",
@@ -513,6 +515,7 @@ const messages = {
   },
   it: {
     webchat: webchatMessages.it,
+    brEditor: broadcasterEditorMessages.it,
     personalSettings: {
       title: "Personal setting",
       canBroadcast: "Abilita broadcast",
@@ -1008,6 +1011,7 @@ const messages = {
   },
   fr: {
     webchat: webchatMessages.fr,
+    brEditor: broadcasterEditorMessages.fr,
     personalSettings: {
       title: "Paramètres personnels",
       canBroadcast: "Activer la diffusion",
@@ -1503,6 +1507,7 @@ const messages = {
   },
   de: {
     webchat: webchatMessages.de,
+    brEditor: broadcasterEditorMessages.de,
     personalSettings: {
       title: "Persönliche Einstellungen",
       canBroadcast: "Übertragung aktivieren",
@@ -1998,6 +2003,7 @@ const messages = {
   },
   es: {
     webchat: webchatMessages.es,
+    brEditor: broadcasterEditorMessages.es,
     personalSettings: {
       title: "Configuración personal",
       canBroadcast: "Activar transmisión",

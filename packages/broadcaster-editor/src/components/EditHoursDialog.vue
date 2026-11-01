@@ -5,13 +5,13 @@
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
     @show="onShow"
   >
-    <q-card style="width: 780px; max-width: 95vw; max-height: 90vh" class="column no-wrap">
+    <q-card style="width: 780px; max-width: 95vw; max-height: 90vh" class="bg-white text-dark column no-wrap">
       <!-- Header Principale -->
       <q-card-section class="row items-center justify-between bg-teal-7 text-white q-py-sm shrink-0" style="flex-shrink: 0">
         <div class="row items-center q-gutter-sm">
           <q-icon name="schedule" size="26px" />
           <div>
-            <div class="text-h6 text-weight-bold">{{ t('broadcasters.hoursDialog.title') }}</div>
+            <div class="text-h6 text-weight-bold">{{ t('brEditor.hoursDialog.title') }}</div>
             <div class="text-caption opacity-90" v-if="broadcaster">
               {{ broadcaster.display_name }} (ID #{{ broadcaster.id }})
             </div>
@@ -25,11 +25,11 @@
         <div class="row items-center q-gutter-md">
           <span class="text-teal-9 text-weight-bold">
             <q-icon name="info" size="16px" class="q-mr-xs" />
-            {{ t('broadcasters.hoursDialog.totalSlots') }}
+            {{ t('brEditor.hoursDialog.totalSlots') }}
             <q-badge color="teal-8" class="q-ml-xs">{{ totalConfiguredSlots }}</q-badge>
           </span>
           <span class="text-grey-7">
-            {{ t('broadcasters.hoursDialog.daysWithSlots', { active: activeDaysCount, total: hoursList.length }) }}
+            {{ t('brEditor.hoursDialog.daysWithSlots', { active: activeDaysCount, total: hoursList.length }) }}
           </span>
         </div>
         <div class="row q-gutter-xs">
@@ -38,7 +38,7 @@
             dense
             color="teal-8"
             icon="add_circle"
-            :label="t('broadcasters.hoursDialog.addDay')"
+            :label="t('brEditor.hoursDialog.addDay')"
             size="sm"
             @click="showAddDayPrompt = true"
           />
@@ -79,7 +79,7 @@
                   :color="dayItem.hours.length > 0 ? 'teal-7' : 'grey-5'"
                   class="q-ml-xs text-weight-medium"
                 >
-                  {{ dayItem.hours.length }} {{ dayItem.hours.length === 1 ? t('broadcasters.hoursDialog.slotsSingle') : t('broadcasters.hoursDialog.slotsPlural') }}
+                  {{ dayItem.hours.length }} {{ dayItem.hours.length === 1 ? t('brEditor.hoursDialog.slotsSingle') : t('brEditor.hoursDialog.slotsPlural') }}
                 </q-badge>
               </div>
 
@@ -95,20 +95,20 @@
                   color="teal-8"
                   icon="content_copy"
                 >
-                  <q-tooltip>{{ t('broadcasters.hoursDialog.copyTooltip', { day: dayItem.day }) }}</q-tooltip>
-                  <q-menu auto-close>
+                  <q-tooltip>{{ t('brEditor.hoursDialog.copyTooltip', { day: dayItem.day }) }}</q-tooltip>
+                  <q-menu auto-close class="bg-white text-dark">
                     <q-list dense style="min-width: 200px">
                       <q-item clickable @click="copyDayHours(dayIndex, 'weekdays')">
                         <q-item-section avatar><q-icon name="work" size="18px" color="teal" /></q-item-section>
-                        <q-item-section>{{ t('broadcasters.hoursDialog.copyWeekdays') }}</q-item-section>
+                        <q-item-section>{{ t('brEditor.hoursDialog.copyWeekdays') }}</q-item-section>
                       </q-item>
                       <q-item clickable @click="copyDayHours(dayIndex, 'weekend')">
                         <q-item-section avatar><q-icon name="weekend" size="18px" color="deep-orange" /></q-item-section>
-                        <q-item-section>{{ t('broadcasters.hoursDialog.copyWeekend') }}</q-item-section>
+                        <q-item-section>{{ t('brEditor.hoursDialog.copyWeekend') }}</q-item-section>
                       </q-item>
                       <q-item clickable @click="copyDayHours(dayIndex, 'all')">
                         <q-item-section avatar><q-icon name="event_repeat" size="18px" color="indigo" /></q-item-section>
-                        <q-item-section>{{ t('broadcasters.hoursDialog.copyAll') }}</q-item-section>
+                        <q-item-section>{{ t('brEditor.hoursDialog.copyAll') }}</q-item-section>
                       </q-item>
                     </q-list>
                   </q-menu>
@@ -125,7 +125,7 @@
                   icon="clear_all"
                   @click="clearDayHours(dayIndex)"
                 >
-                  <q-tooltip>{{ t('broadcasters.hoursDialog.clearTooltip', { day: dayItem.day }) }}</q-tooltip>
+                  <q-tooltip>{{ t('brEditor.hoursDialog.clearTooltip', { day: dayItem.day }) }}</q-tooltip>
                 </q-btn>
 
                 <!-- Rimuovi giorno se personalizzato -->
@@ -139,7 +139,7 @@
                   icon="delete_outline"
                   @click="removeDay(dayIndex)"
                 >
-                  <q-tooltip>{{ t('broadcasters.hoursDialog.removeDayTooltip') }}</q-tooltip>
+                  <q-tooltip>{{ t('brEditor.hoursDialog.removeDayTooltip') }}</q-tooltip>
                 </q-btn>
 
                 <!-- Pulsante Aggiungi Fascia Oraria -->
@@ -148,7 +148,7 @@
                   dense
                   color="teal-7"
                   icon="add"
-                  :label="t('broadcasters.hoursDialog.addSlot')"
+                  :label="t('brEditor.hoursDialog.addSlot')"
                   size="sm"
                   class="q-px-sm"
                   @click="openAddSlot(dayIndex)"
@@ -160,13 +160,13 @@
             <q-card-section class="q-pa-sm">
               <div v-if="dayItem.hours.length === 0" class="row items-center text-grey-5 q-pa-xs">
                 <q-icon name="access_time" size="16px" class="q-mr-xs" />
-                <span class="text-caption">{{ t('broadcasters.hoursDialog.noSlots') }}</span>
+                <span class="text-caption">{{ t('brEditor.hoursDialog.noSlots') }}</span>
                 <q-btn
                   flat
                   dense
                   no-caps
                   color="teal-8"
-                  :label="t('broadcasters.hoursDialog.addSlotQuick')"
+                  :label="t('brEditor.hoursDialog.addSlotQuick')"
                   size="xs"
                   class="q-ml-sm"
                   @click="openAddSlot(dayIndex)"
@@ -192,7 +192,7 @@
                     ({{ getSlotDurationText(slot.from, slot.to) }})
                   </span>
                   <q-icon name="edit" size="13px" class="q-ml-xs text-teal-6" />
-                  <q-tooltip>{{ t('broadcasters.hoursDialog.slotTooltip', { from: slot.from, to: slot.to }) }}</q-tooltip>
+                  <q-tooltip>{{ t('brEditor.hoursDialog.slotTooltip', { from: slot.from, to: slot.to }) }}</q-tooltip>
                 </q-chip>
               </div>
             </q-card-section>
@@ -204,12 +204,12 @@
 
       <!-- Footer Dialog Principale -->
       <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-        <q-btn flat :label="t('actions.cancel')" :disable="loading" @click="closeDialog" />
+        <q-btn flat :label="t('brEditor.actions.cancel')" :disable="loading" @click="closeDialog" />
         <q-btn
           color="teal-7"
           icon="save"
           :loading="loading"
-          :label="t('broadcasters.hoursDialog.save')"
+          :label="t('brEditor.hoursDialog.save')"
           unelevated
           @click="onSave"
         />
@@ -221,17 +221,17 @@
   <!-- POPUP PER AGGIUNTA / MODIFICA FASCIA ORARIA (2 x Q-TIME) -->
   <!-- ======================================================== -->
   <q-dialog v-model="slotDialogOpen" persistent>
-    <q-card style="width: 720px; max-width: 96vw; max-height: 90vh" class="column no-wrap">
+    <q-card style="width: 720px; max-width: 96vw; max-height: 90vh" class="bg-white text-dark column no-wrap">
       <!-- Header Popup Fascia -->
       <q-card-section class="row items-center justify-between bg-teal-8 text-white q-py-sm" style="flex-shrink: 0">
         <div class="row items-center q-gutter-sm">
           <q-icon :name="editingSlotIndex !== null ? 'edit' : 'more_time'" size="22px" />
           <div>
             <div class="text-subtitle1 text-weight-bold">
-              {{ editingSlotIndex !== null ? t('broadcasters.hoursDialog.editSlotTitle') : t('broadcasters.hoursDialog.newSlotTitle') }}
+              {{ editingSlotIndex !== null ? t('brEditor.hoursDialog.editSlotTitle') : t('brEditor.hoursDialog.newSlotTitle') }}
             </div>
             <div class="text-caption text-teal-1" v-if="activeDay">
-              {{ t('broadcasters.hoursDialog.dayPrefix') }} <strong>{{ activeDay.day }}</strong>
+              {{ t('brEditor.hoursDialog.dayPrefix') }} <strong>{{ activeDay.day }}</strong>
             </div>
           </div>
         </div>
@@ -249,17 +249,17 @@
             :class="slotValidationError ? 'bg-red-1 text-negative border-negative' : 'bg-teal-1 text-teal-9 border-teal'"
           >
             <div class="row items-center justify-center q-gutter-sm text-subtitle1">
-              <span class="text-weight-bold">{{ t('broadcasters.hoursDialog.from') }}</span>
+              <span class="text-weight-bold">{{ t('brEditor.hoursDialog.from') }}</span>
               <q-badge color="teal-8" class="text-subtitle2 text-weight-bold q-px-sm">
                 {{ slotForm.from || '--:--' }}
               </q-badge>
               <q-icon name="arrow_forward" size="18px" />
-              <span class="text-weight-bold">{{ t('broadcasters.hoursDialog.to') }}</span>
+              <span class="text-weight-bold">{{ t('brEditor.hoursDialog.to') }}</span>
               <q-badge color="teal-8" class="text-subtitle2 text-weight-bold q-px-sm">
                 {{ slotForm.to || '--:--' }}
               </q-badge>
               <span v-if="!slotValidationError && slotDuration" class="text-caption text-teal-8 text-weight-medium">
-                ({{ t('broadcasters.hoursDialog.duration', { duration: slotDuration }) }})
+                ({{ t('brEditor.hoursDialog.duration', { duration: slotDuration }) }})
               </span>
             </div>
 
@@ -277,7 +277,7 @@
           <div class="col-12 col-sm-6 text-center">
             <div class="text-subtitle2 text-weight-bold text-teal-9 q-mb-xs row items-center justify-center q-gutter-xs">
               <q-icon name="flight_takeoff" size="18px" />
-              <span>{{ t('broadcasters.hoursDialog.startTime') }}</span>
+              <span>{{ t('brEditor.hoursDialog.startTime') }}</span>
             </div>
             <div class="q-time-wrapper shadow-1 rounded-borders overflow-hidden bg-white">
               <q-time
@@ -294,7 +294,7 @@
           <div class="col-12 col-sm-6 text-center">
             <div class="text-subtitle2 text-weight-bold text-teal-9 q-mb-xs row items-center justify-center q-gutter-xs">
               <q-icon name="flight_land" size="18px" />
-              <span>{{ t('broadcasters.hoursDialog.endTime') }}</span>
+              <span>{{ t('brEditor.hoursDialog.endTime') }}</span>
             </div>
             <div class="q-time-wrapper shadow-1 rounded-borders overflow-hidden bg-white">
               <q-time
@@ -311,7 +311,7 @@
         <!-- Suggerimenti Fasce Rapide -->
         <div class="q-mt-md">
           <div class="text-caption text-weight-medium text-grey-7 q-mb-xs">
-            {{ t('broadcasters.hoursDialog.recommendedSlots') }}
+            {{ t('brEditor.hoursDialog.recommendedSlots') }}
           </div>
           <div class="row q-gutter-xs">
             <q-chip
@@ -334,11 +334,11 @@
 
       <!-- Azioni Popup Fascia (Al Piede) -->
       <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-        <q-btn flat :label="t('actions.cancel')" v-close-popup />
+        <q-btn flat :label="t('brEditor.actions.cancel')" v-close-popup />
         <q-btn
           color="teal-7"
           :icon="editingSlotIndex !== null ? 'check' : 'add'"
-          :label="editingSlotIndex !== null ? t('broadcasters.hoursDialog.updateSlot') : t('broadcasters.hoursDialog.addSlot')"
+          :label="editingSlotIndex !== null ? t('brEditor.hoursDialog.updateSlot') : t('brEditor.hoursDialog.addSlot')"
           unelevated
           :disable="!isSlotValid"
           @click="confirmSlot"
@@ -351,27 +351,28 @@
   <!-- DIALOG AGGIUNTA GIORNO PERSONALIZZATO                    -->
   <!-- ======================================================== -->
   <q-dialog v-model="showAddDayPrompt" persistent>
-    <q-card style="width: 380px; max-width: 90vw">
+    <q-card class="bg-white text-dark" style="width: 380px; max-width: 90vw">
       <q-card-section class="bg-teal-7 text-white q-py-sm">
-        <div class="text-subtitle1 text-weight-bold">{{ t('broadcasters.hoursDialog.newDayTitle') }}</div>
+        <div class="text-subtitle1 text-weight-bold">{{ t('brEditor.hoursDialog.newDayTitle') }}</div>
       </q-card-section>
       <q-card-section class="q-pa-md">
         <q-select
+          popup-content-class="bg-white text-dark"
           v-model="newDayName"
           :options="availableDayOptions"
-          :label="t('broadcasters.hoursDialog.dayNameLabel')"
+          :label="t('brEditor.hoursDialog.dayNameLabel')"
           outlined
           dense
           use-input
           new-value-mode="add-unique"
-          :placeholder="t('broadcasters.hoursDialog.dayNamePlaceholder')"
+          :placeholder="t('brEditor.hoursDialog.dayNamePlaceholder')"
         />
       </q-card-section>
       <q-card-actions align="right" class="q-pa-md bg-grey-1">
-        <q-btn flat :label="t('actions.cancel')" v-close-popup />
+        <q-btn flat :label="t('brEditor.actions.cancel')" v-close-popup />
         <q-btn
           color="teal-7"
-          :label="t('broadcasters.hoursDialog.addDay')"
+          :label="t('brEditor.hoursDialog.addDay')"
           unelevated
           :disable="!newDayName.trim()"
           @click="addNewDay"
@@ -385,12 +386,8 @@
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Notify } from 'quasar';
-import {
-  useBroadcastersStore,
-  type Broadcaster,
-  type BroadcasterHours,
-  type BroadcasterTimeSlot,
-} from '@/stores/broadcasters-store';
+import { useBroadcasterEditor } from '../editor';
+import { type Broadcaster, type BroadcasterHours, type BroadcasterTimeSlot } from '../types';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -403,7 +400,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const broadcastersStore = useBroadcastersStore();
+const broadcastersStore = useBroadcasterEditor();
 const loading = ref(false);
 const localError = ref<string | null>(null);
 
@@ -467,12 +464,12 @@ const slotValidationError = computed<string | null>(() => {
   const to = (slotForm.to || '').trim();
 
   if (!from || !to) {
-    return t('broadcasters.hoursDialog.selectBothTimes');
+    return t('brEditor.hoursDialog.selectBothTimes');
   }
 
   // Verifica che from < to
   if (from >= to) {
-    return t('broadcasters.hoursDialog.startBeforeEnd', { from, to });
+    return t('brEditor.hoursDialog.startBeforeEnd', { from, to });
   }
 
   // Se non c'è un giorno attivo, nulla da confrontare
@@ -497,7 +494,7 @@ const slotValidationError = computed<string | null>(() => {
     // Condizione standard di sovrapposizione tra [from, to] e [otherFrom, otherTo]:
     // from < otherTo && otherFrom < to
     if (from < otherTo && otherFrom < to) {
-      return t('broadcasters.hoursDialog.overlapDetected', {
+      return t('brEditor.hoursDialog.overlapDetected', {
         from,
         to,
         otherFrom,
@@ -626,7 +623,7 @@ function confirmSlot() {
   slotDialogOpen.value = true;
   Notify.create({
     type: 'positive',
-    message: t('broadcasters.hoursDialog.slotSavedToast', {
+    message: t('brEditor.hoursDialog.slotSavedToast', {
       from: newSlot.from,
       to: newSlot.to,
       day: day.day,
@@ -665,7 +662,7 @@ function addNewDay() {
   if (hoursList.value.some((x) => x.day.toLowerCase() === d.toLowerCase())) {
     Notify.create({
       type: 'warning',
-      message: t('broadcasters.hoursDialog.dayAlreadyPresent', { day: d }),
+      message: t('brEditor.hoursDialog.dayAlreadyPresent', { day: d }),
     });
     return;
   }
@@ -701,7 +698,7 @@ function copyDayHours(sourceDayIndex: number, target: 'weekdays' | 'weekend' | '
 
   Notify.create({
     type: 'positive',
-    message: t('broadcasters.hoursDialog.copiedToast', {
+    message: t('brEditor.hoursDialog.copiedToast', {
       day: sourceDay.day,
       count,
     }),
@@ -742,7 +739,7 @@ async function onSave() {
       const s1 = slots[i];
       if (!s1) continue;
       if (s1.from >= s1.to) {
-        localError.value = t('broadcasters.hoursDialog.invalidTimeRange', {
+        localError.value = t('brEditor.hoursDialog.invalidTimeRange', {
           day: d.day,
           from: s1.from,
           to: s1.to,
@@ -753,7 +750,7 @@ async function onSave() {
         const s2 = slots[j];
         if (!s2) continue;
         if (s1.from < s2.to && s2.from < s1.to) {
-          localError.value = t('broadcasters.hoursDialog.overlapOnSave', {
+          localError.value = t('brEditor.hoursDialog.overlapOnSave', {
             day: d.day,
             from: s1.from,
             to: s1.to,
@@ -784,7 +781,7 @@ async function onSave() {
     const updated = await broadcastersStore.updateHours(props.broadcaster.id, cleanedPayload);
     Notify.create({
       type: 'positive',
-      message: t('broadcasters.hoursDialog.saveSuccess'),
+      message: t('brEditor.hoursDialog.saveSuccess'),
     });
     emit('saved', updated);
     closeDialog();
@@ -792,7 +789,7 @@ async function onSave() {
     localError.value = err instanceof Error ? err.message : String(err);
     Notify.create({
       type: 'negative',
-      message: localError.value || t('broadcasters.hoursDialog.saveError'),
+      message: localError.value || t('brEditor.hoursDialog.saveError'),
     });
   } finally {
     loading.value = false;
