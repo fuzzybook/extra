@@ -25,11 +25,14 @@ func TestUpdateProfileMemberTypeBroadcasterLifecycle(t *testing.T) {
 	}
 
 	_, err = profilesDB.Exec(ctx, `
-		INSERT INTO user_profiles (user_id, email, display_name, member_type)
-		VALUES ($1, $2, $3, 'visitor')
+		INSERT INTO user_profiles (user_id, email, display_name, member_type, requested_member_type)
+		VALUES ($1, $2, $3, 'visitor', 'broadcaster')
 	`, testUserID, "test-broadcaster-lifecycle@example.com", "Lifecycle Artist")
 	if err != nil {
 		t.Fatalf("failed to insert test profile: %v", err)
+	}
+	if got, err := GetProfile(ctx, testUserID); err != nil || got.RequestedMemberType != profilessvc.MemberTypeBroadcaster {
+		t.Fatalf("GetProfile() requested_member_type = %+v, %v", got, err)
 	}
 
 	// 2. Change member_type to 'broadcaster' -> should create broadcaster with used=true, enabled=false
@@ -44,6 +47,10 @@ func TestUpdateProfileMemberTypeBroadcasterLifecycle(t *testing.T) {
 	}
 	if p.Broadcaster == nil {
 		t.Fatalf("expected profile.Broadcaster to be non-nil")
+	}
+	// Confermare il tipo di membro chiude la richiesta fatta alla registrazione.
+	if got, err := GetProfile(ctx, testUserID); err != nil || got.RequestedMemberType != "" {
+		t.Errorf("requested_member_type after update = %+v, %v", got, err)
 	}
 
 	createdBroadcasterID := *p.Broadcaster

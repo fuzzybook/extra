@@ -12,3 +12,10 @@ keys:
 logging:
   json: false
   level: info
+# Webhook verso il backend Encore locale (porta 4002, come QCLI_API_BASE_URL dei
+# dev server): aggiorna la tabella videochat.live_status con lo stato delle
+# stanze. Firmato con la chiave qui sopra, la stessa del backend.
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:4002/videochat/livekit/webhook

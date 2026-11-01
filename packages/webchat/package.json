@@ -1,0 +1,14 @@
+{
+  "name": "@extra/webchat",
+  "version": "0.1.0",
+  "description": "Live video and chat components shared by the panel and the public site",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "livekit-client": "^2.22.3",
+    "quasar": "^2.20.0",
+    "vue": "^3.5.22",
+    "vue-i18n": "^11.4.6"
+  }
+}

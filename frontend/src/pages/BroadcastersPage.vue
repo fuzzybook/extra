@@ -330,10 +330,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type QTableColumn, Notify } from 'quasar';
 import { useBroadcastersStore, type Broadcaster } from '@/stores/broadcasters-store';
-import EditBroadcasterDialog from '@/components/broadcasters/EditBroadcasterDialog.vue';
-import EditAttributesDialog from '@/components/broadcasters/EditAttributesDialog.vue';
-import EditHoursDialog from '@/components/broadcasters/EditHoursDialog.vue';
-import EditPhotosDialog from '@/components/broadcasters/EditPhotosDialog.vue';
+import { EditAttributesDialog, EditBroadcasterDialog, EditHoursDialog, EditPhotosDialog } from '@extra/broadcaster-editor';
 
 const { t } = useI18n();
 const broadcastersStore = useBroadcastersStore();
@@ -510,6 +507,7 @@ function getTotalTimeSlots(b: Broadcaster): number {
 
 function onSaved(updated: Broadcaster) {
   selectedBroadcaster.value = updated;
+  broadcastersStore.applySaved(updated);
 }
 </script>
 

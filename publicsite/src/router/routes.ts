@@ -1,6 +1,19 @@
 import type { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
+  // Studio in finestra separata ("Apri in finestra"): solo webchat, senza header del sito
+  {
+    path: '/:locale(it|fr|de|en)?/studio/window',
+    component: () => import('@/layouts/BlankLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'studio-window',
+        component: () => import('@/pages/BroadcasterStudioPage.vue'),
+      },
+    ],
+  },
+
   // Rotte pubbliche SSG con parametro lingua opzionale (it|fr|de|en)
   {
     path: '/:locale(it|fr|de|en)?',
@@ -12,19 +25,19 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/IndexPage.vue'),
       },
       {
-        path: 'one',
-        name: 'one',
-        component: () => import('@/pages/OnePage.vue'),
+        path: 'elite',
+        name: 'elite',
+        component: () => import('@/pages/ElitePage.vue'),
       },
       {
-        path: 'two',
-        name: 'two',
-        component: () => import('@/pages/TwoPage.vue'),
+        path: 'clubs',
+        name: 'clubs',
+        component: () => import('@/pages/ClubsPage.vue'),
       },
       {
-        path: 'three',
-        name: 'three',
-        component: () => import('@/pages/ThreePage.vue'),
+        path: 'soft',
+        name: 'soft',
+        component: () => import('@/pages/SoftPage.vue'),
       },
       {
         path: 'webcam',
@@ -45,6 +58,29 @@ const routes: RouteRecordRaw[] = [
         path: 'login',
         name: 'login',
         component: () => import('@/pages/LoginPage.vue'),
+      },
+      {
+        path: 'terms',
+        name: 'terms',
+        component: () => import('@/pages/TermsPage.vue'),
+      },
+      {
+        // Pagina pubblica del broadcaster, per short_id (6 caratteri)
+        path: 'br/:shortId',
+        name: 'broadcaster',
+        component: () => import('@/pages/BroadcasterPage.vue'),
+      },
+      {
+        // Webcam del broadcaster collegato: apre (o crea) la sua stanza
+        path: 'studio',
+        name: 'studio',
+        component: () => import('@/pages/BroadcasterStudioPage.vue'),
+      },
+      {
+        // Diretta del broadcaster: video e chat (packages/webchat)
+        path: 'br/:shortId/live',
+        name: 'broadcaster-live',
+        component: () => import('@/pages/BroadcasterLivePage.vue'),
       },
     ],
   },

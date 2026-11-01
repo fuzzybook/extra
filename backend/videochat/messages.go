@@ -282,6 +282,12 @@ func ListMessages(ctx context.Context, roomName string, p *ListMessagesParams) (
 		limit = p.Limit
 	}
 
+	return recentMessages(ctx, roomName, limit)
+}
+
+// recentMessages restituisce gli ultimi limit messaggi della stanza, in ordine
+// cronologico.
+func recentMessages(ctx context.Context, roomName string, limit int) (*ListMessagesResponse, error) {
 	rows, err := db.Query(ctx, `
 		SELECT id, room_name, sender_user_id, sender_name, sender_avatar, kind, body, client_message_id, created_at
 		FROM (

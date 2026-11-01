@@ -7,7 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	authsvc "encore.app/auth"
 	"encore.app/config"
+	"encore.dev/beta/auth"
+	"encore.dev/beta/errs"
 	"encore.dev/types/uuid"
 )
 
@@ -135,15 +138,15 @@ func TestGetCategoriesFromSiteConfig(t *testing.T) {
 	if len(resp.Categories) == 0 {
 		t.Errorf("expected at least 1 category from SiteConfig, got 0")
 	}
-	foundGeneral := false
+	// Le sezioni del sito pubblico (Elite, Clubs, Soft) usano questi nomi.
+	found := map[string]bool{}
 	for _, c := range resp.Categories {
-		if c.Name == "General" {
-			foundGeneral = true
-			break
-		}
+		found[c.Name] = true
 	}
-	if !foundGeneral {
-		t.Errorf("expected to find General category in SiteConfig")
+	for _, name := range []string{"Elite", "Clubs", "Soft"} {
+		if !found[name] {
+			t.Errorf("expected to find %s category in SiteConfig", name)
+		}
 	}
 }
 
@@ -425,3 +428,120 @@ func TestLookupByShortIDsReturnsFirstPhotoCaptionAndSize(t *testing.T) {
 		t.Fatalf("size = %dx%d %q, want standard broadcaster size", c.Width, c.Height, c.Proportion)
 	}
 }
+
+func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
+	ctx := context.Background()
+	insert := func(name string, enabled bool) string {
+		id, _ := uuid.NewV4()
+		userID, _ := uuid.NewV4()
+		if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, phone, enabled) VALUES ($1, $2, $3, '+41 79 000 00 00', $4)`, id, userID, name, enabled); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+		var shortID string
+		if err := db.QueryRow(ctx, `SELECT short_id FROM broadcasters WHERE id = $1`, id).Scan(&shortID); err != nil {
+			t.Fatalf("select short_id: %v", err)
+		}
+		return shortID
+	}
+
+	enabled := insert("Public page", true)
+	b, err := GetBroadcasterByShortID(ctx, strings.ToUpper(enabled))
+	if err != nil {
+		t.Fatalf("GetBroadcasterByShortID(enabled) = %v", err)
+	}
+	if b.DisplayName != "Public page" || b.Phone != "" || b.UserID != uuid.Nil {
+		t.Fatalf("public broadcaster = %+v, want name only, no phone/user_id", b)
+	}
+
+	disabled := insert("Hidden page", false)
+	for _, id := range []string{disabled, "000000", "bad", "../x"} {
+		if _, err := GetBroadcasterByShortID(ctx, id); err == nil {
+			t.Errorf("GetBroadcasterByShortID(%q) returned a profile", id)
+		}
+	}
+
+	// La videochat pubblica ricava il proprietario solo dei profili abilitati.
+	owner, err := GetLiveOwner(ctx, enabled)
+	if err != nil || owner.DisplayName != "Public page" || owner.UserID == "" {
+		t.Fatalf("GetLiveOwner(enabled) = %+v, %v", owner, err)
+	}
+	for _, id := range []string{disabled, "000000", "bad"} {
+		if _, err := GetLiveOwner(ctx, id); errs.Code(err) != errs.NotFound {
+			t.Errorf("GetLiveOwner(%q) = %v, want not found", id, err)
+		}
+	}
+
+	// Il sito pubblico chiede per utente se può andare in diretta.
+	mine, err := GetLiveOwnerByUser(ctx, uuid.Must(uuid.FromString(owner.UserID)))
+	if err != nil || mine.ShortID != enabled || owner.ShortID != enabled {
+		t.Fatalf("GetLiveOwnerByUser = %+v, %v; want short id %q", mine, err, enabled)
+	}
+	var disabledUser uuid.UUID
+	if err := db.QueryRow(ctx, `SELECT user_id FROM broadcasters WHERE short_id = $1`, disabled).Scan(&disabledUser); err != nil {
+		t.Fatalf("select disabled user: %v", err)
+	}
+	ids, err := ShortIDsByUsers(ctx, &ShortIDsByUsersParams{UserIDs: []string{owner.UserID, disabledUser.String(), "bad"}})
+	if err != nil || len(ids.ShortIDs) != 1 || ids.ShortIDs[owner.UserID] != enabled {
+		t.Fatalf("ShortIDsByUsers = %+v, %v; want only the enabled broadcaster", ids, err)
+	}
+	for _, id := range []uuid.UUID{disabledUser, uuid.Must(uuid.NewV4())} {
+		if _, err := GetLiveOwnerByUser(ctx, id); errs.Code(err) != errs.NotFound {
+			t.Errorf("GetLiveOwnerByUser(%s) = %v, want not found", id, err)
+		}
+	}
+}
+
+func TestUpdateBroadcasterVisibilityByOwner(t *testing.T) {
+	ctx := context.Background()
+	id, _ := uuid.NewV4()
+	ownerID, _ := uuid.NewV4()
+	strangerID, _ := uuid.NewV4()
+	if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, enabled, certified) VALUES ($1, $2, 'Visibility test', TRUE, FALSE)`, id, ownerID); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	ownerCtx := auth.WithContext(ctx, auth.UID(ownerID.String()), &authsvc.AuthData{})
+	strangerCtx := auth.WithContext(ctx, auth.UID(strangerID.String()), &authsvc.AuthData{})
+
+	// Solo il proprietario (o un admin) cambia la visibilità.
+	if _, err := UpdateBroadcasterVisibility(strangerCtx, id, &UpdateVisibilityParams{Enabled: false}); errs.Code(err) != errs.PermissionDenied {
+		t.Fatalf("stranger: %v, want permission denied", err)
+	}
+	b, err := UpdateBroadcasterVisibility(ownerCtx, id, &UpdateVisibilityParams{Enabled: false})
+	if err != nil || b.Enabled {
+		t.Fatalf("owner hide = %+v, %v", b, err)
+	}
+	if _, err := GetBroadcasterByShortID(ctx, b.ShortID); err == nil {
+		t.Fatal("hidden profile still visible to the public")
+	}
+	b, err = UpdateBroadcasterVisibility(ownerCtx, id, &UpdateVisibilityParams{Enabled: true})
+	if err != nil || !b.Enabled || b.Certified {
+		t.Fatalf("owner show = %+v, %v (certified must not change)", b, err)
+	}
+	if _, err := GetBroadcasterByShortID(ctx, b.ShortID); err != nil {
+		t.Fatalf("visible profile not public: %v", err)
+	}
+}
+
+func TestListBroadcastersCategoryIgnoresCase(t *testing.T) {
+	ctx := context.Background()
+	for _, category := range []string{"casetest", "CaseTest", "other"} {
+		id, _ := uuid.NewV4()
+		userID, _ := uuid.NewV4()
+		if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, category, enabled) VALUES ($1, $2, 'Case test', $3, TRUE)`, id, userID, category); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	res, err := ListBroadcasters(ctx, &ListBroadcastersParams{Category: "CASETEST"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Broadcasters) != 2 {
+		t.Fatalf("category filter returned %d broadcasters, want 2", len(res.Broadcasters))
+	}
+	for _, b := range res.Broadcasters {
+		if !strings.EqualFold(b.Category, "casetest") {
+			t.Errorf("unexpected category %q", b.Category)
+		}
+	}
+}
+

@@ -69,6 +69,9 @@ export const AdvertisingPromoBroadcasterSchema = z.object({
 export const AdvertisingPromoContentSchema = z.object({
   mobile_only: z.boolean(),
   broadcaster: z.lazy(() => AdvertisingPromoBroadcasterSchema).optional(),
+  image_url: z.string().optional(),
+  url: z.string().optional(),
+  new_window: z.boolean().optional(),
 });
 
 export const AdvertisingPromoItemSchema = z.object({
@@ -165,6 +168,10 @@ export const BroadcastersUpdateBroadcasterPhotosParamsSchema = z.object({
   photos: z.array(z.lazy(() => BroadcastersBroadcasterPhotoSchema)),
 });
 
+export const BroadcastersUpdateVisibilityParamsSchema = z.object({
+  enabled: z.boolean(),
+});
+
 export const ImagesImageDescriptionSchema = z.object({
   text: z.string(),
   box_x: z.number(),
@@ -222,6 +229,18 @@ export const RegistrationRegisterParamsSchema = z.object({
   display_name: z.string().min(2).max(32),
   avatar_url: z.string(),
   password: z.string().min(8),
+  language: z.enum(['en', 'it', 'fr', 'de']),
+  member_type: z.enum(['visitor', 'broadcaster', 'affiliate', 'advertiser', 'club']),
+  name: z.string().trim().min(1).max(120),
+  phone: z.string().regex(/^\+?[0-9 ()./-]{5,30}$/).optional(),
+  country: z.string().regex(/^[A-Za-z]{2}$/).optional(),
+  address: z.string().max(500).optional(),
+  newsletter: z.boolean(),
+  accept_terms: z.literal(true),
+});
+
+export const VideochatCloseMyLiveParamsSchema = z.object({
+  room_sid: z.string(),
 });
 
 export const VideochatCreateRoomParamsSchema = z.object({

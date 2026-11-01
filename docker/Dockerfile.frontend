@@ -11,7 +11,9 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install
 
-# Copia l'intero sorgente del frontend e compila la SPA
+# Copia l'intero sorgente del frontend e compila la SPA. La webchat condivisa
+# è in packages/webchat, importata come ../packages/webchat.
+COPY packages/ /packages/
 COPY frontend/ ./
 RUN npm run build
 

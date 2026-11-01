@@ -117,18 +117,7 @@
         >
           <!-- Video Section on Left (or Top on mobile) -->
           <template #before>
-            <div class="broadcast-stage-left q-pa-sm">
-              <div v-if="videos.length" class="row q-col-gutter-md">
-                <div v-for="item in videos" :key="item.sid" :class="videos.length > 1 ? 'col-12 col-md-6' : 'col-12'">
-                  <BroadcastTrack :track="item.track" :local="item.local" />
-                  <div class="text-caption q-mt-xs">{{ t(item.screen ? 'broadcast.screen' : 'broadcast.camera') }}</div>
-                </div>
-              </div>
-              <div v-else class="broadcast-placeholder flex flex-center bg-grey-10 text-white rounded-borders">
-                <div class="text-center q-pa-lg"><q-icon name="live_tv" size="56px" /><p>{{ t('broadcast.waiting') }}</p></div>
-              </div>
-              <BroadcastTrack v-for="item in audios" :key="item.sid" :track="item.track" audio />
-            </div>
+            <LiveStage class="q-pa-sm" :videos="videos" :audios="audios" />
           </template>
 
           <template #separator>
@@ -145,7 +134,7 @@
           <template #after>
             <BroadcastStageRight
               v-model="rightTab"
-              :room="live"
+              :room="room"
               :connected="connected"
               :is-owner="isOwner"
               :owner-id="ownerIdentity"
@@ -180,22 +169,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import {
-  Room as LiveRoom,
-  RoomEvent,
-  Track,
-  type VideoCaptureOptions,
-  type TrackPublishOptions,
-  type VideoCodec,
-} from 'livekit-client';
-import BroadcastTrack from '@/components/videochat/BroadcastTrack.vue';
+  LiveStage,
+  WebcamSettingsDialog,
+  buildWebcamOptions,
+  errorMessage as message,
+  loadWebcamSettings,
+  republishCamera,
+  saveWebcamSettings,
+  unpublishMedia,
+  useLiveRoom,
+  type WebcamSettings,
+} from '@extra/webchat';
 import BroadcastStageRight from '@/components/videochat/BroadcastStageRight.vue';
-import WebcamSettingsDialog, { type WebcamSettings } from '@/components/videochat/WebcamSettingsDialog.vue';
-import { createVideochatClient, type Room, type Participant } from '@/encore/videochat';
+import { api as client } from '@/encore/api';
+import type { videochat } from '@/encore/client';
 import { useProfilesStore } from '@/stores/profiles-store';
 import { useChatStore } from '@/stores/chat-store';
 
@@ -205,27 +197,27 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const $q = useQuasar();
-const api = createVideochatClient();
+const api = client.videochat;
 const roomName = computed(() => String(route.params.roomName || ''));
-const details = ref<Room>();
+const details = ref<videochat.Room>();
 const opening = ref(false);
 const activeRoomName = computed(() => details.value?.name || roomName.value);
-const activeRoomId = computed(() => details.value?.sid || live.value?.name || details.value?.name || roomName.value);
-const live = shallowRef<LiveRoom>();
-const connected = ref(false);
-const connecting = ref(false);
-const reconnecting = ref(false);
-const ended = ref(false);
-const isOwner = ref(false);
-const ownerIdentity = ref('');
+// Collegamento alla stanza condiviso con il sito pubblico (packages/webchat).
+const live = useLiveRoom({
+  onLeave: (state) => {
+    if (!state.isOwner) return;
+    if (state.cameraOn) logMediaEvent('VIDEO_OFF');
+    if (state.micOn) logMediaEvent('MIC_OFF');
+  },
+});
+const {
+  room, connected, connecting, reconnecting, ended, error, isOwner, ownerIdentity,
+  cameraOn, micOn, screenOn, needsAudio, videos, audios, sync: syncMedia, startAudio: enableAudio,
+} = live;
+const activeRoomId = computed(() => details.value?.sid || room.value?.name || details.value?.name || roomName.value);
 const canManage = computed(() => !!details.value && details.value.owner_id === profiles.profile?.user_id);
-const error = ref('');
-const cameraOn = ref(false);
-const micOn = ref(false);
-const screenOn = ref(false);
 const mediaBusy = ref(false);
-const needsAudio = ref(false);
-const participants = ref<Participant[]>([]);
+const participants = ref<videochat.Participant[]>([]);
 const loadingParticipants = ref(false);
 const managementError = ref('');
 const managementBusy = ref('');
@@ -250,18 +242,18 @@ const displayParticipants = computed(() => {
   if (canManage.value && participants.value.length) {
     return participants.value.filter((p) => p.identity !== ownerId);
   }
-  const room = live.value;
-  if (!room || !connected.value) return [];
+  const current = room.value;
+  if (!current || !connected.value) return [];
   const list: { sid: string; identity: string; name: string; avatar_url?: string | undefined }[] = [];
-  if (room.localParticipant && room.localParticipant.identity !== ownerId) {
+  if (current.localParticipant && current.localParticipant.identity !== ownerId) {
     list.push({
-      sid: room.localParticipant.sid,
-      identity: room.localParticipant.identity,
-      name: profiles.profile?.display_name || room.localParticipant.name || room.localParticipant.identity,
+      sid: current.localParticipant.sid,
+      identity: current.localParticipant.identity,
+      name: profiles.profile?.display_name || current.localParticipant.name || current.localParticipant.identity,
       avatar_url: profiles.profile?.avatar_url,
     });
   }
-  room.remoteParticipants.forEach((p) => {
+  current.remoteParticipants.forEach((p) => {
     if (p.identity !== ownerId) {
       list.push({
         sid: p.sid,
@@ -280,241 +272,92 @@ watch(rightTab, (tab) => {
   }
 });
 
-const defaultWebcamSettings: WebcamSettings = {
-  preset: 'balanced',
-  deviceId: '',
-  width: 1280,
-  height: 720,
-  aspectRatio: '16:9',
-  frameRate: 30,
-  bitrateKbps: 1700,
-  codec: 'vp8',
-  simulcast: true,
-  degradationPreference: 'maintain-framerate',
-};
-
-const webcamSettings = ref<WebcamSettings>(loadInitialWebcamSettings());
-
-function loadInitialWebcamSettings(): WebcamSettings {
-  try {
-    const saved = localStorage.getItem('videochat_webcam_settings');
-    if (saved) return { ...defaultWebcamSettings, ...JSON.parse(saved) };
-  } catch {}
-  return { ...defaultWebcamSettings };
-}
-
-function buildWebcamOptions(settings: WebcamSettings) {
-  const aspectRatios: Record<string, number> = {
-    '16:9': 16 / 9,
-    '4:3': 4 / 3,
-    '1:1': 1,
-    '9:16': 9 / 16,
-  };
-
-  const captureOptions: VideoCaptureOptions = {
-    ...(settings.deviceId ? { deviceId: { exact: settings.deviceId } } : {}),
-    resolution: {
-      width: settings.width || 1280,
-      height: settings.height || 720,
-      frameRate: settings.frameRate || 30,
-      aspectRatio: aspectRatios[settings.aspectRatio] ?? 16 / 9,
-    },
-    frameRate: settings.frameRate || 30,
-  };
-
-  const publishOptions: TrackPublishOptions = {
-    videoEncoding: {
-      maxBitrate: (settings.bitrateKbps || 1700) * 1000,
-      maxFramerate: settings.frameRate || 30,
-    },
-    videoCodec: (settings.codec || 'vp8') as VideoCodec,
-    simulcast: settings.simulcast !== false,
-    degradationPreference: (settings.degradationPreference || 'maintain-framerate') as RTCDegradationPreference,
-  };
-
-  return { captureOptions, publishOptions };
-}
+const webcamSettings = ref<WebcamSettings>(loadWebcamSettings());
 
 async function onApplyWebcamSettings(newSettings: WebcamSettings) {
   webcamSettings.value = { ...newSettings };
-  try {
-    localStorage.setItem('videochat_webcam_settings', JSON.stringify(newSettings));
-  } catch (e) {
-    console.error(e);
-  }
+  saveWebcamSettings(newSettings);
 
-  const room = live.value;
-  if (cameraOn.value && room && connected.value && isOwner.value) {
+  const current = room.value;
+  if (cameraOn.value && current && connected.value && isOwner.value) {
     mediaBusy.value = true;
     error.value = '';
     try {
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track) {
-        await room.localParticipant.unpublishTrack(camPub.track, true);
-      }
-      const { captureOptions, publishOptions } = buildWebcamOptions(newSettings);
-      await room.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
+      await republishCamera(current, newSettings);
       syncMedia();
-      $q.notify({ type: 'positive', message: t('webcam.savedSuccess') });
+      $q.notify({ type: 'positive', message: t('webchat.webcam.savedSuccess') });
     } catch (reason) {
       error.value = message(reason);
     } finally {
       mediaBusy.value = false;
     }
   } else {
-    $q.notify({ type: 'positive', message: t('webcam.savedSuccess') });
+    $q.notify({ type: 'positive', message: t('webchat.webcam.savedSuccess') });
   }
 }
 
-type Media = { sid: string; track: Track; local: boolean; screen: boolean };
-const videos = shallowRef<Media[]>([]);
-const audios = shallowRef<Media[]>([]);
-let generation = 0;
 let participantRequest = 0;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
-function message(reason: unknown) { return reason instanceof Error ? reason.message : String(reason); }
-
-function syncMedia() {
-  const room = live.value;
-  if (!room) return;
-  const video: Media[] = [];
-  const audio: Media[] = [];
-  const owner = isOwner.value ? room.localParticipant : room.remoteParticipants.get(ownerIdentity.value);
-  owner?.trackPublications.forEach(publication => {
-    if (!publication.track || publication.isMuted) return;
-    const item = { sid: publication.trackSid, track: publication.track, local: isOwner.value,
-      screen: publication.source === Track.Source.ScreenShare };
-    if (publication.kind === Track.Kind.Video) video.push(item);
-    if (publication.kind === Track.Kind.Audio && !isOwner.value) audio.push(item);
-  });
-  videos.value = video.sort((a, b) => Number(b.screen) - Number(a.screen));
-  audios.value = audio;
-  cameraOn.value = room.localParticipant.isCameraEnabled;
-  micOn.value = room.localParticipant.isMicrophoneEnabled;
-  screenOn.value = room.localParticipant.isScreenShareEnabled;
-  needsAudio.value = !room.canPlaybackAudio;
-}
-
 function logMediaEvent(eventText: 'VIDEO_ON' | 'VIDEO_OFF' | 'MIC_ON' | 'MIC_OFF') {
   if (!isOwner.value) return;
-  const senderId = live.value?.localParticipant?.identity || profiles.profile?.user_id || 'broadcaster';
-  const senderName = profiles.profile?.display_name || live.value?.localParticipant?.name || 'Broadcaster';
+  const senderId = room.value?.localParticipant?.identity || profiles.profile?.user_id || 'broadcaster';
+  const senderName = profiles.profile?.display_name || room.value?.localParticipant?.name || 'Broadcaster';
   const targetRoom = activeRoomId.value || roomName.value;
   if (!targetRoom) return;
   void chatStore.logMediaEvent(targetRoom, eventText, senderId, senderName);
 }
 
 async function leave() {
-  if (isOwner.value) {
-    if (cameraOn.value) {
-      logMediaEvent('VIDEO_OFF');
-    }
-    if (micOn.value) {
-      logMediaEvent('MIC_OFF');
-    }
-  }
-  ++generation;
-  const room = live.value;
-  live.value = undefined;
-  room?.removeAllListeners();
-  connected.value = false;
-  connecting.value = false;
-  reconnecting.value = false;
   mediaBusy.value = false;
-  isOwner.value = false;
-  cameraOn.value = false;
-  micOn.value = false;
-  screenOn.value = false;
-  videos.value = [];
-  audios.value = [];
-  needsAudio.value = false;
-  await room?.disconnect();
+  await live.leave();
 }
 
 async function join() {
   if (opening.value || connecting.value || connected.value || !profiles.isAuthenticated) return;
-  const version = ++generation;
-  connecting.value = true;
-  error.value = '';
-  ended.value = false;
-  let room: LiveRoom | undefined;
-  try {
-    const opened = await api.openRoom(roomName.value);
-    if (version !== generation) return;
+  const joined = await live.join(async () => {
+    const opened = await api.OpenRoom(roomName.value);
     details.value = opened;
-    const token = await api.createToken(opened.name);
-    if (version !== generation) return;
-    isOwner.value = token.role === 'owner';
-    ownerIdentity.value = token.owner_id;
-    room = new LiveRoom({ adaptiveStream: true, dynacast: true });
-    live.value = room;
-    room.on(RoomEvent.TrackSubscribed, syncMedia)
-      .on(RoomEvent.TrackUnsubscribed, syncMedia)
-      .on(RoomEvent.LocalTrackPublished, syncMedia)
-      .on(RoomEvent.LocalTrackUnpublished, syncMedia)
-      .on(RoomEvent.TrackMuted, syncMedia)
-      .on(RoomEvent.TrackUnmuted, syncMedia)
-      .on(RoomEvent.AudioPlaybackStatusChanged, syncMedia)
-      .on(RoomEvent.ParticipantConnected, syncMedia)
-      .on(RoomEvent.ParticipantDisconnected, syncMedia)
-      .on(RoomEvent.Reconnecting, () => { reconnecting.value = true; })
-      .on(RoomEvent.Reconnected, () => { reconnecting.value = false; syncMedia(); })
-      .on(RoomEvent.Disconnected, () => { ended.value = true; void leave(); })
-      .on(RoomEvent.MediaDevicesError, reason => { error.value = message(reason); });
-    await room.connect(token.server_url, token.participant_token);
-    if (version !== generation) { await room.disconnect(); return; }
-    connected.value = true;
-    // Publishing always requires an explicit owner action; viewers never access devices.
-    syncMedia();
-    if (canManage.value) void loadParticipants();
-  } catch (reason) {
-    if (version === generation) { error.value = message(reason); await leave(); }
-    else { await room?.disconnect(); }
-  } finally {
-    if (version === generation) connecting.value = false;
-  }
+    return api.CreateToken({ room_name: opened.name });
+  });
+  // Pubblicare richiede sempre un'azione esplicita del proprietario.
+  if (joined && canManage.value) void loadParticipants();
 }
 
 async function toggleMedia(kind: 'camera' | 'microphone' | 'screen') {
-  const room = live.value;
-  if (!room || !connected.value || !isOwner.value || mediaBusy.value) return;
-  const version = generation;
+  const current = room.value;
+  if (!current || !connected.value || !isOwner.value || mediaBusy.value) return;
   mediaBusy.value = true;
   error.value = '';
   try {
     if (kind === 'camera') {
       if (!cameraOn.value) {
         const { captureOptions, publishOptions } = buildWebcamOptions(webcamSettings.value);
-        await room.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
+        await current.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
         logMediaEvent('VIDEO_ON');
       } else {
-        await room.localParticipant.setCameraEnabled(false);
+        await unpublishMedia(current, 'camera');
         logMediaEvent('VIDEO_OFF');
       }
     }
     if (kind === 'microphone') {
       if (!micOn.value) {
-        await room.localParticipant.setMicrophoneEnabled(true);
+        await current.localParticipant.setMicrophoneEnabled(true);
         logMediaEvent('MIC_ON');
       } else {
-        await room.localParticipant.setMicrophoneEnabled(false);
+        await unpublishMedia(current, 'microphone');
         logMediaEvent('MIC_OFF');
       }
     }
-    if (kind === 'screen') await room.localParticipant.setScreenShareEnabled(!screenOn.value, { audio: true });
-    if (version !== generation) { await room.disconnect(); return; }
+    if (kind === 'screen') await current.localParticipant.setScreenShareEnabled(!screenOn.value, { audio: true });
+    // Uscita durante l'operazione: la stanza vecchia va chiusa.
+    if (room.value !== current) { await current.disconnect(); return; }
     syncMedia();
   } catch (reason) {
-    if (version === generation) error.value = message(reason);
+    if (room.value === current) error.value = message(reason);
   } finally {
-    if (version === generation) mediaBusy.value = false;
+    if (room.value === current) mediaBusy.value = false;
   }
-}
-
-async function enableAudio() {
-  try { await live.value?.startAudio(); syncMedia(); }
-  catch (reason) { error.value = message(reason); }
 }
 
 async function loadParticipants() {
@@ -523,7 +366,7 @@ async function loadParticipants() {
   loadingParticipants.value = true;
   managementError.value = '';
   try {
-    const response = await api.listParticipants(activeRoomId.value);
+    const response = await api.ListParticipants(activeRoomId.value);
     if (request === participantRequest) participants.value = response.participants ?? [];
   } catch (reason) {
     if (request === participantRequest) managementError.value = message(reason);
@@ -538,7 +381,7 @@ async function removeParticipant(identity: string) {
   managementBusy.value = identity;
   managementError.value = '';
   try {
-    await api.removeParticipant(activeRoomId.value, identity);
+    await api.RemoveParticipant(activeRoomId.value, identity);
     if (version === pageVersion) {
       $q.notify({ type: 'positive', message: t('broadcast.participantRemoved') });
       await loadParticipants();
@@ -554,7 +397,7 @@ async function closeRoom() {
   managementBusy.value = 'close';
   managementError.value = '';
   try {
-    await api.deleteRoom(activeRoomId.value);
+    await api.DeleteRoom(activeRoomId.value);
     if (version !== pageVersion) return;
     confirmClose.value = false;
     await leave();
@@ -586,7 +429,7 @@ watch([roomName, () => profiles.profile?.user_id], async () => {
   ended.value = false;
   if (!profiles.isAuthenticated) { opening.value = false; return; }
   try {
-    const opened = await api.openRoom(roomName.value);
+    const opened = await api.OpenRoom(roomName.value);
     if (version !== pageVersion) return;
     details.value = opened;
     refreshTimer = setInterval(() => { if (canManage.value) void loadParticipants(); }, 10000);
@@ -601,7 +444,6 @@ onBeforeUnmount(() => {
   ++pageVersion;
   ++participantRequest;
   clearInterval(refreshTimer);
-  void leave();
 });
 </script>
 
@@ -641,14 +483,4 @@ onBeforeUnmount(() => {
   height: stretch;
 }
 
-.broadcast-stage-left {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  box-sizing: border-box;
-}
-
-.broadcast-placeholder {
-  min-height: 320px;
-}
 </style>

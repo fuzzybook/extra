@@ -184,6 +184,14 @@ export const useBroadcastersStore = defineStore('broadcasters', () => {
     }
   }
 
+  // Profilo salvato da un dialogo (packages/broadcaster-editor): aggiorna la
+  // lista, o lo aggiunge in cima se è nuovo.
+  function applySaved(saved: Broadcaster) {
+    const idx = broadcasters.value.findIndex((b) => b.id === saved.id);
+    if (idx >= 0) broadcasters.value[idx] = saved;
+    else broadcasters.value.unshift(saved);
+  }
+
   async function deleteBroadcaster(id: string): Promise<void> {
     return withLoading(async () => {
       await client.broadcasters.DeleteBroadcaster(id);
@@ -213,5 +221,6 @@ export const useBroadcastersStore = defineStore('broadcasters', () => {
     updateHours,
     updatePhotos,
     deleteBroadcaster,
+    applySaved,
   };
 });

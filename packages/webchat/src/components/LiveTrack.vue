@@ -9,8 +9,9 @@
     >
       <!-- Corner resize handle (drag to resize while preserving aspect ratio) -->
       <div
+        v-if="resizable"
         class="video-resize-handle"
-        :title="t('broadcast.resizeTooltip')"
+        :title="t('webchat.resize')"
         @mousedown.prevent="startDragResize"
         @touchstart.prevent="startTouchResize"
       >
@@ -25,7 +26,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Track } from 'livekit-client';
 
-const props = defineProps<{ track: Track; local?: boolean; audio?: boolean }>();
+const props = withDefaults(defineProps<{ track: Track; local?: boolean; audio?: boolean; resizable?: boolean }>(), {
+  local: false,
+  audio: false,
+  resizable: true,
+});
 const { t } = useI18n();
 
 const container = ref<HTMLDivElement>();
@@ -39,17 +44,25 @@ const aspectRatioNum = ref(16 / 9);
 const aspectRatioStr = ref('16 / 9');
 
 // Sizing preferences (clamped between 25% and 100%)
-const savedSize = localStorage.getItem('broadcast_video_size');
+const savedSize = readSavedSize();
 const parsedSaved = savedSize ? Number(savedSize) : NaN;
-const sizePercent = ref(!Number.isNaN(parsedSaved) && parsedSaved >= 25 && parsedSaved <= 100 ? parsedSaved : 100);
+const sizePercent = ref(
+  props.resizable && !Number.isNaN(parsedSaved) && parsedSaved >= 25 && parsedSaved <= 100 ? parsedSaved : 100,
+);
+
+function readSavedSize(): string | null {
+  try {
+    return localStorage.getItem('broadcast_video_size');
+  } catch {
+    return null;
+  }
+}
 
 const isFullscreen = ref(false);
 const isDragging = ref(false);
 let startX = 0;
 let startWidth = 0;
 let containerParentWidth = 0;
-
-
 
 const wrapperStyle = computed(() => {
   return {
@@ -78,8 +91,6 @@ function updateAspectRatio() {
     }
   }
 }
-
-
 
 function saveSizePreference() {
   try {
@@ -283,8 +294,6 @@ onBeforeUnmount(() => {
 :-webkit-full-screen .video-resize-handle {
   display: none !important;
 }
-
-
 
 .broadcast-audio {
   display: none;

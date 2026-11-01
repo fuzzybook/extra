@@ -239,7 +239,7 @@ import {
   type ProfileParams,
   type SetPasswordParams,
 } from '@/stores/profiles-store';
-import AvatarUpload from '@/components/AvatarUpload.vue';
+import { AvatarUpload } from '@extra/broadcaster-editor';
 import ProfileStatusBadge from '@/components/ProfileStatusBadge.vue';
 
 const { t } = useI18n();

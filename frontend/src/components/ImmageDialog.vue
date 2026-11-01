@@ -150,7 +150,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import CropperImage from '@/components/CropperImage.vue';
+import { CropperImage } from '@extra/broadcaster-editor';
 import { ImageCategory, IMAGE_CATEGORY_OPTIONS } from '@/types/images';
 import { useImagesStore, type ImageItem } from '@/stores/images-store';
 

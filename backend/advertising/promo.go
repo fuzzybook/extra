@@ -11,6 +11,7 @@ import (
 
 	authsvc "encore.app/auth"
 	broadcasterssvc "encore.app/broadcasters"
+	"encore.app/validate"
 	"encore.dev/beta/errs"
 	"encore.dev/storage/sqldb"
 )
@@ -69,13 +70,20 @@ const (
 	PromoRight2Selected PromoRight2Sections = "selected"
 )
 
-// PromoContent è un contenuto della promo: il broadcaster da mostrare.
+// PromoContent è un contenuto della promo: in PromoLeft un broadcaster, in
+// PromoRight1 e PromoRight2 un'immagine con un link.
 type PromoContent struct {
 	MobileOnly bool `json:"mobile_only"`
-	// Broadcaster è obbligatorio in scrittura (basta short_id). In lettura è
-	// completato con i dati del broadcaster; agli utenti non admin viene
-	// omesso se il broadcaster è disabilitato o non esiste più.
+	// Broadcaster (solo PromoLeft) è obbligatorio in scrittura (basta
+	// short_id). In lettura è completato con i dati del broadcaster; agli
+	// utenti non admin viene omesso se il broadcaster è disabilitato o non
+	// esiste più.
 	Broadcaster *PromoBroadcaster `json:"broadcaster,omitempty" encore:"optional"`
+	// ImageURL (obbligatoria), URL di destinazione e apertura in una nuova
+	// finestra: solo PromoRight1 e PromoRight2.
+	ImageURL  string `json:"image_url,omitempty" encore:"optional"`
+	URL       string `json:"url,omitempty" encore:"optional"`
+	NewWindow bool   `json:"new_window,omitempty" encore:"optional"`
 }
 
 // PromoBroadcaster identifica il broadcaster della promo tramite short_id,
@@ -151,20 +159,53 @@ func validatePromoFields(position PromoPosition, section string) error {
 	return nil
 }
 
-// validatePromoItems richiede per ogni contenuto un broadcaster con short_id
-// valido e tiene solo quello: gli altri dati del broadcaster inviati dal
-// client sono solo in lettura e non vengono salvati.
-func validatePromoItems(items []PromoItem) error {
+// validatePromoItems controlla i contenuti in base alla posizione e tiene
+// solo i campi di quella posizione: PromoLeft vuole un broadcaster,
+// PromoRight1 e PromoRight2 un'immagine con un link facoltativo.
+func validatePromoItems(position PromoPosition, items []PromoItem) error {
 	for i := range items {
 		for j := range items[i].Content {
 			c := &items[i].Content[j]
-			shortID := strings.ToLower(strings.TrimSpace(shortIDOf(*c)))
-			if !shortIDPattern.MatchString(shortID) {
-				return &errs.Error{Code: errs.InvalidArgument, Message: "ogni contenuto della promo deve indicare un broadcaster (short_id di 6 caratteri)"}
+			var err error
+			if position == PromoLeft {
+				err = validateBroadcasterContent(c)
+			} else {
+				err = validateImageContent(c)
 			}
-			c.Broadcaster = &PromoBroadcaster{ShortID: shortID}
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+// validateBroadcasterContent richiede un broadcaster con short_id valido e
+// tiene solo quello: gli altri dati del broadcaster inviati dal client sono
+// solo in lettura e non vengono salvati.
+func validateBroadcasterContent(c *PromoContent) error {
+	shortID := strings.ToLower(strings.TrimSpace(shortIDOf(*c)))
+	if !shortIDPattern.MatchString(shortID) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "ogni contenuto della promo deve indicare un broadcaster (short_id di 6 caratteri)"}
+	}
+	*c = PromoContent{MobileOnly: c.MobileOnly, Broadcaster: &PromoBroadcaster{ShortID: shortID}}
+	return nil
+}
+
+// validateImageContent richiede l'immagine e accetta solo URL http/https:
+// immagine e link finiscono in src/href del sito pubblico.
+func validateImageContent(c *PromoContent) error {
+	imageURL := strings.TrimSpace(c.ImageURL)
+	if imageURL == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "ogni contenuto della promo deve indicare un'immagine"}
+	}
+	link := strings.TrimSpace(c.URL)
+	for _, u := range []string{imageURL, link} {
+		if err := validate.HTTPURL(u); err != nil {
+			return err
+		}
+	}
+	*c = PromoContent{MobileOnly: c.MobileOnly, ImageURL: imageURL, URL: link, NewWindow: c.NewWindow && link != ""}
 	return nil
 }
 
@@ -177,8 +218,10 @@ func requireExistingBroadcasters(ctx context.Context, items []PromoItem) error {
 	}
 	for _, item := range items {
 		for _, c := range item.Content {
-			if _, ok := cards[shortIDOf(c)]; !ok {
-				return &errs.Error{Code: errs.InvalidArgument, Message: "broadcaster non trovato: " + shortIDOf(c)}
+			if id := shortIDOf(c); id != "" {
+				if _, ok := cards[id]; !ok {
+					return &errs.Error{Code: errs.InvalidArgument, Message: "broadcaster non trovato: " + id}
+				}
 			}
 		}
 	}
@@ -215,7 +258,7 @@ func lookupBroadcasters(ctx context.Context, shortIDs []string) (map[string]*bro
 }
 
 // attachBroadcasters completa il broadcaster di ogni contenuto con nome, foto,
-// didascalia e posizione. Agli utenti non admin i broadcaster disabilitati o
+// didascalia e posizione (i contenuti con immagine e link non ne hanno). Agli utenti non admin i broadcaster disabilitati o
 // inesistenti non vengono mostrati; agli admin resta almeno lo short_id, così
 // la promo si può correggere dal pannello.
 func attachBroadcasters(ctx context.Context, promos []*Promo) error {
@@ -233,9 +276,12 @@ func attachBroadcasters(ctx context.Context, promos []*Promo) error {
 			for j := range p.Item[i].Content {
 				c := &p.Item[i].Content[j]
 				shortID := shortIDOf(*c)
+				if shortID == "" {
+					continue
+				}
 				card, ok := cards[shortID]
 				if !ok || !card.Enabled {
-					if isAdmin && shortID != "" && !ok {
+					if isAdmin && !ok {
 						c.Broadcaster = &PromoBroadcaster{ShortID: shortID}
 						continue
 					}
@@ -280,7 +326,7 @@ func (p *CreatePromoParams) Validate() error {
 	if p.Item == nil {
 		p.Item = []PromoItem{}
 	}
-	if err := validatePromoItems(p.Item); err != nil {
+	if err := validatePromoItems(p.Position, p.Item); err != nil {
 		return err
 	}
 	if p.Weeks == nil {
@@ -314,7 +360,7 @@ func (p *UpdatePromoParams) Validate() error {
 	if p.Item == nil {
 		p.Item = []PromoItem{}
 	}
-	if err := validatePromoItems(p.Item); err != nil {
+	if err := validatePromoItems(p.Position, p.Item); err != nil {
 		return err
 	}
 	if p.Weeks == nil {

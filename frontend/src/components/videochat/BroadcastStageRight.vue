@@ -11,8 +11,8 @@
         align="justify"
       >
         <q-tab name="chat" icon="chat">
-          <q-badge v-if="filteredMessages.length" color="primary" floating rounded>
-            {{ filteredMessages.length }}
+          <q-badge v-if="chat.messages.value.length" color="primary" floating rounded>
+            {{ chat.messages.value.length }}
           </q-badge>
         </q-tab>
         <q-tab name="participants" icon="people">
@@ -29,153 +29,45 @@
         <!-- TAB PANEL: CHAT                                                   -->
         <!-- ================================================================= -->
         <q-tab-panel name="chat" class="q-pa-none stage-tab-panel">
-          <div class="broadcast-chat-wrapper column full-height">
-            <!-- Chat Header con azioni (Alert Admin, Pulizia Chat) -->
-            <div class="chat-header row items-center justify-between q-px-md q-py-xs bg-grey-1 border-bottom">
-              <div class="row items-center q-gutter-xs">
-                <span class="text-caption text-weight-bold text-grey-8">{{ t('broadcast.chatTitle') }}</span>
-              </div>
-              <div class="row items-center q-gutter-xs">
-                <q-btn
-                  v-if="isAdminOrAdvisor"
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="admin_panel_settings"
-                  color="negative"
-                  :aria-label="t('admin.sendAlert')"
-                  @click="openAdminAlertDialog"
-                >
-                  <q-tooltip>{{ t('admin.sendAlert') }}</q-tooltip>
-                </q-btn>
-                <q-btn
-                  v-if="messages.length"
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="delete_sweep"
-                  color="grey-7"
-                  :aria-label="t('broadcast.chatClear')"
-                  @click="clearChat"
-                >
-                  <q-tooltip>{{ t('broadcast.chatClear') }}</q-tooltip>
-                </q-btn>
-              </div>
-            </div>
-
-            <!-- Messages Container -->
-            <div ref="messagesContainer" class="chat-messages col q-pa-sm" @scroll="onScroll">
-              <div v-if="loadingHistory" class="row justify-center q-pa-md">
-                <q-spinner color="primary" size="24px" />
-              </div>
-
-              <div v-else-if="!filteredMessages.length" class="chat-empty column flex-center text-grey-6 q-pa-md full-height">
-                <q-icon name="chat_bubble_outline" size="44px" color="grey-4" class="q-mb-sm" />
-                <p class="text-caption text-center q-mb-none">{{ t('broadcast.chatEmpty') }}</p>
-              </div>
-
-              <div v-else class="q-gutter-y-sm">
-                <div
-                  v-for="msg in filteredMessages"
-                  :key="msg.id"
-                  class="chat-message-item"
-                  :class="{
-                    'is-self': isSelf(msg),
-                    'is-owner': msg.isOwner,
-                  }"
-                >
-                  <div class="message-content">
-                    <!-- Messaggio inviato da me (a destra, verde) -->
-                    <div v-if="isSelf(msg)" class="row items-center justify-end q-gutter-x-xs no-wrap q-mb-xs">
-                      <span class="text-caption text-grey-5 message-time q-mr-xs">
-                        {{ formatTime(msg.timestamp) }}
-                      </span>
-                      <span class="text-caption text-weight-bold text-ellipsis sender-name text-positive">
-                        {{ msg.senderName }}
-                      </span>
-                      <q-avatar size="20px" color="positive" text-color="white" class="text-weight-bold">
-                        <img v-if="msg.senderAvatar" :src="msg.senderAvatar" alt="" />
-                        <span v-else>{{ (msg.senderName || 'U').charAt(0).toUpperCase() }}</span>
-                      </q-avatar>
-                    </div>
-
-                    <!-- Messaggio inviato da altri (a sinistra) -->
-                    <div v-else class="row items-center q-gutter-x-xs no-wrap q-mb-xs">
-                      <q-avatar
-                        size="20px"
-                        :color="msg.isOwner ? 'amber-8' : 'primary'"
-                        text-color="white"
-                        class="text-weight-bold"
-                      >
-                        <img v-if="msg.senderAvatar" :src="msg.senderAvatar" alt="" />
-                        <span v-else>{{ (msg.senderName || 'U').charAt(0).toUpperCase() }}</span>
-                      </q-avatar>
-                      <span
-                        class="text-caption text-weight-bold text-ellipsis sender-name"
-                        :class="msg.isOwner ? 'text-amber-9' : 'text-grey-9'"
-                      >
-                        {{ msg.senderName }}
-                      </span>
-                      <span class="text-caption text-grey-5 q-ml-auto message-time">
-                        {{ formatTime(msg.timestamp) }}
-                      </span>
-                    </div>
-
-                    <div class="message-bubble" :class="{ 'bubble-self': isSelf(msg), 'bubble-owner': !isSelf(msg) && msg.isOwner }">
-                      {{ msg.text }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Pulsante Scroll to Bottom -->
-            <transition name="fade">
+          <!-- Chat condivisa con il sito pubblico (packages/webchat); i messaggi passano dal server -->
+          <ChatPanel
+            :messages="chat.messages.value"
+            :self-id="chatUser?.id"
+            :loading="chat.loading.value"
+            :sending="chat.sending.value"
+            :can-write="true"
+            :disabled="!connected"
+            :send="chat.send"
+          >
+            <template #actions>
               <q-btn
-                v-if="showScrollBottom"
+                v-if="isAdminOrAdvisor"
+                flat
                 round
                 dense
-                color="primary"
-                icon="keyboard_arrow_down"
-                class="scroll-bottom-btn shadow-3"
                 size="sm"
-                @click="scrollToBottom(true)"
-              />
-            </transition>
-
-            <!-- Input Bar per invio messaggi (passa per Encore Pub/Sub) -->
-            <div class="chat-input-area q-pa-sm bg-white border-top">
-              <q-form @submit.prevent="sendMessage">
-                <q-input
-                  v-model="inputText"
-                  outlined
-                  dense
-                  bg-color="white"
-                  :placeholder="t('broadcast.chatPlaceholder')"
-                  maxlength="500"
-                  :disable="!connected || isSending"
-                  autocomplete="off"
-                  @keydown.enter.prevent="sendMessage"
-                >
-                  <template #append>
-                    <q-btn
-                      round
-                      dense
-                      flat
-                      color="primary"
-                      icon="send"
-                      :loading="isSending"
-                      :disable="!connected || !inputText.trim()"
-                      :aria-label="t('broadcast.chatSend')"
-                      @click="sendMessage"
-                    />
-                  </template>
-                </q-input>
-              </q-form>
-            </div>
-          </div>
+                icon="admin_panel_settings"
+                color="negative"
+                :aria-label="t('admin.sendAlert')"
+                @click="openAdminAlertDialog"
+              >
+                <q-tooltip>{{ t('admin.sendAlert') }}</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="chat.messages.value.length"
+                flat
+                round
+                dense
+                size="sm"
+                icon="delete_sweep"
+                color="grey-7"
+                :aria-label="t('broadcast.chatClear')"
+                @click="chat.clear"
+              >
+                <q-tooltip>{{ t('broadcast.chatClear') }}</q-tooltip>
+              </q-btn>
+            </template>
+          </ChatPanel>
         </q-tab-panel>
 
         <!-- ================================================================= -->
@@ -240,48 +132,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
-import type { Room as LiveRoom, RemoteParticipant } from 'livekit-client';
-import { RoomEvent } from 'livekit-client';
+import type { Room as LiveRoom } from 'livekit-client';
+import { ChatPanel, useRoomChat, type ChatUser } from '@extra/webchat';
+import { api } from '@/encore/api';
 import { useProfilesStore } from '@/stores/profiles-store';
-import { createVideochatClient, type ChatMessage as ServerChatMessage } from '@/encore/videochat';
 
 export interface ParticipantItem {
   sid?: string | undefined;
   identity: string;
   name?: string | undefined;
   avatar_url?: string | undefined;
-}
-
-export interface InternalChatMessage {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar?: string | undefined;
-  text: string;
-  timestamp: number;
-  isOwner?: boolean | undefined;
-  type?: string | undefined;
-  targetId?: string | undefined;
-  clientMessageId?: string | undefined;
-}
-
-/**
- * Payload inviato dal server sul data channel LiveKit (topic "chat"), vedi
- * videochat.RoomDataMessage nel backend.
- */
-interface RoomDataMessage {
-  type: 'chat.message' | 'admin.alert';
-  id: string;
-  client_message_id?: string;
-  sender_user_id: string;
-  sender_name: string;
-  sender_avatar?: string;
-  body: string;
-  created_at: string;
-  is_owner: boolean;
 }
 
 const props = withDefaults(
@@ -316,167 +179,56 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const $q = useQuasar();
 const profiles = useProfilesStore();
-const videochatClient = createVideochatClient();
 
 const currentTab = computed({
   get: () => props.modelValue,
   set: (val: 'chat' | 'participants') => emit('update:modelValue', val),
 });
 
-// Stato gestione messaggi
-const messages = ref<InternalChatMessage[]>([]);
-const inputText = ref('');
-const isSending = ref(false);
-const loadingHistory = ref(false);
-const messagesContainer = ref<HTMLDivElement>();
-const showScrollBottom = ref(false);
-
-const filteredMessages = computed(() => messages.value);
-
 const isAdminOrAdvisor = computed(() => {
   const role = profiles.profile?.role?.toLowerCase();
   return role === 'admin' || role === 'chatadvisor';
 });
 
-function isSelf(msg: InternalChatMessage): boolean {
-  const current = props.room?.localParticipant?.identity || profiles.profile?.user_id;
-  return Boolean(current && msg.senderId === current);
-}
-
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function scrollToBottom(smooth = false) {
-  void nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTo({
-        top: messagesContainer.value.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto',
-      });
-      showScrollBottom.value = false;
-    }
-  });
-}
-
-function onScroll() {
-  if (!messagesContainer.value) return;
-  const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value;
-  const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-  showScrollBottom.value = distanceFromBottom > 100;
-}
-
-function clearChat() {
-  messages.value = [];
-}
-
-/**
- * Carica lo storico iniziale dei messaggi della stanza dal backend Encore
- */
-async function loadHistory(roomName: string) {
-  if (!roomName || !profiles.isAuthenticated) return;
-  loadingHistory.value = true;
-  try {
-    const res = await videochatClient.listMessages(roomName, 50);
-    const loaded: InternalChatMessage[] = (res.messages || []).map((m) => ({
-      id: m.id,
-      senderId: m.sender_user_id,
-      senderName: m.sender_name || 'Utente',
-      senderAvatar: m.sender_avatar || undefined,
-      text: m.body,
-      timestamp: new Date(m.created_at).getTime(),
-      isOwner: Boolean(props.ownerId) && m.sender_user_id === props.ownerId,
-      type: 'MESSAGE',
-      clientMessageId: m.client_message_id,
-    }));
-
-    // Deduplica e mantieni ordinati
-    const map = new Map<string, InternalChatMessage>();
-    loaded.forEach((item) => map.set(item.id, item));
-    messages.value.forEach((item) => map.set(item.id, item));
-    messages.value = Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
-    scrollToBottom();
-  } catch (err) {
-    console.warn('Impossibile caricare lo storico chat da Encore:', err);
-  } finally {
-    loadingHistory.value = false;
-  }
-}
-
-/**
- * Aggiunge o aggiorna un messaggio confermato dal server. Il messaggio
- * ottimistico locale (id = client_message_id) viene sostituito da quello
- * salvato, così l'inoltro del server non crea doppioni.
- */
-function upsertServerMessage(m: ServerChatMessage | RoomDataMessage) {
-  const confirmed: InternalChatMessage = {
-    id: m.id,
-    senderId: m.sender_user_id,
-    senderName: m.sender_name || 'Utente',
-    senderAvatar: m.sender_avatar || undefined,
-    text: m.body,
-    timestamp: new Date(m.created_at).getTime(),
-    isOwner: 'is_owner' in m ? m.is_owner : Boolean(props.ownerId) && m.sender_user_id === props.ownerId,
-    type: 'MESSAGE',
-    clientMessageId: m.client_message_id || undefined,
+const chatUser = computed<ChatUser | null>(() => {
+  const profile = profiles.profile;
+  if (!profile) return null;
+  return {
+    id: props.room?.localParticipant?.identity || profile.user_id,
+    name: profile.display_name || props.room?.localParticipant?.name || t('webchat.user'),
+    avatar: profile.avatar_url || undefined,
   };
-  const idx = messages.value.findIndex(
-    (x) => x.id === confirmed.id || (confirmed.clientMessageId && x.id === confirmed.clientMessageId),
-  );
-  if (idx >= 0) {
-    messages.value.splice(idx, 1, confirmed);
-  } else {
-    messages.value.push(confirmed);
-    scrollToBottom(true);
-  }
-}
+});
 
-/**
- * Invia un messaggio al backend Encore, che lo valida, lo salva e lo inoltra a
- * tutti i partecipanti della stanza con l'identità del mittente presa dal DB.
- * I client non pubblicano messaggi di chat direttamente su LiveKit.
- */
-async function sendMessage() {
-  const text = inputText.value.trim();
-  if (!text || !props.roomName || !profiles.isAuthenticated) return;
-
-  isSending.value = true;
-  const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  // Messaggio ottimistico per una UX reattiva, sostituito dalla conferma del server
-  messages.value.push({
-    id: clientMessageId,
-    senderId: props.room?.localParticipant?.identity || profiles.profile?.user_id || 'me',
-    senderName: profiles.profile?.display_name || props.room?.localParticipant?.name || 'Io',
-    senderAvatar: profiles.profile?.avatar_url || undefined,
-    text,
-    timestamp: Date.now(),
-    isOwner: props.isOwner,
-    type: 'MESSAGE',
-    clientMessageId,
-  });
-  inputText.value = '';
-  scrollToBottom(true);
-
-  try {
-    const saved = await videochatClient.sendMessage(props.roomName, {
-      client_message_id: clientMessageId,
-      text,
+// Il server valida, salva e inoltra i messaggi a tutti i partecipanti con
+// l'identità del mittente presa dal DB.
+const chat = useRoomChat({
+  room: computed(() => props.room ?? undefined),
+  chatKey: toRef(props, 'roomName'),
+  source: {
+    history: async (key) => (await api.videochat.ListMessages(key, { limit: 50 })).messages,
+    send: (key, params) => api.videochat.SendMessage(key, { ...params, kind: 'text' }),
+  },
+  ownerId: computed(() => props.ownerId ?? ''),
+  user: chatUser,
+  fallbackName: () => t('webchat.user'),
+  onAlert: (body) => {
+    $q.notify({
+      type: 'negative',
+      message: t('admin.notifications.adminAlert'),
+      caption: body,
+      timeout: 0,
+      actions: [{ label: t('close'), handler: () => {} }],
     });
-    upsertServerMessage(saved);
-  } catch (err) {
-    console.error("Errore durante l'invio del messaggio:", err);
-    messages.value = messages.value.filter((m) => m.id !== clientMessageId);
-    inputText.value = text;
-    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : String(err) });
-  } finally {
-    isSending.value = false;
-  }
-}
+  },
+  onError: (message) => {
+    $q.notify({ type: 'negative', message });
+  },
+});
 
 /**
- * Invia un comando / alert amministrativo con pubblicazione su Pub/Sub Encore
+ * Invia un alert amministrativo: il server verifica i permessi e lo recapita
+ * al proprietario della stanza.
  */
 function openAdminAlertDialog() {
   const msgDialog = $q.dialog({
@@ -489,9 +241,9 @@ function openAdminAlertDialog() {
   msgDialog.onOk(async (alertText: string) => {
     if (!alertText.trim() || !props.roomName) return;
     try {
-      // Il server verifica i permessi e recapita l'alert al proprietario della stanza
-      await videochatClient.sendCommand(props.roomName, {
+      await api.videochat.SendCommand(props.roomName, {
         command: 'alert',
+        target_id: '',
         payload: alertText.trim(),
       });
       $q.notify({ type: 'positive', message: 'Alert inviato con successo' });
@@ -501,72 +253,6 @@ function openAdminAlertDialog() {
     }
   });
 }
-
-/**
- * Gestore ricezione dati LiveKit Data Channel. Sono accettati solo i
- * pacchetti inviati dal server (participant assente): un partecipante non può
- * spacciarsi per un altro utente o per l'amministrazione.
- */
-function handleDataReceived(payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) {
-  if (participant || topic !== 'chat') return;
-  let msg: RoomDataMessage;
-  try {
-    msg = JSON.parse(new TextDecoder().decode(payload)) as RoomDataMessage;
-  } catch {
-    return; // payload non JSON
-  }
-
-  if (msg.type === 'admin.alert') {
-    $q.notify({
-      type: 'negative',
-      message: t('admin.notifications.adminAlert'),
-      caption: msg.body,
-      timeout: 0,
-      actions: [{ label: t('close'), handler: () => {} }],
-    });
-    return;
-  }
-  if (msg.type === 'chat.message') {
-    upsertServerMessage(msg);
-  }
-}
-
-// Watcher per aggancio listener LiveKit quando la room cambia o si connette
-watch(
-  () => props.room,
-  (newRoom, oldRoom) => {
-    if (oldRoom) {
-      oldRoom.off(RoomEvent.DataReceived, handleDataReceived);
-    }
-    if (newRoom) {
-      newRoom.on(RoomEvent.DataReceived, handleDataReceived);
-    }
-  },
-  { immediate: true }
-);
-
-// Watcher per caricare lo storico messaggi all'avvio o al cambio stanza
-watch(
-  () => props.roomName,
-  (newRoomName) => {
-    if (newRoomName) {
-      void loadHistory(newRoomName);
-    }
-  },
-  { immediate: true }
-);
-
-onMounted(() => {
-  if (props.roomName) {
-    void loadHistory(props.roomName);
-  }
-});
-
-onBeforeUnmount(() => {
-  if (props.room) {
-    props.room.off(RoomEvent.DataReceived, handleDataReceived);
-  }
-});
 </script>
 
 <style scoped>
@@ -626,72 +312,9 @@ onBeforeUnmount(() => {
   box-sizing: border-box !important;
 }
 
-.broadcast-chat-wrapper {
-  position: relative;
-  overflow: hidden;
-}
-
-.chat-messages {
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-}
-
-.chat-message-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-message-item.is-self .message-content {
-  align-items: flex-end;
-}
-
-.message-bubble {
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.4;
-  word-break: break-word;
-  background: #f1f5f9;
-  color: #1e293b;
-  display: inline-block;
-  max-width: 85%;
-}
-
-.bubble-self {
-  background: #0284c7;
-  color: #ffffff;
-  border-bottom-right-radius: 2px;
-}
-
-.bubble-owner {
-  background: #fef3c7;
-  border-left: 3px solid #f59e0b;
-}
-
-.message-time {
-  font-size: 10px;
-}
-
-.sender-name {
-  max-width: 140px;
-  font-size: 11px;
-}
-
-.scroll-bottom-btn {
-  position: absolute;
-  bottom: 64px;
-  right: 16px;
-  z-index: 10;
-}
-
 .participants-list-container {
   overflow-y: auto;
   min-height: 0;
-}
-
-.border-bottom {
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .border-top {

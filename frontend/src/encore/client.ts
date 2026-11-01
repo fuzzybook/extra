@@ -119,6 +119,11 @@ export namespace admin {
         cap: string
         city: string
         country: string
+        /**
+         * Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+         */
+        phone: string
+
         "created_at": string
         "updated_at": string
     }
@@ -138,6 +143,14 @@ export namespace admin {
         "display_name": string
         "avatar_url": string
         "member_type": string
+        /**
+         * RequestedMemberType è il tipo di membro chiesto alla registrazione
+         * ("" se nessuna richiesta aperta); si azzera cambiando il tipo di membro.
+         */
+        "requested_member_type": string
+
+        language: string
+        newsletter: boolean
         broadcaster: string
         role: string
         status: profiles.Status
@@ -393,16 +406,27 @@ export namespace advertising {
     }
 
     /**
-     * PromoContent è un contenuto della promo: il broadcaster da mostrare.
+     * PromoContent è un contenuto della promo: in PromoLeft un broadcaster, in
+     * PromoRight1 e PromoRight2 un'immagine con un link.
      */
     export interface PromoContent {
         "mobile_only": boolean
         /**
-         * Broadcaster è obbligatorio in scrittura (basta short_id). In lettura è
-         * completato con i dati del broadcaster; agli utenti non admin viene
-         * omesso se il broadcaster è disabilitato o non esiste più.
+         * Broadcaster (solo PromoLeft) è obbligatorio in scrittura (basta
+         * short_id). In lettura è completato con i dati del broadcaster; agli
+         * utenti non admin viene omesso se il broadcaster è disabilitato o non
+         * esiste più.
          */
         broadcaster?: PromoBroadcaster
+
+        /**
+         * ImageURL (obbligatoria), URL di destinazione e apertura in una nuova
+         * finestra: solo PromoRight1 e PromoRight2.
+         */
+        "image_url"?: string
+
+        url?: string
+        "new_window"?: boolean
     }
 
     export interface PromoItem {
@@ -796,6 +820,10 @@ export namespace broadcasters {
         photos: BroadcasterPhoto[]
     }
 
+    export interface UpdateVisibilityParams {
+        enabled: boolean
+    }
+
     export class ServiceClient {
         private baseClient: BaseClient
 
@@ -808,6 +836,7 @@ export namespace broadcasters {
             this.GetBroadcaster = this.GetBroadcaster.bind(this)
             this.GetBroadcasterAttributePresets = this.GetBroadcasterAttributePresets.bind(this)
             this.GetBroadcasterAttributes = this.GetBroadcasterAttributes.bind(this)
+            this.GetBroadcasterByShortID = this.GetBroadcasterByShortID.bind(this)
             this.GetBroadcasterByUserID = this.GetBroadcasterByUserID.bind(this)
             this.GetBroadcasterHours = this.GetBroadcasterHours.bind(this)
             this.GetBroadcasterImageConfig = this.GetBroadcasterImageConfig.bind(this)
@@ -821,6 +850,7 @@ export namespace broadcasters {
             this.UpdateBroadcasterAttributes = this.UpdateBroadcasterAttributes.bind(this)
             this.UpdateBroadcasterHours = this.UpdateBroadcasterHours.bind(this)
             this.UpdateBroadcasterPhotos = this.UpdateBroadcasterPhotos.bind(this)
+            this.UpdateBroadcasterVisibility = this.UpdateBroadcasterVisibility.bind(this)
         }
 
         /**
@@ -887,6 +917,18 @@ export namespace broadcasters {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/broadcasters/id/${encodeURIComponent(id)}/attributes`)
             return await resp.json() as BroadcasterAttributesResponse
+        }
+
+        /**
+         * GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
+         * short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
+         * visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo
+         * al proprietario e agli admin).
+         */
+        public async GetBroadcasterByShortID(shortID: string): Promise<Broadcaster> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/broadcasters/short/${encodeURIComponent(shortID)}`)
+            return await resp.json() as Broadcaster
         }
 
         /**
@@ -1018,6 +1060,17 @@ export namespace broadcasters {
         public async UpdateBroadcasterPhotos(id: string, params: UpdateBroadcasterPhotosParams): Promise<Broadcaster> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("PUT", `/broadcasters/id/${encodeURIComponent(id)}/photos`, JSON.stringify(params))
+            return await resp.json() as Broadcaster
+        }
+
+        /**
+         * UpdateBroadcasterVisibility mostra o nasconde il profilo nel sito pubblico
+         * (campo enabled). Lo può cambiare il proprietario, oltre all'amministratore;
+         * gli altri campi riservati (certified, used) restano solo all'admin.
+         */
+        public async UpdateBroadcasterVisibility(id: string, params: UpdateVisibilityParams): Promise<Broadcaster> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("PUT", `/broadcasters/id/${encodeURIComponent(id)}/visibility`, JSON.stringify(params))
             return await resp.json() as Broadcaster
         }
     }
@@ -1203,6 +1256,11 @@ export namespace profiles {
         cap: string
         city: string
         country: string
+        /**
+         * Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+         */
+        phone: string
+
         "created_at": string
         "updated_at": string
     }
@@ -1412,11 +1470,24 @@ export namespace registration {
         "email_sent": boolean
     }
 
+    /**
+     * RegisterParams è il modulo di registrazione pubblico. DisplayName è il
+     * nickname pubblico, Name il nome privato; telefono, paese e indirizzo sono
+     * facoltativi. L'accettazione dei termini è obbligatoria.
+     */
     export interface RegisterParams {
         email: string
         "display_name": string
         "avatar_url": string
         password: string
+        language: string
+        "member_type": string
+        name: string
+        phone?: string
+        country?: string
+        address?: string
+        newsletter: boolean
+        "accept_terms": boolean
     }
 
     export interface RegisterResponse {
@@ -1528,6 +1599,14 @@ export namespace videochat {
         "created_at": string
     }
 
+    /**
+     * CloseMyLiveParams indica la stanza da chiudere con il suo SID: una richiesta
+     * in ritardo (es. dalla pagina appena chiusa) non tocca una stanza riaperta.
+     */
+    export interface CloseMyLiveParams {
+        "room_sid": string
+    }
+
     export interface CreateRoomParams {
         name: string
         "max_participants": number
@@ -1566,6 +1645,67 @@ export namespace videochat {
 
     export interface ListSpeakRequestsResponse {
         requests: SpeakRequest[]
+    }
+
+    /**
+     * LiveList dice al sito pubblico per quali broadcaster mostrare lo stato
+     * della diretta e, per ciascuno, se la stanza è aperta e cosa trasmette.
+     */
+    export interface LiveList {
+        /**
+         * Enabled: short_id dei broadcaster con il broadcasting abilitato nel
+         * personal setup (personal_setup.can_broadcast); solo per loro il sito
+         * mostra lo stato.
+         */
+        enabled: string[]
+
+        /**
+         * Open: broadcaster abilitati collegati alla propria stanza.
+         */
+        open: string[]
+
+        /**
+         * Video e Audio: broadcaster con la camera o il microfono accesi
+         * (traccia pubblicata e non in muto).
+         */
+        video: string[]
+
+        audio: string[]
+    }
+
+    /**
+     * LiveStatus dice se il broadcaster della pagina pubblica /br/:shortID è in
+     * diretta. RoomName serve a chi ha fatto login per chiedere un token con
+     * CreateToken; RoomSID è la chiave della chat della diretta.
+     */
+    export interface LiveStatus {
+        live: boolean
+        "display_name": string
+        "room_name": string
+        "room_sid": string
+    }
+
+    /**
+     * MyLive dice a chi ha fatto login se è un broadcaster e se può andare in
+     * diretta dal sito pubblico. Abilitazione e nome della stanza vengono dal
+     * personal setup del profilo (personal_setup.can_broadcast e room_name).
+     */
+    export interface MyLive {
+        /**
+         * IsBroadcaster: utente broadcaster (member_type, profilo broadcaster o
+         * personal setup); il sito mostra il comando "Apri stanza".
+         */
+        "is_broadcaster": boolean
+
+        /**
+         * CanBroadcast: broadcasting abilitato nel personal setup, con un nome stanza.
+         */
+        "can_broadcast": boolean
+
+        "short_id": string
+        "display_name": string
+        "room_name": string
+        "room_sid": string
     }
 
     export interface Participant {
@@ -1665,16 +1805,25 @@ export namespace videochat {
             this.baseClient = baseClient
             this.ApproveSpeakRequest = this.ApproveSpeakRequest.bind(this)
             this.CancelSpeakRequest = this.CancelSpeakRequest.bind(this)
+            this.CloseMyLive = this.CloseMyLive.bind(this)
+            this.CreateGuestToken = this.CreateGuestToken.bind(this)
             this.CreateRoom = this.CreateRoom.bind(this)
             this.CreateSpeakRequest = this.CreateSpeakRequest.bind(this)
             this.CreateToken = this.CreateToken.bind(this)
             this.DeleteRoom = this.DeleteRoom.bind(this)
+            this.GetLive = this.GetLive.bind(this)
+            this.GetMyLive = this.GetMyLive.bind(this)
             this.GetSpeakerState = this.GetSpeakerState.bind(this)
+            this.ListLive = this.ListLive.bind(this)
+            this.ListLiveMessages = this.ListLiveMessages.bind(this)
             this.ListMessages = this.ListMessages.bind(this)
             this.ListParticipants = this.ListParticipants.bind(this)
             this.ListRooms = this.ListRooms.bind(this)
             this.ListSessions = this.ListSessions.bind(this)
             this.ListSpeakRequests = this.ListSpeakRequests.bind(this)
+            this.LiveKitWebhook = this.LiveKitWebhook.bind(this)
+            this.LiveStream = this.LiveStream.bind(this)
+            this.OpenMyLive = this.OpenMyLive.bind(this)
             this.OpenRoom = this.OpenRoom.bind(this)
             this.RejectSpeakRequest = this.RejectSpeakRequest.bind(this)
             this.RemoveParticipant = this.RemoveParticipant.bind(this)
@@ -1698,6 +1847,26 @@ export namespace videochat {
          */
         public async CancelSpeakRequest(roomName: string, requestId: string): Promise<void> {
             await this.baseClient.callTypedAPI("DELETE", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests/${encodeURIComponent(requestId)}`)
+        }
+
+        /**
+         * CloseMyLive termina la diretta del broadcaster collegato: chiude la stanza,
+         * disconnette gli spettatori e registra la chiusura. Se la stanza non esiste
+         * più non fa nulla.
+         */
+        public async CloseMyLive(params: CloseMyLiveParams): Promise<void> {
+            await this.baseClient.callTypedAPI("POST", `/videochat/my-live/close`, JSON.stringify(params))
+        }
+
+        /**
+         * CreateGuestToken permette a un visitatore senza login di guardare una
+         * diretta: può solo ricevere audio, video e messaggi, non pubblica nulla, non
+         * scrive in chat ed è nascosto agli altri partecipanti.
+         */
+        public async CreateGuestToken(shortID: string): Promise<TokenResponse> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/videochat/live/${encodeURIComponent(shortID)}/token`)
+            return await resp.json() as TokenResponse
         }
 
         /**
@@ -1735,12 +1904,58 @@ export namespace videochat {
         }
 
         /**
+         * GetLive restituisce lo stato della diretta di un broadcaster per il sito
+         * pubblico. Non richiede login.
+         */
+        public async GetLive(shortID: string): Promise<LiveStatus> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live/${encodeURIComponent(shortID)}`)
+            return await resp.json() as LiveStatus
+        }
+
+        /**
+         * GetMyLive dice se l'utente collegato è un broadcaster, se il broadcasting è
+         * abilitato e qual è il nome della sua stanza. Non crea stanze.
+         */
+        public async GetMyLive(): Promise<MyLive> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/my-live`)
+            return await resp.json() as MyLive
+        }
+
+        /**
          * GetSpeakerState restituisce lo stato dello slot speaker della stanza e l'eventuale richiesta del chiamante.
          */
         public async GetSpeakerState(roomName: string): Promise<SpeakerStateResponse> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speaker-state`)
             return await resp.json() as SpeakerStateResponse
+        }
+
+        /**
+         * ListLive restituisce i broadcaster abilitati al broadcasting e, per le foto
+         * del sito pubblico, quali hanno la stanza aperta, la camera e il microfono
+         * accesi, letti dalla tabella live_status. Non richiede login.
+         */
+        public async ListLive(): Promise<LiveList> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live`)
+            return await resp.json() as LiveList
+        }
+
+        /**
+         * ListLiveMessages restituisce gli ultimi messaggi della chat di una diretta
+         * in corso, in sola lettura per i visitatori senza login.
+         */
+        public async ListLiveMessages(shortID: string, params: ListMessagesParams): Promise<ListMessagesResponse> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                limit: String(params.limit),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live/${encodeURIComponent(shortID)}/messages`, undefined, {query})
+            return await resp.json() as ListMessagesResponse
         }
 
         /**
@@ -1804,6 +2019,35 @@ export namespace videochat {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests`, undefined, {query})
             return await resp.json() as ListSpeakRequestsResponse
+        }
+
+        /**
+         * LiveKitWebhook riceve i webhook di LiveKit (configurati in livekit.yaml con
+         * la stessa API key del backend), ne verifica la firma e inoltra gli eventi
+         * delle stanze sul topic videochat-live-status.
+         */
+        public async LiveKitWebhook(method: "POST", body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
+            return this.baseClient.callAPI(method, `/videochat/livekit/webhook`, body, options)
+        }
+
+        /**
+         * LiveStream manda lo stato delle dirette (stesso formato di ListLive) come
+         * Server-Sent Events: evento "status" alla connessione e a ogni cambiamento,
+         * commento di keepalive per non far chiudere la connessione ai proxy.
+         */
+        public async LiveStream(method: "GET", body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
+            return this.baseClient.callAPI(method, `/videochat/live-stream`, body, options)
+        }
+
+        /**
+         * OpenMyLive restituisce la stanza del broadcaster collegato e la crea, con il
+         * nome del personal setup, se non esiste ancora. Il proprietario è sempre chi
+         * chiama; senza broadcasting abilitato risponde PermissionDenied.
+         */
+        public async OpenMyLive(): Promise<MyLive> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/videochat/my-live`)
+            return await resp.json() as MyLive
         }
 
         /**

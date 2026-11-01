@@ -18,16 +18,21 @@ var profilesDB = sqldb.Named("profiles")
 var broadcastersDB = sqldb.Named("broadcasters")
 
 type Profile struct {
-	UserID      uuid.UUID          `json:"user_id"`
-	Email       string             `json:"email"`
-	DisplayName string             `json:"display_name"`
-	AvatarURL   string             `json:"avatar_url"`
-	MemberType  string             `json:"member_type"`
-	Broadcaster *uuid.UUID         `json:"broadcaster"`
-	Role        string             `json:"role"`
-	Status      profilessvc.Status `json:"status"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	UserID      uuid.UUID `json:"user_id"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   string    `json:"avatar_url"`
+	MemberType  string    `json:"member_type"`
+	// RequestedMemberType è il tipo di membro chiesto alla registrazione
+	// ("" se nessuna richiesta aperta); si azzera cambiando il tipo di membro.
+	RequestedMemberType string             `json:"requested_member_type"`
+	Language            string             `json:"language"`
+	Newsletter          bool               `json:"newsletter"`
+	Broadcaster         *uuid.UUID         `json:"broadcaster"`
+	Role                string             `json:"role"`
+	Status              profilessvc.Status `json:"status"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
 }
 
 type ProfileParams struct {
@@ -51,7 +56,7 @@ type ListProfilesResponse struct {
 //encore:api auth method=GET path=/admin/profiles
 func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 	rows, err := profilesDB.Query(ctx, `
-		SELECT user_id, email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at
+		SELECT user_id, email, display_name, avatar_url, role, status, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at
 		FROM user_profiles
 		ORDER BY user_id
 	`)
@@ -63,7 +68,7 @@ func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 	profiles := []*Profile{}
 	for rows.Next() {
 		var p Profile
-		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.RequestedMemberType, &p.Language, &p.Newsletter, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, errs.WrapCode(err, errs.Internal, "failed to scan profile")
 		}
 		profiles = append(profiles, &p)
@@ -80,8 +85,8 @@ func ListProfiles(ctx context.Context) (*ListProfilesResponse, error) {
 func GetProfile(ctx context.Context, userID uuid.UUID) (*Profile, error) {
 	p := Profile{UserID: userID}
 	err := profilesDB.QueryRow(ctx, `
-		SELECT email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at FROM user_profiles WHERE user_id = $1
-	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt)
+		SELECT email, display_name, avatar_url, role, status, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at FROM user_profiles WHERE user_id = $1
+	`, userID).Scan(&p.Email, &p.DisplayName, &p.AvatarURL, &p.Role, &p.Status, &p.MemberType, &p.RequestedMemberType, &p.Language, &p.Newsletter, &p.Broadcaster, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -105,7 +110,9 @@ func InsertProfile(ctx context.Context, p *RegisterParams) (*Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fromServiceProfile(created), nil
+	profile := fromServiceProfile(created)
+	profile.Language = profilessvc.Languages[0]
+	return profile, nil
 }
 
 func fromServiceProfile(p *profilessvc.Profile) *Profile {
@@ -137,8 +144,8 @@ func UpdateProfile(ctx context.Context, userID uuid.UUID, p *ProfileParams) (*Pr
 		UPDATE user_profiles
 		SET display_name = $2, avatar_url = $3, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, role, status, member_type, broadcaster, created_at, updated_at
-	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, role, status, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at
+	`, userID, p.DisplayName, p.AvatarURL).Scan(&profile.Email, &profile.Role, &profile.Status, &profile.MemberType, &profile.RequestedMemberType, &profile.Language, &profile.Newsletter, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -168,8 +175,8 @@ func UpdateProfileStatus(ctx context.Context, userID uuid.UUID, p *UpdateProfile
 		UPDATE user_profiles
 		SET status = $2, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, display_name, avatar_url, role, member_type, broadcaster, created_at, updated_at
-	`, userID, p.Status).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Role, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, display_name, avatar_url, role, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at
+	`, userID, p.Status).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Role, &profile.MemberType, &profile.RequestedMemberType, &profile.Language, &profile.Newsletter, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -204,8 +211,8 @@ func UpdateProfileRole(ctx context.Context, userID uuid.UUID, p *UpdateProfileRo
 		UPDATE user_profiles
 		SET role = $2, updated_at = NOW()
 		WHERE user_id = $1
-		RETURNING email, display_name, avatar_url, status, member_type, broadcaster, created_at, updated_at
-	`, userID, p.Role).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Status, &profile.MemberType, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
+		RETURNING email, display_name, avatar_url, status, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at
+	`, userID, p.Role).Scan(&profile.Email, &profile.DisplayName, &profile.AvatarURL, &profile.Status, &profile.MemberType, &profile.RequestedMemberType, &profile.Language, &profile.Newsletter, &profile.Broadcaster, &profile.CreatedAt, &profile.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}
@@ -257,7 +264,7 @@ func UpdateProfileMemberType(ctx context.Context, userID uuid.UUID, p *UpdatePro
 	)
 
 	err := profilesDB.QueryRow(ctx, `
-		SELECT email, display_name, avatar_url, role, status, member_type, broadcaster, created_at, updated_at
+		SELECT email, display_name, avatar_url, role, status, member_type, requested_member_type, language, newsletter, broadcaster, created_at, updated_at
 		FROM user_profiles
 		WHERE user_id = $1
 	`, userID).Scan(
@@ -267,6 +274,9 @@ func UpdateProfileMemberType(ctx context.Context, userID uuid.UUID, p *UpdatePro
 		&profile.Role,
 		&profile.Status,
 		&currentMemberType,
+		new(string), // requested_member_type: azzerato dall'aggiornamento
+		&profile.Language,
+		&profile.Newsletter,
 		&currentBroadcaster,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
@@ -335,7 +345,7 @@ func UpdateProfileMemberType(ctx context.Context, userID uuid.UUID, p *UpdatePro
 
 	err = profilesDB.QueryRow(ctx, `
 		UPDATE user_profiles
-		SET member_type = $2, broadcaster = $3, updated_at = NOW()
+		SET member_type = $2, broadcaster = $3, requested_member_type = '', updated_at = NOW()
 		WHERE user_id = $1
 		RETURNING updated_at
 	`, userID, p.MemberType, targetBroadcasterID).Scan(&profile.UpdatedAt)
@@ -372,6 +382,8 @@ type PersonalData struct {
 	Cap       string    `json:"cap"`
 	City      string    `json:"city"`
 	Country   string    `json:"country"`
+	// Phone è raccolto alla registrazione; UpsertPersonalData non lo modifica.
+	Phone     string    `json:"phone"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -391,9 +403,9 @@ type PersonalDataParams struct {
 func GetPersonalData(ctx context.Context, userID uuid.UUID) (*PersonalData, error) {
 	pd := PersonalData{UserID: userID}
 	err := profilesDB.QueryRow(ctx, `
-		SELECT first_name, last_name, address, cap, city, country, created_at, updated_at
+		SELECT first_name, last_name, address, cap, city, country, phone, created_at, updated_at
 		FROM personal_data WHERE user_id = $1
-	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.Cap, &pd.City, &pd.Country, &pd.CreatedAt, &pd.UpdatedAt)
+	`, userID).Scan(&pd.FirstName, &pd.LastName, &pd.Address, &pd.Cap, &pd.City, &pd.Country, &pd.Phone, &pd.CreatedAt, &pd.UpdatedAt)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "personal data not found"}
 	}
@@ -432,8 +444,8 @@ func UpsertPersonalData(ctx context.Context, userID uuid.UUID, p *PersonalDataPa
 		    city = EXCLUDED.city,
 		    country = EXCLUDED.country,
 		    updated_at = NOW()
-		RETURNING created_at, updated_at
-	`, userID, p.FirstName, p.LastName, p.Address, p.Cap, p.City, p.Country).Scan(&pd.CreatedAt, &pd.UpdatedAt)
+		RETURNING phone, created_at, updated_at
+	`, userID, p.FirstName, p.LastName, p.Address, p.Cap, p.City, p.Country).Scan(&pd.Phone, &pd.CreatedAt, &pd.UpdatedAt)
 	if isForeignKeyViolation(err) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "profile not found"}
 	}

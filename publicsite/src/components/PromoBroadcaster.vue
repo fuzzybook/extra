@@ -15,6 +15,7 @@
     <div v-if="loaded && caption" class="promo-broadcaster__layer photo-caption-frame">
       <div class="promo-broadcaster__caption photo-caption-text" :style="captionStyle" v-html="caption" />
     </div>
+    <LiveStatusBadge :short-id="broadcaster.short_id" />
   </div>
 </template>
 
@@ -22,6 +23,7 @@
 import { computed, ref, watch } from 'vue';
 import type { advertising } from '@/encore/client';
 import { sanitizeInlineHtml } from '@/utils/sanitize';
+import LiveStatusBadge from '@/components/LiveStatusBadge.vue';
 
 const props = defineProps<{
   broadcaster: advertising.PromoBroadcaster;

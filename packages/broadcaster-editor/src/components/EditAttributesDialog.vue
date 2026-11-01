@@ -5,13 +5,13 @@
     @update:model-value="(val: boolean) => emit('update:modelValue', val)"
     @show="onShow"
   >
-    <q-card style="width: 620px; max-width: 95vw; max-height: 90vh" class="column no-wrap">
+    <q-card style="width: 620px; max-width: 95vw; max-height: 90vh" class="bg-white text-dark column no-wrap">
       <!-- Header -->
       <q-card-section class="row items-center justify-between bg-indigo-7 text-white q-py-sm" style="flex-shrink: 0">
         <div class="row items-center q-gutter-sm">
           <q-icon name="tune" size="24px" />
           <div>
-            <div class="text-h6 text-weight-bold">{{ t('broadcasters.attributesDialog.title') }}</div>
+            <div class="text-h6 text-weight-bold">{{ t('brEditor.attributesDialog.title') }}</div>
             <div class="text-caption opacity-80" v-if="broadcaster">
               {{ broadcaster.display_name }} (ID #{{ broadcaster.id }})
             </div>
@@ -29,7 +29,7 @@
         <!-- Presets rapidi -->
         <div class="q-mb-md">
           <div class="text-caption text-grey-7 q-mb-xs text-weight-medium">
-            {{ t('broadcasters.attributesDialog.quickPresets') }}
+            {{ t('brEditor.attributesDialog.quickPresets') }}
           </div>
           <div class="row q-gutter-xs">
             <q-chip
@@ -50,14 +50,14 @@
         <!-- Form aggiunta nuovo attributo -->
         <q-card flat bordered class="q-pa-sm q-mb-md bg-grey-1">
           <div class="text-subtitle2 text-weight-bold text-grey-9 q-mb-xs">
-            {{ t('broadcasters.attributesDialog.addNewTitle') }}
+            {{ t('brEditor.attributesDialog.addNewTitle') }}
           </div>
           <div class="row q-col-gutter-sm items-center">
             <div class="col-12 col-sm-5">
               <q-input
                 v-model="newAttr.label"
-                :label="t('broadcasters.attributesDialog.labelField')"
-                :placeholder="t('broadcasters.attributesDialog.labelPlaceholder')"
+                :label="t('brEditor.attributesDialog.labelField')"
+                :placeholder="t('brEditor.attributesDialog.labelPlaceholder')"
                 outlined
                 dense
               />
@@ -65,8 +65,8 @@
             <div class="col-12 col-sm-5">
               <q-input
                 v-model="newAttr.value"
-                :label="t('broadcasters.attributesDialog.valueField')"
-                :placeholder="t('broadcasters.attributesDialog.valuePlaceholder')"
+                :label="t('brEditor.attributesDialog.valueField')"
+                :placeholder="t('brEditor.attributesDialog.valuePlaceholder')"
                 outlined
                 dense
                 @keyup.enter="addAttribute"
@@ -76,7 +76,7 @@
               <q-btn
                 color="indigo"
                 icon="add"
-                :label="t('broadcasters.attributesDialog.add')"
+                :label="t('brEditor.attributesDialog.add')"
                 unelevated
                 dense
                 class="full-width q-py-xs"
@@ -90,8 +90,8 @@
         <!-- Lista attributi correnti -->
         <div v-if="attributesList.length === 0" class="text-center q-pa-lg text-grey-6">
           <q-icon name="list_alt" size="40px" class="q-mb-xs" />
-          <div class="text-body2">{{ t('broadcasters.attributesDialog.emptyTitle') }}</div>
-          <div class="text-caption">{{ t('broadcasters.attributesDialog.emptySubtitle') }}</div>
+          <div class="text-body2">{{ t('brEditor.attributesDialog.emptyTitle') }}</div>
+          <div class="text-caption">{{ t('brEditor.attributesDialog.emptySubtitle') }}</div>
         </div>
 
         <q-list v-else separator bordered class="rounded-borders">
@@ -109,7 +109,7 @@
                 <div class="col-12 col-sm-5">
                   <q-input
                     v-model="attr.label"
-                    :label="t('broadcasters.attributesDialog.labelField')"
+                    :label="t('brEditor.attributesDialog.labelField')"
                     dense
                     outlined
                     hide-bottom-space
@@ -118,7 +118,7 @@
                 <div class="col-12 col-sm-7">
                   <q-input
                     v-model="attr.value"
-                    :label="t('broadcasters.attributesDialog.valueField')"
+                    :label="t('brEditor.attributesDialog.valueField')"
                     dense
                     outlined
                     hide-bottom-space
@@ -136,7 +136,7 @@
                 icon="delete"
                 @click="removeAttribute(index)"
               >
-                <q-tooltip>{{ t('broadcasters.attributesDialog.removeTooltip') }}</q-tooltip>
+                <q-tooltip>{{ t('brEditor.attributesDialog.removeTooltip') }}</q-tooltip>
               </q-btn>
             </q-item-section>
           </q-item>
@@ -147,12 +147,12 @@
 
       <!-- Footer Buttons -->
       <q-card-actions align="right" class="q-pa-md bg-grey-1" style="flex-shrink: 0">
-        <q-btn flat :label="t('actions.cancel')" :disable="loading" @click="closeDialog" />
+        <q-btn flat :label="t('brEditor.actions.cancel')" :disable="loading" @click="closeDialog" />
         <q-btn
           color="indigo"
           icon="save"
           :loading="loading"
-          :label="t('broadcasters.attributesDialog.save')"
+          :label="t('brEditor.attributesDialog.save')"
           unelevated
           @click="onSave"
         />
@@ -165,11 +165,8 @@
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Notify } from 'quasar';
-import {
-  useBroadcastersStore,
-  type Broadcaster,
-  type BroadcasterAttribute,
-} from '@/stores/broadcasters-store';
+import { useBroadcasterEditor } from '../editor';
+import { type Broadcaster, type BroadcasterAttribute } from '../types';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -182,7 +179,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const broadcastersStore = useBroadcastersStore();
+const broadcastersStore = useBroadcasterEditor();
 const loading = ref(false);
 const localError = ref<string | null>(null);
 
@@ -266,7 +263,7 @@ async function onSave() {
     const updated = await broadcastersStore.updateAttributes(props.broadcaster.id, cleaned);
     Notify.create({
       type: 'positive',
-      message: t('broadcasters.attributesDialog.saveSuccess'),
+      message: t('brEditor.attributesDialog.saveSuccess'),
     });
     emit('saved', updated);
     closeDialog();
@@ -274,7 +271,7 @@ async function onSave() {
     localError.value = err instanceof Error ? err.message : String(err);
     Notify.create({
       type: 'negative',
-      message: localError.value || t('broadcasters.attributesDialog.saveError'),
+      message: localError.value || t('brEditor.attributesDialog.saveError'),
     });
   } finally {
     loading.value = false;

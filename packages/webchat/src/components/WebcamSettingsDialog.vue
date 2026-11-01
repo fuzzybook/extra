@@ -1,10 +1,11 @@
 <template>
   <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
-    <q-card style="width: 620px; max-width: 95vw;" class="q-pa-sm">
+    <!-- Colore del testo esplicito: il dialog finisce nel body, che sul sito pubblico ha testo chiaro -->
+    <q-card style="width: 620px; max-width: 95vw;" class="q-pa-sm bg-white text-dark">
       <q-card-section class="row items-center justify-between q-pb-none">
         <div class="row items-center q-gutter-sm">
           <q-icon name="videocam" color="primary" size="28px" />
-          <div class="text-h6">{{ t('webcam.title') }}</div>
+          <div class="text-h6">{{ t('webchat.webcam.title') }}</div>
         </div>
         <q-btn flat round dense icon="close" v-close-popup />
       </q-card-section>
@@ -15,13 +16,14 @@
             <!-- Preset Selection -->
             <div>
               <q-select
+                popup-content-class="bg-white text-dark"
                 v-model="form.preset"
                 :options="presetOptions"
                 emit-value
                 map-options
                 outlined
                 dense
-                :label="t('webcam.presetsLabel')"
+                :label="t('webchat.webcam.presetsLabel')"
                 @update:model-value="applyPresetValues"
               >
                 <template #prepend>
@@ -33,9 +35,9 @@
                       <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                         <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                           <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                          {{ t('webcam.presetsLabel') }}
+                          {{ t('webchat.webcam.presetsLabel') }}
                         </div>
-                        <div class="text-caption text-grey-3">{{ t('webcam.presetsHelp') }}</div>
+                        <div class="text-caption text-grey-3">{{ t('webchat.webcam.presetsHelp') }}</div>
                       </q-card>
                     </q-popup-proxy>
                   </q-btn>
@@ -46,13 +48,14 @@
             <!-- Camera Device Selection -->
             <div>
               <q-select
+                popup-content-class="bg-white text-dark"
                 v-model="form.deviceId"
                 :options="cameraOptions"
                 emit-value
                 map-options
                 outlined
                 dense
-                :label="t('webcam.device')"
+                :label="t('webchat.webcam.device')"
                 @update:model-value="onManualChange"
               >
                 <template #prepend>
@@ -64,9 +67,9 @@
                       <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                         <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                           <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                          {{ t('webcam.device') }}
+                          {{ t('webchat.webcam.device') }}
                         </div>
-                        <div class="text-caption text-grey-3">{{ t('webcam.deviceHelp') }}</div>
+                        <div class="text-caption text-grey-3">{{ t('webchat.webcam.deviceHelp') }}</div>
                       </q-card>
                     </q-popup-proxy>
                   </q-btn>
@@ -85,7 +88,7 @@
                   step="10"
                   outlined
                   dense
-                  :label="t('webcam.width')"
+                  :label="t('webchat.webcam.width')"
                   @update:model-value="onWidthChange"
                 >
                   <template #prepend>
@@ -97,9 +100,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.width') }}
+                            {{ t('webchat.webcam.width') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.resolutionHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.resolutionHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -109,13 +112,14 @@
 
               <div class="col-12 col-sm-6">
                 <q-select
+                  popup-content-class="bg-white text-dark"
                   v-model="form.aspectRatio"
                   :options="aspectRatioOptions"
                   emit-value
                   map-options
                   outlined
                   dense
-                  :label="t('webcam.aspectRatio')"
+                  :label="t('webchat.webcam.aspectRatio')"
                   @update:model-value="onAspectRatioChange"
                 >
                   <template #prepend>
@@ -127,9 +131,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.aspectRatio') }}
+                            {{ t('webchat.webcam.aspectRatio') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.aspectRatioHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.aspectRatioHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -148,7 +152,7 @@
                   outlined
                   dense
                   bg-color="grey-2"
-                  :label="t('webcam.heightCalculated')"
+                  :label="t('webchat.webcam.heightCalculated')"
                 >
                   <template #prepend>
                     <q-icon name="lock" size="18px" color="grey-7" />
@@ -162,9 +166,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.heightCalculated') }}
+                            {{ t('webchat.webcam.heightCalculated') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.heightCalculatedHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.heightCalculatedHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -174,13 +178,14 @@
 
               <div class="col-12 col-sm-6">
                 <q-select
+                  popup-content-class="bg-white text-dark"
                   v-model="form.frameRate"
                   :options="frameRateOptions"
                   emit-value
                   map-options
                   outlined
                   dense
-                  :label="t('webcam.frameRate')"
+                  :label="t('webchat.webcam.frameRate')"
                   @update:model-value="onManualChange"
                 >
                   <template #prepend>
@@ -192,9 +197,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.frameRate') }}
+                            {{ t('webchat.webcam.frameRate') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.frameRateHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.frameRateHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -214,7 +219,7 @@
                   step="100"
                   outlined
                   dense
-                  :label="t('webcam.bitrate')"
+                  :label="t('webchat.webcam.bitrate')"
                   suffix="kbps"
                   @update:model-value="onManualChange"
                 >
@@ -227,9 +232,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.bitrate') }}
+                            {{ t('webchat.webcam.bitrate') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.bitrateHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.bitrateHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -239,13 +244,14 @@
 
               <div class="col-12 col-sm-6">
                 <q-select
+                  popup-content-class="bg-white text-dark"
                   v-model="form.codec"
                   :options="codecOptions"
                   emit-value
                   map-options
                   outlined
                   dense
-                  :label="t('webcam.codec')"
+                  :label="t('webchat.webcam.codec')"
                   @update:model-value="onManualChange"
                 >
                   <template #prepend>
@@ -257,9 +263,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.codec') }}
+                            {{ t('webchat.webcam.codec') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.codecHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.codecHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -272,13 +278,14 @@
             <div class="row q-col-gutter-sm items-center">
               <div class="col-12 col-sm-7">
                 <q-select
+                  popup-content-class="bg-white text-dark"
                   v-model="form.degradationPreference"
                   :options="degradationOptions"
                   emit-value
                   map-options
                   outlined
                   dense
-                  :label="t('webcam.degradation')"
+                  :label="t('webchat.webcam.degradation')"
                   @update:model-value="onManualChange"
                 >
                   <template #prepend>
@@ -290,9 +297,9 @@
                         <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                           <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                             <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                            {{ t('webcam.degradation') }}
+                            {{ t('webchat.webcam.degradation') }}
                           </div>
-                          <div class="text-caption text-grey-3">{{ t('webcam.degradationHelp') }}</div>
+                          <div class="text-caption text-grey-3">{{ t('webchat.webcam.degradationHelp') }}</div>
                         </q-card>
                       </q-popup-proxy>
                     </q-btn>
@@ -303,7 +310,7 @@
               <div class="col-12 col-sm-5 row items-center justify-between no-wrap bg-grey-1 q-pa-xs rounded-borders">
                 <q-toggle
                   v-model="form.simulcast"
-                  :label="t('webcam.simulcast')"
+                  :label="t('webchat.webcam.simulcast')"
                   dense
                   @update:model-value="onManualChange"
                 />
@@ -312,9 +319,9 @@
                     <q-card class="q-pa-md bg-grey-9 text-white shadow-6" style="max-width: 320px">
                       <div class="text-subtitle2 text-bold q-mb-xs row items-center">
                         <q-icon name="info" size="18px" color="primary" class="q-mr-xs" />
-                        {{ t('webcam.simulcast') }}
+                        {{ t('webchat.webcam.simulcast') }}
                       </div>
-                      <div class="text-caption text-grey-3">{{ t('webcam.simulcastHelp') }}</div>
+                      <div class="text-caption text-grey-3">{{ t('webchat.webcam.simulcastHelp') }}</div>
                     </q-card>
                   </q-popup-proxy>
                 </q-btn>
@@ -323,8 +330,8 @@
           </div>
 
           <q-card-actions align="right" class="q-mt-lg q-px-none">
-            <q-btn flat :label="t('actions.cancel')" v-close-popup />
-            <q-btn type="submit" color="primary" icon="save" :label="t('webcam.apply')" />
+            <q-btn flat :label="t('webchat.cancel')" v-close-popup />
+            <q-btn type="submit" color="primary" icon="save" :label="t('webchat.webcam.apply')" />
           </q-card-actions>
         </q-form>
       </q-card-section>
@@ -335,19 +342,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-export interface WebcamSettings {
-  preset: 'balanced' | 'high' | 'low' | 'custom';
-  deviceId: string;
-  width: number;
-  height: number;
-  aspectRatio: '16:9' | '4:3' | '1:1' | '9:16';
-  frameRate: number;
-  bitrateKbps: number;
-  codec: 'vp8' | 'h264' | 'vp9' | 'av1';
-  simulcast: boolean;
-  degradationPreference: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
-}
+import { calculateHeight, defaultWebcamSettings, type WebcamSettings } from '../webcam';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -363,39 +358,17 @@ const { t } = useI18n();
 
 const availableCameras = ref<{ label: string; value: string }[]>([]);
 
-function calculateHeight(width: number, ratio: string): number {
-  const w = Number(width) || 1280;
-  if (ratio === '16:9') return Math.round((w * 9) / 16);
-  if (ratio === '4:3') return Math.round((w * 3) / 4);
-  if (ratio === '1:1') return w;
-  if (ratio === '9:16') return Math.round((w * 16) / 9);
-  return Math.round((w * 9) / 16);
-}
-
-const defaultSettings: WebcamSettings = {
-  preset: 'balanced',
-  deviceId: '',
-  width: 1280,
-  height: 720,
-  aspectRatio: '16:9',
-  frameRate: 30,
-  bitrateKbps: 1700,
-  codec: 'vp8',
-  simulcast: true,
-  degradationPreference: 'maintain-framerate',
-};
-
-const form = reactive<WebcamSettings>({ ...defaultSettings });
+const form = reactive<WebcamSettings>({ ...defaultWebcamSettings });
 
 const presetOptions = computed(() => [
-  { label: t('webcam.presets.balanced'), value: 'balanced' },
-  { label: t('webcam.presets.high'), value: 'high' },
-  { label: t('webcam.presets.low'), value: 'low' },
-  { label: t('webcam.presets.custom'), value: 'custom' },
+  { label: t('webchat.webcam.presets.balanced'), value: 'balanced' },
+  { label: t('webchat.webcam.presets.high'), value: 'high' },
+  { label: t('webchat.webcam.presets.low'), value: 'low' },
+  { label: t('webchat.webcam.presets.custom'), value: 'custom' },
 ]);
 
 const cameraOptions = computed(() => [
-  { label: t('webcam.defaultDevice'), value: '' },
+  { label: t('webchat.webcam.defaultDevice'), value: '' },
   ...availableCameras.value,
 ]);
 
@@ -422,9 +395,9 @@ const codecOptions = [
 ];
 
 const degradationOptions = computed(() => [
-  { label: t('webcam.degradationOptions.maintainFramerate'), value: 'maintain-framerate' },
-  { label: t('webcam.degradationOptions.maintainResolution'), value: 'maintain-resolution' },
-  { label: t('webcam.degradationOptions.balanced'), value: 'balanced' },
+  { label: t('webchat.webcam.degradationOptions.maintainFramerate'), value: 'maintain-framerate' },
+  { label: t('webchat.webcam.degradationOptions.maintainResolution'), value: 'maintain-resolution' },
+  { label: t('webchat.webcam.degradationOptions.balanced'), value: 'balanced' },
 ]);
 
 function applyPresetValues(preset: string) {
@@ -482,7 +455,7 @@ async function enumerateCameras() {
     availableCameras.value = devices
       .filter((d) => d.kind === 'videoinput')
       .map((d, index) => ({
-        label: d.label || `${t('webcam.camera')} ${index + 1}`,
+        label: d.label || `${t('webchat.webcam.camera')} ${index + 1}`,
         value: d.deviceId,
       }));
   } catch (err) {

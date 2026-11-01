@@ -9,11 +9,17 @@
               <div class="text-caption text-weight-bold">{{ promo.section }}</div>
               <div v-for="(it, i) in promo.item" :key="i">
                 <div v-for="(c, ci) in it.content" :key="ci" class="q-my-xs">
-                  <PromoBroadcaster
+                  <!-- La foto apre la pagina pubblica del broadcaster -->
+                  <router-link
                     v-if="c.broadcaster?.image_url"
-                    :broadcaster="c.broadcaster"
-                    :alt="c.broadcaster.display_name || it.title || promo.section"
-                  />
+                    :to="broadcasterRoute(c.broadcaster.short_id)"
+                    class="promo-link"
+                  >
+                    <PromoBroadcaster
+                      :broadcaster="c.broadcaster"
+                      :alt="c.broadcaster.display_name || it.title || promo.section"
+                    />
+                  </router-link>
                 </div>
               </div>
             </div>
@@ -62,6 +68,11 @@
                       :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
                     />
+                    <PromoImageLink
+                      v-else-if="c.image_url"
+                      :content="c"
+                      :alt="it.title || promo.section"
+                    />
                   </div>
                 </div>
               </div>
@@ -84,6 +95,11 @@
                       :broadcaster="c.broadcaster"
                       :alt="c.broadcaster.display_name || it.title || promo.section"
                     />
+                    <PromoImageLink
+                      v-else-if="c.image_url"
+                      :content="c"
+                      :alt="it.title || promo.section"
+                    />
                   </div>
                 </div>
               </div>
@@ -97,11 +113,21 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { type advertising } from '@/encore/client';
 import { api } from '@/encore/api';
 import PromoBroadcaster from '@/components/PromoBroadcaster.vue';
+import PromoImageLink from '@/components/PromoImageLink.vue';
+
+const route = useRoute();
+
+// Pagina del broadcaster nella lingua corrente: /br/:shortId o /it/br/:shortId
+function broadcasterRoute(shortId: string): string {
+  const locale = route.params.locale ? `/${String(route.params.locale)}` : '';
+  return `${locale}/br/${shortId}`;
+}
 
 const { t } = useI18n();
 
@@ -151,6 +177,17 @@ const hasRightPromo = computed(() => {
 </script>
 
 <style scoped>
+.promo-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.promo-link:focus-visible {
+  outline: 2px solid #bbbbbb;
+  outline-offset: 2px;
+}
+
 .home-page {
   min-height: calc(100vh - 180px);
   background-color: #0b0b0e;

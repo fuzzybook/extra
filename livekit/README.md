@@ -78,3 +78,16 @@ LiveKitAPISecret: "secret"
 ```
 
 Encore ricaricherà automaticamente i secret al salvataggio del file.
+
+---
+
+## 6. Webhook verso il backend
+
+[`livekit.yaml`](./livekit.yaml) invia i webhook di LiveKit al backend Encore locale su `http://host.docker.internal:4002/videochat/livekit/webhook` (la porta usata dai dev server, `QCLI_API_BASE_URL`). Il backend aggiorna la tabella `videochat.live_status`, da cui il sito pubblico legge lo stato delle dirette (stanza aperta, video, microfono).
+
+Se il backend gira su un'altra porta, cambia l'URL e riavvia il container:
+
+```bash
+docker restart local-livekit
+```
+

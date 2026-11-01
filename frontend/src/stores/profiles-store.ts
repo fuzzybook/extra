@@ -19,6 +19,7 @@ export const MEMBER_TYPES = {
   VISITOR: 'visitor',
   AFFILIATE: 'affiliate',
   ADVERTISER: 'advertiser',
+  CLUB: 'club',
   ADMIN: 'admin',
 } as const;
 
@@ -29,6 +30,7 @@ export const MEMBER_TYPE_OPTIONS: { label: string; value: MemberType; color: str
   { label: 'Visitor', value: 'visitor', color: 'grey-7' },
   { label: 'Affiliate', value: 'affiliate', color: 'teal' },
   { label: 'Advertiser', value: 'advertiser', color: 'orange-8' },
+  { label: 'Club', value: 'club', color: 'indigo' },
   { label: 'Admin', value: 'admin', color: 'primary' },
 ];
 

@@ -42,7 +42,7 @@ import { nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Notify } from 'quasar';
 import { useAdminStore, type RegisterParams } from '@/stores/admin-store';
-import AvatarUpload from '@/components/AvatarUpload.vue';
+import { AvatarUpload } from '@extra/broadcaster-editor';
 
 type Focusable = { focus: () => void };
 

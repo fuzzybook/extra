@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -571,7 +572,10 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 
 	if p != nil {
 		if cat := strings.TrimSpace(p.Category); cat != "" {
-			whereClauses = append(whereClauses, fmt.Sprintf("category = $%d", argIdx))
+			// Senza distinzione tra maiuscole e minuscole: le sezioni del sito
+			// usano i nomi di config.SiteConfig (es. "Elite"), i profili più
+			// vecchi possono averli salvati in minuscolo.
+			whereClauses = append(whereClauses, fmt.Sprintf("LOWER(category) = LOWER($%d)", argIdx))
 			args = append(args, cat)
 			argIdx++
 		}
@@ -674,6 +678,134 @@ func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 	}
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return b, nil
+}
+
+var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
+
+// LiveOwner identifica il proprietario della pagina /br/:shortID per la
+// videochat pubblica.
+type LiveOwner struct {
+	UserID      string `json:"user_id"`
+	ShortID     string `json:"short_id"`
+	DisplayName string `json:"display_name"`
+}
+
+// GetLiveOwner restituisce l'utente di un broadcaster abilitato dato il suo
+// short_id. È privato: lo user_id non viene mai esposto al sito pubblico.
+//
+//encore:api private method=GET path=/broadcasters/internal/live-owner/:shortID
+func GetLiveOwner(ctx context.Context, shortID string) (*LiveOwner, error) {
+	shortID = strings.ToLower(strings.TrimSpace(shortID))
+	if !shortIDPattern.MatchString(shortID) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	var owner LiveOwner
+	err := db.QueryRow(ctx, `
+		SELECT user_id::text, short_id, display_name
+		FROM broadcasters
+		WHERE short_id = $1 AND enabled = TRUE
+	`, shortID).Scan(&owner.UserID, &owner.ShortID, &owner.DisplayName)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return &owner, nil
+}
+
+// GetLiveOwnerByUser restituisce il broadcaster abilitato di un utente: serve
+// al sito pubblico per sapere se chi ha fatto login può andare in diretta.
+//
+//encore:api private method=GET path=/broadcasters/internal/live-owner-user/:userID
+func GetLiveOwnerByUser(ctx context.Context, userID uuid.UUID) (*LiveOwner, error) {
+	var owner LiveOwner
+	err := db.QueryRow(ctx, `
+		SELECT user_id::text, short_id, display_name
+		FROM broadcasters
+		WHERE user_id = $1 AND enabled = TRUE
+	`, userID).Scan(&owner.UserID, &owner.ShortID, &owner.DisplayName)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return &owner, nil
+}
+
+type ShortIDsByUsersParams struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+type ShortIDsByUsersResponse struct {
+	// ShortIDs: user_id -> short_id, solo per i broadcaster abilitati.
+	ShortIDs map[string]string `json:"short_ids"`
+}
+
+// ShortIDsByUsers restituisce gli short_id dei broadcaster abilitati degli
+// utenti indicati. Privato: la videochat lo usa per dire al sito pubblico chi
+// è in diretta senza esporre gli user_id.
+//
+//encore:api private method=POST path=/broadcasters/internal/short-ids-by-users
+func ShortIDsByUsers(ctx context.Context, p *ShortIDsByUsersParams) (*ShortIDsByUsersResponse, error) {
+	resp := &ShortIDsByUsersResponse{ShortIDs: map[string]string{}}
+	if p == nil || len(p.UserIDs) == 0 {
+		return resp, nil
+	}
+	rows, err := db.Query(ctx, `
+		SELECT user_id::text, short_id
+		FROM broadcasters
+		WHERE user_id::text = ANY($1) AND enabled = TRUE
+	`, p.UserIDs)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userID, shortID string
+		if err := rows.Scan(&userID, &shortID); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+		}
+		resp.ShortIDs[userID] = shortID
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster")
+	}
+	return resp, nil
+}
+
+// GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
+// short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
+// visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo
+// al proprietario e agli admin).
+//
+//encore:api public method=GET path=/broadcasters/short/:shortID
+func GetBroadcasterByShortID(ctx context.Context, shortID string) (*Broadcaster, error) {
+	shortID = strings.ToLower(strings.TrimSpace(shortID))
+	if !shortIDPattern.MatchString(shortID) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	row := db.QueryRow(ctx, `
+		SELECT id, short_id, user_id, display_name, category, category_color, bio, certified,
+		       availability, phone, services, languages, attributes, hours, photos,
+		       enabled, used, created_at, updated_at
+		FROM broadcasters
+		WHERE short_id = $1
+	`, shortID)
+
+	b, err := scanBroadcaster(row)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	callerID, isAdmin := callerInfo()
+	if !forViewer(b, callerID, isAdmin) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
 	}
 	return b, nil
 }
@@ -897,6 +1029,36 @@ func UpdateBroadcaster(ctx context.Context, id uuid.UUID, p *UpdateBroadcasterPa
 	existing.Enabled = enabled
 	existing.Used = used
 
+	return existing, nil
+}
+
+type UpdateVisibilityParams struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UpdateBroadcasterVisibility mostra o nasconde il profilo nel sito pubblico
+// (campo enabled). Lo può cambiare il proprietario, oltre all'amministratore;
+// gli altri campi riservati (certified, used) restano solo all'admin.
+//
+//encore:api auth method=PUT path=/broadcasters/id/:id/visibility
+func UpdateBroadcasterVisibility(ctx context.Context, id uuid.UUID, p *UpdateVisibilityParams) (*Broadcaster, error) {
+	callerID, isAdmin, err := authedUser()
+	if err != nil {
+		return nil, err
+	}
+	existing, err := getBroadcaster(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !isAdmin && existing.UserID != callerID {
+		return nil, &errs.Error{Code: errs.PermissionDenied, Message: "permesso negato: non sei il proprietario di questo profilo broadcaster"}
+	}
+	err = db.QueryRow(ctx, `UPDATE broadcasters SET enabled = $1, updated_at = NOW() WHERE id = $2 RETURNING updated_at`, p.Enabled, id).
+		Scan(&existing.UpdatedAt)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile aggiornare la visibilità del profilo broadcaster")
+	}
+	existing.Enabled = p.Enabled
 	return existing, nil
 }
 

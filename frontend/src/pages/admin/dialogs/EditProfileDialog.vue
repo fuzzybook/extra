@@ -129,7 +129,7 @@ import { Notify } from 'quasar';
 import { useAdminStore, type PersonalDataParams, type PersonalSetupParams, type Profile, type ProfileParams } from '@/stores/admin-store';
 import { countries } from '@/data/countries';
 import { AdminPersonalDataParamsSchema, AdminProfileParamsSchema } from '@/encore/zod';
-import AvatarUpload from '@/components/AvatarUpload.vue';
+import { AvatarUpload } from '@extra/broadcaster-editor';
 
 const props = defineProps<{
   profile: Profile | null;
