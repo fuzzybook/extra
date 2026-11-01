@@ -174,14 +174,17 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import {
-  Track,
-  type VideoCaptureOptions,
-  type TrackPublishOptions,
-  type VideoCodec,
-} from 'livekit-client';
-import { LiveStage, errorMessage as message, useLiveRoom } from '@extra/webchat';
+  LiveStage,
+  WebcamSettingsDialog,
+  buildWebcamOptions,
+  errorMessage as message,
+  loadWebcamSettings,
+  republishCamera,
+  saveWebcamSettings,
+  useLiveRoom,
+  type WebcamSettings,
+} from '@extra/webchat';
 import BroadcastStageRight from '@/components/videochat/BroadcastStageRight.vue';
-import WebcamSettingsDialog, { type WebcamSettings } from '@/components/videochat/WebcamSettingsDialog.vue';
 import { api as client } from '@/encore/api';
 import type { videochat } from '@/encore/client';
 import { useProfilesStore } from '@/stores/profiles-store';
@@ -268,89 +271,27 @@ watch(rightTab, (tab) => {
   }
 });
 
-const defaultWebcamSettings: WebcamSettings = {
-  preset: 'balanced',
-  deviceId: '',
-  width: 1280,
-  height: 720,
-  aspectRatio: '16:9',
-  frameRate: 30,
-  bitrateKbps: 1700,
-  codec: 'vp8',
-  simulcast: true,
-  degradationPreference: 'maintain-framerate',
-};
-
-const webcamSettings = ref<WebcamSettings>(loadInitialWebcamSettings());
-
-function loadInitialWebcamSettings(): WebcamSettings {
-  try {
-    const saved = localStorage.getItem('videochat_webcam_settings');
-    if (saved) return { ...defaultWebcamSettings, ...JSON.parse(saved) };
-  } catch {}
-  return { ...defaultWebcamSettings };
-}
-
-function buildWebcamOptions(settings: WebcamSettings) {
-  const aspectRatios: Record<string, number> = {
-    '16:9': 16 / 9,
-    '4:3': 4 / 3,
-    '1:1': 1,
-    '9:16': 9 / 16,
-  };
-
-  const captureOptions: VideoCaptureOptions = {
-    ...(settings.deviceId ? { deviceId: { exact: settings.deviceId } } : {}),
-    resolution: {
-      width: settings.width || 1280,
-      height: settings.height || 720,
-      frameRate: settings.frameRate || 30,
-      aspectRatio: aspectRatios[settings.aspectRatio] ?? 16 / 9,
-    },
-    frameRate: settings.frameRate || 30,
-  };
-
-  const publishOptions: TrackPublishOptions = {
-    videoEncoding: {
-      maxBitrate: (settings.bitrateKbps || 1700) * 1000,
-      maxFramerate: settings.frameRate || 30,
-    },
-    videoCodec: (settings.codec || 'vp8') as VideoCodec,
-    simulcast: settings.simulcast !== false,
-    degradationPreference: (settings.degradationPreference || 'maintain-framerate') as RTCDegradationPreference,
-  };
-
-  return { captureOptions, publishOptions };
-}
+const webcamSettings = ref<WebcamSettings>(loadWebcamSettings());
 
 async function onApplyWebcamSettings(newSettings: WebcamSettings) {
   webcamSettings.value = { ...newSettings };
-  try {
-    localStorage.setItem('videochat_webcam_settings', JSON.stringify(newSettings));
-  } catch (e) {
-    console.error(e);
-  }
+  saveWebcamSettings(newSettings);
 
   const current = room.value;
   if (cameraOn.value && current && connected.value && isOwner.value) {
     mediaBusy.value = true;
     error.value = '';
     try {
-      const camPub = current.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track) {
-        await current.localParticipant.unpublishTrack(camPub.track, true);
-      }
-      const { captureOptions, publishOptions } = buildWebcamOptions(newSettings);
-      await current.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
+      await republishCamera(current, newSettings);
       syncMedia();
-      $q.notify({ type: 'positive', message: t('webcam.savedSuccess') });
+      $q.notify({ type: 'positive', message: t('webchat.webcam.savedSuccess') });
     } catch (reason) {
       error.value = message(reason);
     } finally {
       mediaBusy.value = false;
     }
   } else {
-    $q.notify({ type: 'positive', message: t('webcam.savedSuccess') });
+    $q.notify({ type: 'positive', message: t('webchat.webcam.savedSuccess') });
   }
 }
 

@@ -207,10 +207,12 @@ import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { APIError, ErrCode } from '@/encore/client';
 import { api } from '@/encore/api';
+import { useSession } from '@/composables/useSession';
 import { countryOptions } from '@/utils/countries';
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const session = useSession();
 const route = useRoute();
 
 useMeta(() => ({
@@ -258,6 +260,7 @@ async function onLogin() {
     // La sessione arriva come cookie HttpOnly.
     await api.profiles.Login({ user_email: loginEmail.value, password: loginPassword.value });
     loginPassword.value = '';
+    await session.refresh();
     await router.push(redirectTarget());
   } catch (err) {
     loginError.value =

@@ -191,6 +191,17 @@ export default defineConfig((/* ctx */) => {
         '/fr/br/**',
         '/de/br/**',
         '/en/br/**',
+        // Webcam del broadcaster: solo con login
+        '/studio',
+        '/it/studio',
+        '/fr/studio',
+        '/de/studio',
+        '/en/studio',
+        '/studio/window',
+        '/it/studio/window',
+        '/fr/studio/window',
+        '/de/studio/window',
+        '/en/studio/window',
       ],
       // noPreloadTagRoutes: []
 

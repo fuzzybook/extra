@@ -1,6 +1,19 @@
 import type { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
+  // Studio in finestra separata ("Apri in finestra"): solo webchat, senza header del sito
+  {
+    path: '/:locale(it|fr|de|en)?/studio/window',
+    component: () => import('@/layouts/BlankLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'studio-window',
+        component: () => import('@/pages/BroadcasterStudioPage.vue'),
+      },
+    ],
+  },
+
   // Rotte pubbliche SSG con parametro lingua opzionale (it|fr|de|en)
   {
     path: '/:locale(it|fr|de|en)?',
@@ -56,6 +69,12 @@ const routes: RouteRecordRaw[] = [
         path: 'br/:shortId',
         name: 'broadcaster',
         component: () => import('@/pages/BroadcasterPage.vue'),
+      },
+      {
+        // Webcam del broadcaster collegato: apre (o crea) la sua stanza
+        path: 'studio',
+        name: 'studio',
+        component: () => import('@/pages/BroadcasterStudioPage.vue'),
       },
       {
         // Diretta del broadcaster: video e chat (packages/webchat)

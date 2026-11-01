@@ -685,6 +685,7 @@ var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
 // videochat pubblica.
 type LiveOwner struct {
 	UserID      string `json:"user_id"`
+	ShortID     string `json:"short_id"`
 	DisplayName string `json:"display_name"`
 }
 
@@ -699,10 +700,30 @@ func GetLiveOwner(ctx context.Context, shortID string) (*LiveOwner, error) {
 	}
 	var owner LiveOwner
 	err := db.QueryRow(ctx, `
-		SELECT user_id::text, display_name
+		SELECT user_id::text, short_id, display_name
 		FROM broadcasters
 		WHERE short_id = $1 AND enabled = TRUE
-	`, shortID).Scan(&owner.UserID, &owner.DisplayName)
+	`, shortID).Scan(&owner.UserID, &owner.ShortID, &owner.DisplayName)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return &owner, nil
+}
+
+// GetLiveOwnerByUser restituisce il broadcaster abilitato di un utente: serve
+// al sito pubblico per sapere se chi ha fatto login può andare in diretta.
+//
+//encore:api private method=GET path=/broadcasters/internal/live-owner-user/:userID
+func GetLiveOwnerByUser(ctx context.Context, userID uuid.UUID) (*LiveOwner, error) {
+	var owner LiveOwner
+	err := db.QueryRow(ctx, `
+		SELECT user_id::text, short_id, display_name
+		FROM broadcasters
+		WHERE user_id = $1 AND enabled = TRUE
+	`, userID).Scan(&owner.UserID, &owner.ShortID, &owner.DisplayName)
 	if errors.Is(err, sqldb.ErrNoRows) {
 		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
 	}

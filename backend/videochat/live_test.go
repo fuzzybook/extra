@@ -13,6 +13,7 @@ import (
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/et"
+	"encore.dev/types/uuid"
 	lkauth "github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	"google.golang.org/protobuf/proto"
@@ -134,5 +135,119 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 	}
 	if len(list.Messages) != 1 || list.Messages[0].Body != "Ciao!" {
 		t.Fatalf("unexpected live messages: %+v", list.Messages)
+	}
+}
+
+func TestOpenMyLiveUsesPersonalSetup(t *testing.T) {
+	useTestVideochatDB(t)
+	useTestProfilesDB(t)
+	const ownerID = "00000000-0000-4000-8000-000000000021"
+	const visitorID = "00000000-0000-4000-8000-000000000022"
+	et.MockEndpoint(broadcasters.GetLiveOwnerByUser, func(ctx context.Context, userID uuid.UUID) (*broadcasters.LiveOwner, error) {
+		if userID.String() != ownerID {
+			return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+		}
+		return &broadcasters.LiveOwner{UserID: ownerID, ShortID: "def456", DisplayName: "Bruna"}, nil
+	})
+
+	var rooms []*livekit.Room
+	created := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var response proto.Message
+		switch r.URL.Path {
+		case "/twirp/livekit.RoomService/ListRooms":
+			response = &livekit.ListRoomsResponse{Rooms: rooms}
+		case "/twirp/livekit.RoomService/CreateRoom":
+			body, _ := io.ReadAll(r.Body)
+			var request livekit.CreateRoomRequest
+			_ = proto.Unmarshal(body, &request)
+			created++
+			room := &livekit.Room{Sid: "RM_new", Name: request.Name, Metadata: request.Metadata}
+			rooms = append(rooms, room)
+			response = room
+		default:
+			t.Errorf("unexpected LiveKit operation: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		payload, _ := proto.Marshal(response)
+		w.Header().Set("Content-Type", "application/protobuf")
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+	original := secrets
+	defer func() { secrets = original }()
+	secrets.LiveKitURL, secrets.LiveKitAPIKey, secrets.LiveKitAPISecret = server.URL, "test-key", "test-secret"
+
+	ctx := context.Background()
+	for _, p := range []struct{ id, name, email, memberType string }{
+		{ownerID, "Bruna", "mylive@example.invalid", "broadcaster"},
+		{visitorID, "Visitatore", "visitor@example.invalid", "visitor"},
+	} {
+		if _, err := profilesDB.Exec(ctx, `INSERT INTO user_profiles (user_id, display_name, email, member_type) VALUES ($1, $2, $3, $4)`, p.id, p.name, p.email, p.memberType); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Utente non broadcaster: nessun comando "Apri stanza".
+	visitorCtx := auth.WithContext(ctx, auth.UID(visitorID), &authsvc.AuthData{})
+	if mine, err := GetMyLive(visitorCtx); err != nil || mine.IsBroadcaster || mine.CanBroadcast {
+		t.Fatalf("visitor GetMyLive = %+v, %v", mine, err)
+	}
+
+	// Broadcaster senza personal setup: comando visibile, broadcasting non abilitato.
+	ownerCtx := auth.WithContext(ctx, auth.UID(ownerID), &authsvc.AuthData{})
+	if mine, err := GetMyLive(ownerCtx); err != nil || !mine.IsBroadcaster || mine.CanBroadcast || mine.ShortID != "def456" || mine.RoomName != "" {
+		t.Fatalf("disabled GetMyLive = %+v, %v", mine, err)
+	}
+	if _, err := OpenMyLive(ownerCtx); errs.Code(err) != errs.PermissionDenied {
+		t.Fatalf("disabled OpenMyLive: %v", err)
+	}
+	if created != 0 {
+		t.Fatalf("CreateRoom called %d times without broadcasting enabled", created)
+	}
+
+	// Abilitato nel personal setup: la stanza ha il nome configurato e viene creata una volta sola.
+	if _, err := profilesDB.Exec(ctx, `INSERT INTO personal_setup (user_id, can_broadcast, room_name) VALUES ($1, TRUE, 'Sala Bruna')`, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	if mine, err := GetMyLive(ownerCtx); err != nil || !mine.CanBroadcast || mine.RoomName != "Sala Bruna" {
+		t.Fatalf("enabled GetMyLive = %+v, %v", mine, err)
+	}
+	for i := 0; i < 2; i++ {
+		live, err := OpenMyLive(ownerCtx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if live.RoomName != "Sala Bruna" || live.RoomSID != "RM_new" {
+			t.Fatalf("OpenMyLive = %+v", live)
+		}
+	}
+	if created != 1 {
+		t.Fatalf("CreateRoom called %d times, want 1", created)
+	}
+	metadata, ok := readBroadcast(rooms[0])
+	if !ok || metadata.OwnerID != ownerID || metadata.DisplayName != "Sala Bruna" {
+		t.Fatalf("room metadata = %+v", metadata)
+	}
+
+	// Il proprietario entra nella stanza appena creata come owner.
+	token, err := CreateToken(ownerCtx, &TokenParams{RoomName: "Sala Bruna"})
+	if err != nil || token.Role != "owner" {
+		t.Fatalf("owner token = %+v, %v", token, err)
+	}
+
+	// Il nome configurato occupato da una stanza di un altro utente non viene riusato.
+	rooms[0].Metadata = `{"mode":"broadcast","owner_id":"someone-else","display_name":"Sala Bruna"}`
+	if _, err := OpenMyLive(ownerCtx); errs.Code(err) != errs.FailedPrecondition {
+		t.Fatalf("room owned by another user: %v", err)
+	}
+
+	// Broadcasting disabilitato di nuovo dall'amministrazione.
+	if _, err := profilesDB.Exec(ctx, `UPDATE personal_setup SET can_broadcast = FALSE, room_name = '' WHERE user_id = $1`, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenMyLive(ownerCtx); errs.Code(err) != errs.PermissionDenied {
+		t.Fatalf("re-disabled OpenMyLive: %v", err)
 	}
 }

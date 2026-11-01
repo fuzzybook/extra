@@ -35,7 +35,18 @@
           <div class="nav__item nav__advertise" :class="{ 'nav__item--current': isSectionActive('advertise') }">
             <router-link class="nav__link" :to="getMenuRoute('advertise')">{{ t('actions.advertise') }}</router-link>
           </div>
-          <div class="nav__item nav__item--button" :class="{ 'nav__item--current': isSectionActive('login') }">
+          <!-- Broadcaster abilitato: accesso alla propria webcam (stanza creata se manca) -->
+          <!-- Broadcaster: apre la propria stanza se il personal setup abilita il broadcasting -->
+          <div v-if="isBroadcaster" class="nav__item nav__webcam" :class="{ 'nav__item--current': isSectionActive('studio') }">
+            <button type="button" class="nav__link nav__logout" :aria-label="t('actions.openRoom')" @click="onOpenRoom">
+              <q-icon name="videocam" size="16px" />
+              <q-tooltip>{{ t('actions.openRoom') }}</q-tooltip>
+            </button>
+          </div>
+          <div v-if="loggedIn" class="nav__item nav__item--button">
+            <button type="button" class="nav__link nav__logout" @click="onLogout">{{ t('actions.logout') }}</button>
+          </div>
+          <div v-else class="nav__item nav__item--button" :class="{ 'nav__item--current': isSectionActive('login') }">
             <router-link class="nav__link" :to="getMenuRoute('login')">{{ t('actions.login') }}</router-link>
           </div>
         </div>
@@ -87,17 +98,48 @@
         </router-link>
       </div>
     </nav>
+
+    <q-dialog v-model="showDisabled">
+      <q-card class="bg-white text-dark" style="width: 360px; max-width: 90vw">
+        <q-card-section class="row items-center no-wrap q-gutter-sm">
+          <q-icon name="videocam_off" color="negative" size="28px" />
+          <div class="text-h6">{{ t('studio.disabledTitle') }}</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">{{ t('studio.disabledText') }}</q-card-section>
+        <q-card-actions align="right">
+          <q-btn v-close-popup flat color="primary" :label="t('studio.ok')" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { SupportedLocale } from '@/i18n';
+import { useSession } from '@/composables/useSession';
 
 const route = useRoute();
+const router = useRouter();
 const { t, locale } = useI18n();
+const { loggedIn, isBroadcaster, canBroadcast, refresh, logout } = useSession();
+const showDisabled = ref(false);
+
+onMounted(() => void refresh());
+
+// Lo stato viene riletto al clic: l'amministrazione può aver cambiato il personal setup.
+async function onOpenRoom() {
+  await refresh();
+  if (canBroadcast.value) await router.push(getMenuRoute('studio'));
+  else if (isBroadcaster.value) showDisabled.value = true;
+}
+
+async function onLogout() {
+  await logout().catch(() => undefined);
+  await router.push(getMenuRoute(''));
+}
 
 const currentLang = computed<SupportedLocale>(() => {
   const param = route.params.locale as string | undefined;
@@ -283,6 +325,30 @@ function isSectionActive(section: string): boolean {
 
 .nav__item--button:hover .nav__link {
   color: #000000 !important;
+}
+
+.nav__logout {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nav__webcam {
+  border-color: #ff3b30;
+}
+
+.nav__webcam .nav__link {
+  color: #ff3b30;
+}
+
+.nav__webcam:hover {
+  background-color: #ff3b30;
+}
+
+.nav__webcam:hover .nav__link {
+  color: #ffffff !important;
 }
 
 /* ========================================================================= */

@@ -8,3 +8,13 @@ export type { ChatItem, ChatSource, ChatUser, JoinToken, RoomDataMessage, Server
 export { default as ChatPanel } from './components/ChatPanel.vue';
 export { default as LiveStage } from './components/LiveStage.vue';
 export { default as LiveTrack } from './components/LiveTrack.vue';
+export {
+  buildWebcamOptions,
+  calculateHeight,
+  defaultWebcamSettings,
+  loadWebcamSettings,
+  republishCamera,
+  saveWebcamSettings,
+  type WebcamSettings,
+} from './webcam';
+export { default as WebcamSettingsDialog } from './components/WebcamSettingsDialog.vue';

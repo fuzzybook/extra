@@ -1635,6 +1635,29 @@ export namespace videochat {
         "room_sid": string
     }
 
+    /**
+     * MyLive dice a chi ha fatto login se è un broadcaster e se può andare in
+     * diretta dal sito pubblico. Abilitazione e nome della stanza vengono dal
+     * personal setup del profilo (personal_setup.can_broadcast e room_name).
+     */
+    export interface MyLive {
+        /**
+         * IsBroadcaster: utente broadcaster (member_type, profilo broadcaster o
+         * personal setup); il sito mostra il comando "Apri stanza".
+         */
+        "is_broadcaster": boolean
+
+        /**
+         * CanBroadcast: broadcasting abilitato nel personal setup, con un nome stanza.
+         */
+        "can_broadcast": boolean
+
+        "short_id": string
+        "display_name": string
+        "room_name": string
+        "room_sid": string
+    }
+
     export interface Participant {
         sid: string
         identity: string
@@ -1738,6 +1761,7 @@ export namespace videochat {
             this.CreateToken = this.CreateToken.bind(this)
             this.DeleteRoom = this.DeleteRoom.bind(this)
             this.GetLive = this.GetLive.bind(this)
+            this.GetMyLive = this.GetMyLive.bind(this)
             this.GetSpeakerState = this.GetSpeakerState.bind(this)
             this.ListLiveMessages = this.ListLiveMessages.bind(this)
             this.ListMessages = this.ListMessages.bind(this)
@@ -1745,6 +1769,7 @@ export namespace videochat {
             this.ListRooms = this.ListRooms.bind(this)
             this.ListSessions = this.ListSessions.bind(this)
             this.ListSpeakRequests = this.ListSpeakRequests.bind(this)
+            this.OpenMyLive = this.OpenMyLive.bind(this)
             this.OpenRoom = this.OpenRoom.bind(this)
             this.RejectSpeakRequest = this.RejectSpeakRequest.bind(this)
             this.RemoveParticipant = this.RemoveParticipant.bind(this)
@@ -1823,6 +1848,16 @@ export namespace videochat {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live/${encodeURIComponent(shortID)}`)
             return await resp.json() as LiveStatus
+        }
+
+        /**
+         * GetMyLive dice se l'utente collegato è un broadcaster, se il broadcasting è
+         * abilitato e qual è il nome della sua stanza. Non crea stanze.
+         */
+        public async GetMyLive(): Promise<MyLive> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/my-live`)
+            return await resp.json() as MyLive
         }
 
         /**
@@ -1910,6 +1945,17 @@ export namespace videochat {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests`, undefined, {query})
             return await resp.json() as ListSpeakRequestsResponse
+        }
+
+        /**
+         * OpenMyLive restituisce la stanza del broadcaster collegato e la crea, con il
+         * nome del personal setup, se non esiste ancora. Il proprietario è sempre chi
+         * chiama; senza broadcasting abilitato risponde PermissionDenied.
+         */
+        public async OpenMyLive(): Promise<MyLive> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/videochat/my-live`)
+            return await resp.json() as MyLive
         }
 
         /**

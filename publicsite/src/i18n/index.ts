@@ -20,6 +20,8 @@ export interface MessageSchema {
   actions: {
     advertise: string;
     login: string;
+    logout: string;
+    openRoom: string;
     goToDashboard: string;
   };
   home: {
@@ -141,6 +143,23 @@ export interface MessageSchema {
     enableAudio: string;
     loginToChat: string;
   };
+  studio: {
+    title: string;
+    disabledTitle: string;
+    disabledText: string;
+    ok: string;
+    opening: string;
+    onAir: string;
+    offAir: string;
+    camera: string;
+    microphone: string;
+    stop: string;
+    openWindow: string;
+    movedToWindow: string;
+    bringBack: string;
+    popupBlocked: string;
+    preview: string;
+  };
   webchat: WebchatMessages;
 }
 
@@ -162,6 +181,8 @@ const it: MessageSchema = {
   actions: {
     advertise: 'Advertise',
     login: 'Login',
+    logout: 'Esci',
+    openRoom: 'Apri stanza',
     goToDashboard: 'Vai alla Dashboard',
   },
   home: {
@@ -283,6 +304,23 @@ const it: MessageSchema = {
     enableAudio: 'Attiva audio',
     loginToChat: 'Accedi per scrivere in chat',
   },
+  studio: {
+    title: 'La mia webcam',
+    disabledTitle: 'Broadcasting non abilitato',
+    disabledText: 'Il broadcasting non è abilitato per il tuo profilo. Contatta l\'amministrazione.',
+    ok: 'OK',
+    opening: 'Apertura della stanza…',
+    onAir: 'In onda',
+    offAir: 'Fuori onda',
+    camera: 'Webcam',
+    microphone: 'Microfono',
+    stop: 'Termina la diretta',
+    openWindow: 'Apri in finestra',
+    movedToWindow: 'La stanza è aperta in un\'altra finestra.',
+    bringBack: 'Riporta qui',
+    popupBlocked: 'Il browser ha bloccato la finestra: consenti i popup per questo sito.',
+    preview: 'Accendi la webcam per andare in diretta.',
+  },
   webchat: webchatMessages.it,
 };
 
@@ -304,6 +342,8 @@ const fr: MessageSchema = {
   actions: {
     advertise: 'Publicité',
     login: 'Connexion',
+    logout: 'Déconnexion',
+    openRoom: 'Ouvrir la salle',
     goToDashboard: 'Accéder au tableau de bord',
   },
   home: {
@@ -425,6 +465,23 @@ const fr: MessageSchema = {
     enableAudio: 'Activer le son',
     loginToChat: 'Connectez-vous pour écrire dans le chat',
   },
+  studio: {
+    title: 'Ma webcam',
+    disabledTitle: 'Diffusion non activée',
+    disabledText: 'La diffusion n\'est pas activée pour votre profil. Contactez l\'administration.',
+    ok: 'OK',
+    opening: 'Ouverture de la salle…',
+    onAir: 'À l\'antenne',
+    offAir: 'Hors antenne',
+    camera: 'Webcam',
+    microphone: 'Micro',
+    stop: 'Terminer le direct',
+    openWindow: 'Ouvrir dans une fenêtre',
+    movedToWindow: 'La salle est ouverte dans une autre fenêtre.',
+    bringBack: 'Ramener ici',
+    popupBlocked: 'Le navigateur a bloqué la fenêtre : autorisez les popups pour ce site.',
+    preview: 'Allumez la webcam pour passer en direct.',
+  },
   webchat: webchatMessages.fr,
 };
 
@@ -446,6 +503,8 @@ const de: MessageSchema = {
   actions: {
     advertise: 'Werbung',
     login: 'Anmelden',
+    logout: 'Abmelden',
+    openRoom: 'Raum öffnen',
     goToDashboard: 'Zum Dashboard',
   },
   home: {
@@ -567,6 +626,23 @@ const de: MessageSchema = {
     enableAudio: 'Ton aktivieren',
     loginToChat: 'Anmelden, um im Chat zu schreiben',
   },
+  studio: {
+    title: 'Meine Webcam',
+    disabledTitle: 'Broadcasting nicht aktiviert',
+    disabledText: 'Broadcasting ist für dein Profil nicht aktiviert. Wende dich an die Administration.',
+    ok: 'OK',
+    opening: 'Raum wird geöffnet…',
+    onAir: 'Live',
+    offAir: 'Offline',
+    camera: 'Webcam',
+    microphone: 'Mikrofon',
+    stop: 'Live beenden',
+    openWindow: 'In Fenster öffnen',
+    movedToWindow: 'Der Raum ist in einem anderen Fenster geöffnet.',
+    bringBack: 'Hierher zurückholen',
+    popupBlocked: 'Der Browser hat das Fenster blockiert: Erlaube Pop-ups für diese Seite.',
+    preview: 'Schalte die Webcam ein, um live zu gehen.',
+  },
   webchat: webchatMessages.de,
 };
 
@@ -588,6 +664,8 @@ const en: MessageSchema = {
   actions: {
     advertise: 'Advertise',
     login: 'Login',
+    logout: 'Logout',
+    openRoom: 'Open room',
     goToDashboard: 'Go to Dashboard',
   },
   home: {
@@ -708,6 +786,23 @@ const en: MessageSchema = {
     audioHint: 'The browser blocked the sound.',
     enableAudio: 'Turn on sound',
     loginToChat: 'Log in to write in the chat',
+  },
+  studio: {
+    title: 'My webcam',
+    disabledTitle: 'Broadcasting not enabled',
+    disabledText: 'Broadcasting is not enabled for your profile. Please contact the administration.',
+    ok: 'OK',
+    opening: 'Opening the room…',
+    onAir: 'On air',
+    offAir: 'Off air',
+    camera: 'Webcam',
+    microphone: 'Microphone',
+    stop: 'End the live',
+    openWindow: 'Open in window',
+    movedToWindow: 'The room is open in another window.',
+    bringBack: 'Bring it back here',
+    popupBlocked: 'The browser blocked the window: allow pop-ups for this site.',
+    preview: 'Turn on the webcam to go live.',
   },
   webchat: webchatMessages.en,
 };

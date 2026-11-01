@@ -468,4 +468,19 @@ func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
 			t.Errorf("GetLiveOwner(%q) = %v, want not found", id, err)
 		}
 	}
+
+	// Il sito pubblico chiede per utente se può andare in diretta.
+	mine, err := GetLiveOwnerByUser(ctx, uuid.Must(uuid.FromString(owner.UserID)))
+	if err != nil || mine.ShortID != enabled || owner.ShortID != enabled {
+		t.Fatalf("GetLiveOwnerByUser = %+v, %v; want short id %q", mine, err, enabled)
+	}
+	var disabledUser uuid.UUID
+	if err := db.QueryRow(ctx, `SELECT user_id FROM broadcasters WHERE short_id = $1`, disabled).Scan(&disabledUser); err != nil {
+		t.Fatalf("select disabled user: %v", err)
+	}
+	for _, id := range []uuid.UUID{disabledUser, uuid.Must(uuid.NewV4())} {
+		if _, err := GetLiveOwnerByUser(ctx, id); errs.Code(err) != errs.NotFound {
+			t.Errorf("GetLiveOwnerByUser(%s) = %v, want not found", id, err)
+		}
+	}
 }
