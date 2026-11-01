@@ -181,6 +181,7 @@ import {
   loadWebcamSettings,
   republishCamera,
   saveWebcamSettings,
+  unpublishMedia,
   useLiveRoom,
   type WebcamSettings,
 } from '@extra/webchat';
@@ -335,7 +336,7 @@ async function toggleMedia(kind: 'camera' | 'microphone' | 'screen') {
         await current.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
         logMediaEvent('VIDEO_ON');
       } else {
-        await current.localParticipant.setCameraEnabled(false);
+        await unpublishMedia(current, 'camera');
         logMediaEvent('VIDEO_OFF');
       }
     }
@@ -344,7 +345,7 @@ async function toggleMedia(kind: 'camera' | 'microphone' | 'screen') {
         await current.localParticipant.setMicrophoneEnabled(true);
         logMediaEvent('MIC_ON');
       } else {
-        await current.localParticipant.setMicrophoneEnabled(false);
+        await unpublishMedia(current, 'microphone');
         logMediaEvent('MIC_OFF');
       }
     }

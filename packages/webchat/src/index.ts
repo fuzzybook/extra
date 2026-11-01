@@ -14,6 +14,7 @@ export {
   defaultWebcamSettings,
   loadWebcamSettings,
   republishCamera,
+  unpublishMedia,
   saveWebcamSettings,
   type WebcamSettings,
 } from './webcam';

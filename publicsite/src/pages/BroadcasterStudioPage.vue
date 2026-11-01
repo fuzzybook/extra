@@ -138,6 +138,7 @@ import {
   errorMessage,
   loadWebcamSettings,
   republishCamera,
+  unpublishMedia,
   saveWebcamSettings,
   useLiveRoom,
   useRoomChat,
@@ -263,12 +264,17 @@ async function toggle(kind: 'camera' | 'microphone') {
   try {
     if (kind === 'camera') {
       const enable = !live.cameraOn.value;
-      const { captureOptions, publishOptions } = buildWebcamOptions(webcamSettings.value);
-      await current.localParticipant.setCameraEnabled(enable, captureOptions, publishOptions);
+      if (enable) {
+        const { captureOptions, publishOptions } = buildWebcamOptions(webcamSettings.value);
+        await current.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
+      } else {
+        await unpublishMedia(current, 'camera');
+      }
       logMediaEvent(enable ? 'VIDEO_ON' : 'VIDEO_OFF');
     } else {
       const enable = !live.micOn.value;
-      await current.localParticipant.setMicrophoneEnabled(enable);
+      if (enable) await current.localParticipant.setMicrophoneEnabled(true);
+      else await unpublishMedia(current, 'microphone');
       logMediaEvent(enable ? 'MIC_ON' : 'MIC_OFF');
     }
     if (live.room.value === current) live.sync();
@@ -289,11 +295,11 @@ async function stop() {
   mediaError.value = '';
   try {
     if (live.cameraOn.value) {
-      await current.localParticipant.setCameraEnabled(false);
+      await unpublishMedia(current, 'camera');
       logMediaEvent('VIDEO_OFF');
     }
     if (live.micOn.value) {
-      await current.localParticipant.setMicrophoneEnabled(false);
+      await unpublishMedia(current, 'microphone');
       logMediaEvent('MIC_OFF');
     }
     if (roomSid) await api.videochat.CloseMyLive({ room_sid: roomSid });

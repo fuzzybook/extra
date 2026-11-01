@@ -97,3 +97,14 @@ export async function republishCamera(room: Room, settings: WebcamSettings) {
   const { captureOptions, publishOptions } = buildWebcamOptions(settings);
   await room.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
 }
+
+/**
+ * Spegne camera o microfono togliendo la traccia invece di metterla in muto:
+ * LiveKit avvisa il backend (webhook track_unpublished) e la camera si spegne
+ * davvero. Il muto non genera webhook, quindi lo stato pubblico non cambierebbe.
+ */
+export async function unpublishMedia(room: Room, kind: 'camera' | 'microphone') {
+  const source = kind === 'camera' ? Track.Source.Camera : Track.Source.Microphone;
+  const publication = room.localParticipant.getTrackPublication(source);
+  if (publication?.track) await room.localParticipant.unpublishTrack(publication.track, true);
+}

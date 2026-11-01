@@ -101,7 +101,7 @@ type LiveList struct {
 
 // ListLive restituisce i broadcaster abilitati al broadcasting e, per le foto
 // del sito pubblico, quali hanno la stanza aperta, la camera e il microfono
-// accesi. Non richiede login.
+// accesi, letti dalla tabella live_status. Non richiede login.
 //
 //encore:api public method=GET path=/videochat/live
 func ListLive(ctx context.Context) (*LiveList, error) {
@@ -138,53 +138,40 @@ func ListLive(ctx context.Context) (*LiveList, error) {
 		return list, nil
 	}
 
-	client, _, err := liveKitClient()
+	// Stato dalla tabella aggiornata dai webhook di LiveKit (nessuna chiamata
+	// a LiveKit per richiesta). Più stanze dello stesso proprietario si sommano.
+	statusRows, err := db.Query(ctx, `
+		SELECT owner_id, bool_or(owner_connected), bool_or(owner_connected AND video), bool_or(owner_connected AND audio)
+		FROM live_status
+		WHERE owner_id = ANY($1)
+		GROUP BY owner_id
+	`, userIDs)
 	if err != nil {
-		return nil, err
+		return nil, errs.WrapCode(err, errs.Internal, "failed to read live status")
 	}
-	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
-	defer cancel()
-	result, err := client.ListRooms(ctx, &livekit.ListRoomsRequest{})
-	if err != nil {
-		return nil, liveKitError(err)
-	}
-	seen := map[string]bool{}
-	for _, room := range result.Rooms {
-		metadata, ok := readBroadcast(room)
-		shortID, enabled := ids.ShortIDs[metadata.OwnerID]
-		if !ok || !enabled || seen[shortID] {
+	defer statusRows.Close()
+	for statusRows.Next() {
+		var ownerID string
+		var open, video, audio bool
+		if err := statusRows.Scan(&ownerID, &open, &video, &audio); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to read live status")
+		}
+		shortID, enabled := ids.ShortIDs[ownerID]
+		if !enabled {
 			continue
 		}
-		participants, err := client.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: room.Name})
-		if err != nil {
-			return nil, liveKitError(err)
-		}
-		for _, p := range participants.Participants {
-			if p.Identity != metadata.OwnerID {
-				continue
-			}
-			seen[shortID] = true
+		if open {
 			list.Open = append(list.Open, shortID)
-			video, audio := false, false
-			for _, track := range p.Tracks {
-				if track.Muted {
-					continue
-				}
-				switch track.Type {
-				case livekit.TrackType_VIDEO:
-					video = true
-				case livekit.TrackType_AUDIO:
-					audio = true
-				}
-			}
-			if video {
-				list.Video = append(list.Video, shortID)
-			}
-			if audio {
-				list.Audio = append(list.Audio, shortID)
-			}
-			break
 		}
+		if video {
+			list.Video = append(list.Video, shortID)
+		}
+		if audio {
+			list.Audio = append(list.Audio, shortID)
+		}
+	}
+	if err := statusRows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to read live status")
 	}
 	return list, nil
 }

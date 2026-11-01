@@ -31,7 +31,8 @@ La configurazione orchestrata da [docker-compose.yml](file:///Users/fabio/CODE/e
    - Porta esposta: `5432`.
 
 4. **`livekit` (extra-livekit)**:
-   - Media Server WebRTC / SFU ufficiale LiveKit configurato con [livekit.yaml](file:///Users/fabio/CODE/extra/docker/livekit.yaml).
+   - Media Server WebRTC / SFU ufficiale LiveKit. La configurazione è in `docker-compose.yml` (variabile `LIVEKIT_CONFIG`), generata dal `.env`: usa le stesse chiavi del backend (`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`).
+   - Webhook: LiveKit avvisa il backend (`LIVEKIT_WEBHOOK_URL`, predefinito `http://backend:4000/videochat/livekit/webhook`) di apertura e chiusura delle stanze, ingresso e uscita dei partecipanti e tracce pubblicate; il backend aggiorna la tabella `videochat.live_status` usata per lo stato delle dirette nel sito pubblico.
    - Porte: `7880` (HTTP/WS), `7881` (TCP RTC), `7882` (UDP RTC).
 
 ---
@@ -59,6 +60,7 @@ PASSWORD_PEPPER=__generare_con_openssl_rand_hex_32__
 LIVEKIT_URL=ws://livekit:7880
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
+LIVEKIT_WEBHOOK_URL=http://backend:4000/videochat/livekit/webhook
 ```
 
 ### Abilitazione HTTPS Automatico in Produzione

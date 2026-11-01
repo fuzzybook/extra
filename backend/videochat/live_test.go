@@ -2,17 +2,22 @@ package videochat
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	authsvc "encore.app/auth"
 	"encore.app/broadcasters"
 	"encore.dev/beta/auth"
 	"encore.dev/beta/errs"
 	"encore.dev/et"
+	"encore.dev/storage/sqldb"
 	"encore.dev/types/uuid"
 	lkauth "github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
@@ -102,12 +107,23 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 		t.Fatalf("offline messages: %+v %v", list, err)
 	}
 
+	// Lo stato arriva dalla tabella live_status, aggiornata dagli eventi dei
+	// webhook: ogni evento rilegge da LiveKit lo stato reale della stanza.
+	refresh := func() {
+		t.Helper()
+		if err := handleRoomStatusEvent(ctx, &RoomStatusEvent{Event: "participant_joined", RoomName: "alicia-room"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Lo stato si mostra solo per i broadcaster con can_broadcast nel personal setup.
 	publishing = true
+	refresh()
 	if list, err := ListLive(ctx); err != nil || len(list.Enabled) != 0 || len(list.Open) != 0 || len(list.Video) != 0 {
 		t.Fatalf("ListLive without personal setup = %+v, %v", list, err)
 	}
 	publishing = false
+	refresh()
 	if _, err := profilesDB.Exec(ctx, `INSERT INTO user_profiles (user_id, display_name, email) VALUES ($1, 'Alicia', 'alicia@example.invalid')`, ownerID); err != nil {
 		t.Fatal(err)
 	}
@@ -121,6 +137,7 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 	}
 
 	publishing = true
+	refresh()
 	// Camera accesa, microfono in muto.
 	if list, err := ListLive(ctx); err != nil || len(list.Open) != 1 || len(list.Video) != 1 || list.Video[0] != "abc123" || len(list.Audio) != 0 {
 		t.Fatalf("live ListLive = %+v, %v", list, err)
@@ -313,5 +330,140 @@ func TestOpenMyLiveUsesPersonalSetup(t *testing.T) {
 	}
 	if _, err := OpenMyLive(ownerCtx); errs.Code(err) != errs.PermissionDenied {
 		t.Fatalf("re-disabled OpenMyLive: %v", err)
+	}
+}
+
+func TestLiveKitWebhookUpdatesLiveStatus(t *testing.T) {
+	useTestVideochatDB(t)
+	const ownerID = "00000000-0000-4000-8000-000000000031"
+
+	roomOpen, publishing := true, false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var response proto.Message
+		switch r.URL.Path {
+		case "/twirp/livekit.RoomService/ListRooms":
+			result := &livekit.ListRoomsResponse{}
+			if roomOpen {
+				result.Rooms = []*livekit.Room{
+					{Sid: "RM_carla", Name: "carla-room", Metadata: `{"mode":"broadcast","owner_id":"` + ownerID + `","display_name":"Carla"}`},
+					{Sid: "RM_plain", Name: "plain-room", Metadata: `{}`},
+				}
+			}
+			response = result
+		case "/twirp/livekit.RoomService/ListParticipants":
+			owner := &livekit.ParticipantInfo{Identity: ownerID}
+			if publishing {
+				owner.Tracks = []*livekit.TrackInfo{{Sid: "TR_cam", Type: livekit.TrackType_VIDEO}, {Sid: "TR_mic", Type: livekit.TrackType_AUDIO}}
+			}
+			response = &livekit.ListParticipantsResponse{Participants: []*livekit.ParticipantInfo{owner, {Identity: "viewer"}}}
+		default:
+			t.Errorf("unexpected LiveKit operation: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		payload, _ := proto.Marshal(response)
+		w.Header().Set("Content-Type", "application/protobuf")
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+	original := secrets
+	defer func() { secrets = original }()
+	secrets.LiveKitURL, secrets.LiveKitAPIKey, secrets.LiveKitAPISecret = server.URL, "test-key", "test-secret-with-enough-length"
+
+	// Webhook firmato come fa LiveKit: token con lo SHA-256 del corpo.
+	send := func(body, secret string) int {
+		t.Helper()
+		sum := sha256.Sum256([]byte(body))
+		token, err := lkauth.NewAccessToken("test-key", secret).SetValidFor(time.Minute).SetSha256(base64.StdEncoding.EncodeToString(sum[:])).ToJWT()
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/videochat/livekit/webhook", strings.NewReader(body))
+		req.Header.Set("Authorization", token)
+		req.Header.Set("Content-Type", "application/webhook+json")
+		rec := httptest.NewRecorder()
+		serveLiveKitWebhook(rec, req)
+		return rec.Code
+	}
+	body := `{"event":"track_published","room":{"sid":"RM_carla","name":"carla-room"},"id":"EV_1","createdAt":"1"}`
+	if code := send(body, "wrong-secret-with-enough-length"); code != http.StatusUnauthorized {
+		t.Fatalf("forged webhook: status %d", code)
+	}
+	if code := send(body, "test-secret-with-enough-length"); code != http.StatusOK {
+		t.Fatalf("signed webhook: status %d", code)
+	}
+	published := et.Topic(RoomStatusEvents).PublishedMessages()
+	if len(published) != 1 || published[0].RoomName != "carla-room" || published[0].Event != "track_published" {
+		t.Fatalf("published events = %+v", published)
+	}
+	// Eventi non legati allo stato delle stanze: accettati ma ignorati.
+	if code := send(`{"event":"egress_started","room":{"name":"carla-room"}}`, "test-secret-with-enough-length"); code != http.StatusOK {
+		t.Fatalf("egress webhook: status %d", code)
+	}
+	if n := len(et.Topic(RoomStatusEvents).PublishedMessages()); n != 1 {
+		t.Fatalf("egress event published: %d messages", n)
+	}
+
+	ctx := context.Background()
+	status := func() (connected, video, audio bool, found bool) {
+		t.Helper()
+		err := db.QueryRow(ctx, `SELECT owner_connected, video, audio FROM live_status WHERE room_name = 'carla-room'`).Scan(&connected, &video, &audio)
+		if errors.Is(err, sqldb.ErrNoRows) {
+			return false, false, false, false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return connected, video, audio, true
+	}
+
+	// L'evento rilegge lo stato reale: duplicati o fuori ordine danno lo stesso risultato.
+	for i := 0; i < 2; i++ {
+		if err := handleRoomStatusEvent(ctx, published[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if connected, video, audio, found := status(); !found || !connected || video || audio {
+		t.Fatalf("status without tracks = %v %v %v %v", connected, video, audio, found)
+	}
+	publishing = true
+	if err := handleRoomStatusEvent(ctx, &RoomStatusEvent{Event: "track_published", RoomName: "carla-room"}); err != nil {
+		t.Fatal(err)
+	}
+	if connected, video, audio, found := status(); !found || !connected || !video || !audio {
+		t.Fatalf("status while publishing = %v %v %v %v", connected, video, audio, found)
+	}
+	// Le stanze non broadcast non finiscono in tabella.
+	if err := handleRoomStatusEvent(ctx, &RoomStatusEvent{Event: "room_started", RoomName: "plain-room"}); err != nil {
+		t.Fatal(err)
+	}
+	var plain int
+	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM live_status WHERE room_name = 'plain-room'`).Scan(&plain); err != nil || plain != 0 {
+		t.Fatalf("plain room rows = %d, %v", plain, err)
+	}
+
+	// Chiusura della stanza: la riga sparisce.
+	roomOpen = false
+	if err := handleRoomStatusEvent(ctx, &RoomStatusEvent{Event: "room_finished", RoomName: "carla-room"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, found := status(); found {
+		t.Fatal("closed room still in live_status")
+	}
+
+	// Riallineamento completo: aggiunge le stanze aperte e toglie quelle chiuse.
+	if _, err := db.Exec(ctx, `INSERT INTO live_status (room_name, room_sid, owner_id, owner_connected, updated_at) VALUES ('stale-room', 'RM_stale', 'x', TRUE, NOW() - INTERVAL '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	roomOpen = true
+	if err := SyncLiveStatus(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, found := status(); !found {
+		t.Fatal("sync did not add the open room")
+	}
+	var stale int
+	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM live_status WHERE room_name = 'stale-room'`).Scan(&stale); err != nil || stale != 0 {
+		t.Fatalf("stale rows = %d, %v", stale, err)
 	}
 }
