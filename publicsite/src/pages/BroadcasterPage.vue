@@ -48,6 +48,9 @@
             {{ broadcaster.category }}
             <span v-if="broadcaster.certified" class="br-certified">✓ {{ t('broadcaster.certified') }}</span>
           </div>
+          <router-link v-if="isLive" :to="liveRoute" class="br-live">
+            <span class="br-live__dot">●</span> {{ t('live.liveNow') }} · {{ t('live.watch') }}
+          </router-link>
         </header>
 
         <section v-if="broadcaster.bio">
@@ -107,7 +110,12 @@ const broadcaster = ref<broadcasters.Broadcaster | null>(null);
 const loading = ref(true);
 const current = ref(0);
 
+const isLive = ref(false);
+
 const homeRoute = computed(() => (route.params.locale ? `/${String(route.params.locale)}` : '/'));
+const liveRoute = computed(
+  () => `${route.params.locale ? `/${String(route.params.locale)}` : ''}/br/${String(route.params.shortId || '').toLowerCase()}/live`,
+);
 
 useMeta(() => ({
   title: `${broadcaster.value?.display_name || t('broadcaster.profile')} - PublicSite`,
@@ -124,6 +132,14 @@ async function load() {
   const shortId = String(route.params.shortId || '').toLowerCase();
   loading.value = true;
   current.value = 0;
+  isLive.value = false;
+  // Lo stato della diretta è facoltativo: se non arriva la pagina resta uguale.
+  void api.videochat
+    .GetLive(shortId)
+    .then((status) => {
+      if (String(route.params.shortId || '').toLowerCase() === shortId) isLive.value = status.live;
+    })
+    .catch(() => {});
   try {
     broadcaster.value = await api.broadcasters.GetBroadcasterByShortID(shortId);
   } catch {
@@ -292,6 +308,40 @@ h1 {
 .br-subtitle {
   color: var(--br-accent);
   font-size: 22px;
+}
+
+.br-live {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #d32f2f;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.br-live:hover,
+.br-live:focus-visible {
+  background: #b71c1c;
+  outline: none;
+}
+
+.br-live__dot {
+  animation: br-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes br-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-live__dot {
+    animation: none;
+  }
 }
 
 .br-certified {

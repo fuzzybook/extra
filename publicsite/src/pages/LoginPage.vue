@@ -240,6 +240,13 @@ const loginPassword = ref('');
 const loginLoading = ref(false);
 const loginError = ref('');
 
+// Dopo il login si torna alla pagina di provenienza (es. una diretta), solo
+// se è un percorso interno del sito.
+function redirectTarget(): string {
+  const target = typeof route.query.redirect === 'string' ? route.query.redirect : '';
+  return target.startsWith('/') && !target.startsWith('//') && !target.includes('\\') ? target : '/dashboard';
+}
+
 async function onLogin() {
   loginError.value = '';
   if (!EMAIL_PATTERN.test(loginEmail.value) || !loginPassword.value) {
@@ -251,7 +258,7 @@ async function onLogin() {
     // La sessione arriva come cookie HttpOnly.
     await api.profiles.Login({ user_email: loginEmail.value, password: loginPassword.value });
     loginPassword.value = '';
-    await router.push('/dashboard');
+    await router.push(redirectTarget());
   } catch (err) {
     loginError.value =
       err instanceof APIError && err.code === ErrCode.Unauthenticated ? t('login.invalidCredentials') : errorMessage(err);

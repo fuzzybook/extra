@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"encore.app/config"
+	"encore.dev/beta/errs"
 	"encore.dev/types/uuid"
 )
 
@@ -454,6 +455,17 @@ func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
 	for _, id := range []string{disabled, "000000", "bad", "../x"} {
 		if _, err := GetBroadcasterByShortID(ctx, id); err == nil {
 			t.Errorf("GetBroadcasterByShortID(%q) returned a profile", id)
+		}
+	}
+
+	// La videochat pubblica ricava il proprietario solo dei profili abilitati.
+	owner, err := GetLiveOwner(ctx, enabled)
+	if err != nil || owner.DisplayName != "Public page" || owner.UserID == "" {
+		t.Fatalf("GetLiveOwner(enabled) = %+v, %v", owner, err)
+	}
+	for _, id := range []string{disabled, "000000", "bad"} {
+		if _, err := GetLiveOwner(ctx, id); errs.Code(err) != errs.NotFound {
+			t.Errorf("GetLiveOwner(%q) = %v, want not found", id, err)
 		}
 	}
 }

@@ -681,6 +681,37 @@ func getBroadcaster(ctx context.Context, id uuid.UUID) (*Broadcaster, error) {
 
 var shortIDPattern = regexp.MustCompile(`^[0-9a-z]{6}$`)
 
+// LiveOwner identifica il proprietario della pagina /br/:shortID per la
+// videochat pubblica.
+type LiveOwner struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+}
+
+// GetLiveOwner restituisce l'utente di un broadcaster abilitato dato il suo
+// short_id. È privato: lo user_id non viene mai esposto al sito pubblico.
+//
+//encore:api private method=GET path=/broadcasters/internal/live-owner/:shortID
+func GetLiveOwner(ctx context.Context, shortID string) (*LiveOwner, error) {
+	shortID = strings.ToLower(strings.TrimSpace(shortID))
+	if !shortIDPattern.MatchString(shortID) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	var owner LiveOwner
+	err := db.QueryRow(ctx, `
+		SELECT user_id::text, display_name
+		FROM broadcasters
+		WHERE short_id = $1 AND enabled = TRUE
+	`, shortID).Scan(&owner.UserID, &owner.DisplayName)
+	if errors.Is(err, sqldb.ErrNoRows) {
+		return nil, &errs.Error{Code: errs.NotFound, Message: "broadcaster non trovato"}
+	}
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+	}
+	return &owner, nil
+}
+
 // GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
 // short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
 // visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo

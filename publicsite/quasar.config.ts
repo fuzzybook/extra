@@ -2,8 +2,11 @@
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
 import { defineConfig } from '#q-app';
+import { webchatSetup } from '../packages/webchat/quasar';
 
 export default defineConfig((/* ctx */) => {
+  // Webchat condivisa con l'altra app (packages/webchat).
+  const webchat = webchatSetup(process.cwd());
   // The site calls the API on its own origin. In development the dev server
   // proxies the API routes it uses to the Encore backend (override with
   // QCLI_API_BASE_URL=http://host:port); in production the reverse proxy
@@ -14,8 +17,9 @@ export default defineConfig((/* ctx */) => {
   }
   // Only the backend paths used by the site: the site's own pages use history
   // routing, so a broader proxy could shadow them.
-  const apiPaths = ['promo', 'auth', 'registration', 'broadcasters'];
+  const apiPaths = ['promo', 'auth', 'registration', 'broadcasters', 'videochat'];
   return {
+    htmlVariables: { livekitConnectSources: webchat.livekitConnectSources },
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
 
@@ -53,9 +57,11 @@ export default defineConfig((/* ctx */) => {
 
       typescript: {
         strict: true,
-        vueShim: true
-        // extendTsConfig (tsConfig) {}
+        vueShim: true,
+        extendTsConfig: webchat.extendTsConfig,
       },
+
+      alias: webchat.alias,
 
       // https://v2.quasar.dev/quasar-cli-vite/page-routing-with-vue-router#filename-based-routing
       // filenameBasedRouting: true,
@@ -70,7 +76,7 @@ export default defineConfig((/* ctx */) => {
       // minify: false,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      extendViteConf: webchat.extendViteConf,
       // viteVuePluginOptions: {},
 
       // to write components with JSX/TSX:

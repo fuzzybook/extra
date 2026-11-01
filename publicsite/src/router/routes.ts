@@ -57,6 +57,12 @@ const routes: RouteRecordRaw[] = [
         name: 'broadcaster',
         component: () => import('@/pages/BroadcasterPage.vue'),
       },
+      {
+        // Diretta del broadcaster: video e chat (packages/webchat)
+        path: 'br/:shortId/live',
+        name: 'broadcaster-live',
+        component: () => import('@/pages/BroadcasterLivePage.vue'),
+      },
     ],
   },
 

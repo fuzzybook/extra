@@ -1623,6 +1623,18 @@ export namespace videochat {
         requests: SpeakRequest[]
     }
 
+    /**
+     * LiveStatus dice se il broadcaster della pagina pubblica /br/:shortID è in
+     * diretta. RoomName serve a chi ha fatto login per chiedere un token con
+     * CreateToken; RoomSID è la chiave della chat della diretta.
+     */
+    export interface LiveStatus {
+        live: boolean
+        "display_name": string
+        "room_name": string
+        "room_sid": string
+    }
+
     export interface Participant {
         sid: string
         identity: string
@@ -1720,11 +1732,14 @@ export namespace videochat {
             this.baseClient = baseClient
             this.ApproveSpeakRequest = this.ApproveSpeakRequest.bind(this)
             this.CancelSpeakRequest = this.CancelSpeakRequest.bind(this)
+            this.CreateGuestToken = this.CreateGuestToken.bind(this)
             this.CreateRoom = this.CreateRoom.bind(this)
             this.CreateSpeakRequest = this.CreateSpeakRequest.bind(this)
             this.CreateToken = this.CreateToken.bind(this)
             this.DeleteRoom = this.DeleteRoom.bind(this)
+            this.GetLive = this.GetLive.bind(this)
             this.GetSpeakerState = this.GetSpeakerState.bind(this)
+            this.ListLiveMessages = this.ListLiveMessages.bind(this)
             this.ListMessages = this.ListMessages.bind(this)
             this.ListParticipants = this.ListParticipants.bind(this)
             this.ListRooms = this.ListRooms.bind(this)
@@ -1753,6 +1768,17 @@ export namespace videochat {
          */
         public async CancelSpeakRequest(roomName: string, requestId: string): Promise<void> {
             await this.baseClient.callTypedAPI("DELETE", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests/${encodeURIComponent(requestId)}`)
+        }
+
+        /**
+         * CreateGuestToken permette a un visitatore senza login di guardare una
+         * diretta: può solo ricevere audio, video e messaggi, non pubblica nulla, non
+         * scrive in chat ed è nascosto agli altri partecipanti.
+         */
+        public async CreateGuestToken(shortID: string): Promise<TokenResponse> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("POST", `/videochat/live/${encodeURIComponent(shortID)}/token`)
+            return await resp.json() as TokenResponse
         }
 
         /**
@@ -1790,12 +1816,37 @@ export namespace videochat {
         }
 
         /**
+         * GetLive restituisce lo stato della diretta di un broadcaster per il sito
+         * pubblico. Non richiede login.
+         */
+        public async GetLive(shortID: string): Promise<LiveStatus> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live/${encodeURIComponent(shortID)}`)
+            return await resp.json() as LiveStatus
+        }
+
+        /**
          * GetSpeakerState restituisce lo stato dello slot speaker della stanza e l'eventuale richiesta del chiamante.
          */
         public async GetSpeakerState(roomName: string): Promise<SpeakerStateResponse> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speaker-state`)
             return await resp.json() as SpeakerStateResponse
+        }
+
+        /**
+         * ListLiveMessages restituisce gli ultimi messaggi della chat di una diretta
+         * in corso, in sola lettura per i visitatori senza login.
+         */
+        public async ListLiveMessages(shortID: string, params: ListMessagesParams): Promise<ListMessagesResponse> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                limit: String(params.limit),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live/${encodeURIComponent(shortID)}/messages`, undefined, {query})
+            return await resp.json() as ListMessagesResponse
         }
 
         /**

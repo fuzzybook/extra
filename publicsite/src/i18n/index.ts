@@ -1,3 +1,5 @@
+import { webchatMessages, type WebchatMessages } from '@extra/webchat/i18n';
+
 export type SupportedLocale = 'it' | 'fr' | 'de' | 'en';
 
 export interface MessageSchema {
@@ -124,6 +126,22 @@ export interface MessageSchema {
     notFound: string;
     backHome: string;
   };
+  live: {
+    liveNow: string;
+    watch: string;
+    title: string;
+    offline: string;
+    backToProfile: string;
+    connecting: string;
+    error: string;
+    retry: string;
+    ended: string;
+    reconnecting: string;
+    audioHint: string;
+    enableAudio: string;
+    loginToChat: string;
+  };
+  webchat: WebchatMessages;
 }
 
 const it: MessageSchema = {
@@ -250,6 +268,22 @@ const it: MessageSchema = {
     notFound: 'Profilo non trovato.',
     backHome: 'Torna alla Home',
   },
+  live: {
+    liveNow: 'In diretta',
+    watch: 'Guarda la diretta',
+    title: '{name} in diretta',
+    offline: '{name} non è in diretta in questo momento.',
+    backToProfile: 'Torna al profilo',
+    connecting: 'Collegamento alla diretta…',
+    error: 'Impossibile collegarsi alla diretta.',
+    retry: 'Riprova',
+    ended: 'La diretta è terminata.',
+    reconnecting: 'Connessione persa, riconnessione in corso…',
+    audioHint: 'Il browser ha bloccato l\'audio.',
+    enableAudio: 'Attiva audio',
+    loginToChat: 'Accedi per scrivere in chat',
+  },
+  webchat: webchatMessages.it,
 };
 
 const fr: MessageSchema = {
@@ -376,6 +410,22 @@ const fr: MessageSchema = {
     notFound: 'Profil introuvable.',
     backHome: "Retour à l'accueil",
   },
+  live: {
+    liveNow: 'En direct',
+    watch: 'Regarder le direct',
+    title: '{name} en direct',
+    offline: '{name} n\'est pas en direct pour le moment.',
+    backToProfile: 'Retour au profil',
+    connecting: 'Connexion au direct…',
+    error: 'Impossible de se connecter au direct.',
+    retry: 'Réessayer',
+    ended: 'Le direct est terminé.',
+    reconnecting: 'Connexion perdue, reconnexion en cours…',
+    audioHint: 'Le navigateur a bloqué le son.',
+    enableAudio: 'Activer le son',
+    loginToChat: 'Connectez-vous pour écrire dans le chat',
+  },
+  webchat: webchatMessages.fr,
 };
 
 const de: MessageSchema = {
@@ -502,6 +552,22 @@ const de: MessageSchema = {
     notFound: 'Profil nicht gefunden.',
     backHome: 'Zur Startseite',
   },
+  live: {
+    liveNow: 'Live',
+    watch: 'Live ansehen',
+    title: '{name} live',
+    offline: '{name} ist gerade nicht live.',
+    backToProfile: 'Zurück zum Profil',
+    connecting: 'Verbindung zur Übertragung…',
+    error: 'Verbindung zur Übertragung nicht möglich.',
+    retry: 'Erneut versuchen',
+    ended: 'Die Übertragung ist beendet.',
+    reconnecting: 'Verbindung verloren, neuer Versuch…',
+    audioHint: 'Der Browser hat den Ton blockiert.',
+    enableAudio: 'Ton aktivieren',
+    loginToChat: 'Anmelden, um im Chat zu schreiben',
+  },
+  webchat: webchatMessages.de,
 };
 
 const en: MessageSchema = {
@@ -628,6 +694,22 @@ const en: MessageSchema = {
     notFound: 'Profile not found.',
     backHome: 'Back to home',
   },
+  live: {
+    liveNow: 'Live now',
+    watch: 'Watch the live',
+    title: '{name} live',
+    offline: '{name} is not live right now.',
+    backToProfile: 'Back to the profile',
+    connecting: 'Connecting to the live…',
+    error: 'Could not connect to the live.',
+    retry: 'Try again',
+    ended: 'The live has ended.',
+    reconnecting: 'Connection lost, reconnecting…',
+    audioHint: 'The browser blocked the sound.',
+    enableAudio: 'Turn on sound',
+    loginToChat: 'Log in to write in the chat',
+  },
+  webchat: webchatMessages.en,
 };
 
 export default {
