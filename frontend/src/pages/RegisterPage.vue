@@ -37,16 +37,52 @@
               :error-message="fieldErrors.name"
             />
 
-            <q-select
-              v-model="form.member_type"
-              :options="memberTypeOptions"
-              :label="t('register.memberTypeLabel')"
-              emit-value
-              map-options
-              :hint="form.member_type === 'broadcaster' ? t('register.broadcasterHint') : undefined"
-              :error="Boolean(fieldErrors.member_type)"
-              :error-message="fieldErrors.member_type"
-            />
+            <!-- Status: tutte le opzioni visibili -->
+            <div>
+              <div class="text-caption text-grey-7">{{ t('register.memberTypeLabel') }}</div>
+              <q-option-group v-model="form.member_type" :options="memberTypeOptions" type="radio" dense />
+              <div v-if="form.member_type === 'broadcaster'" class="text-caption text-grey-7 q-mt-xs">
+                {{ t('register.broadcasterHint') }}
+              </div>
+              <div v-else-if="contactRequired" class="text-caption text-grey-7 q-mt-xs">
+                {{ t('register.contactHint') }}
+              </div>
+              <div v-if="fieldErrors.member_type" class="text-negative text-caption q-mt-xs">
+                {{ fieldErrors.member_type }}
+              </div>
+            </div>
+
+            <!-- Inserzionisti e club: telefono, paese (stati europei) e indirizzo obbligatori -->
+            <template v-if="contactRequired">
+              <q-input
+                v-model="form.phone"
+                :label="t('register.phoneLabel')"
+                type="tel"
+                autocomplete="tel"
+                :error="Boolean(fieldErrors.phone)"
+                :error-message="fieldErrors.phone"
+              />
+              <q-select
+                v-model="form.country"
+                :options="countryOptions"
+                :label="t('register.countryLabel')"
+                emit-value
+                map-options
+                autocomplete="country"
+                popup-content-class="bg-white text-dark"
+                :error="Boolean(fieldErrors.country)"
+                :error-message="fieldErrors.country"
+              />
+              <q-input
+                v-model="form.address"
+                :label="t('register.addressLabel')"
+                type="textarea"
+                autogrow
+                autocomplete="street-address"
+                :error="Boolean(fieldErrors.address)"
+                :error-message="fieldErrors.address"
+              />
+            </template>
 
             <q-input
               v-model="form.email"
@@ -139,6 +175,7 @@ import { useI18n } from 'vue-i18n';
 import { type registration } from '@/encore/client';
 import { api } from '@/encore/api';
 import { RegistrationRegisterParamsSchema } from '@/encore/zod';
+import { europeanCountryOptions } from '@/data/european-countries';
 
 type Focusable = { focus: () => void };
 
@@ -161,14 +198,21 @@ const form = reactive({
   avatar_url: '',
   name: '',
   member_type: 'visitor',
+  phone: '',
+  country: '',
+  address: '',
   newsletter: false,
   accept_terms: false,
 });
 
-const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser'] as const;
+const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser', 'club'] as const;
 const memberTypeOptions = computed(() =>
   MEMBER_TYPES.map((value) => ({ value, label: t(`register.memberTypes.${value}`) })),
 );
+// Inserzionisti e club devono indicare telefono, paese e indirizzo.
+const CONTACT_REQUIRED_TYPES: readonly string[] = ['advertiser', 'club'];
+const contactRequired = computed(() => CONTACT_REQUIRED_TYPES.includes(form.member_type));
+const countryOptions = computed(() => europeanCountryOptions(String(locale.value)));
 
 // Lingua del profilo: quella dell'interfaccia, se il sito la supporta.
 const SITE_LANGUAGES = ['en', 'it', 'fr', 'de'];
@@ -229,8 +273,19 @@ async function checkEmailAvailability(): Promise<boolean> {
 
 function validateForm(): registration.RegisterParams | null {
   clearFieldErrors();
-  const { confirm_password, ...payload } = form;
-  const result = RegistrationRegisterParamsSchema.safeParse({ ...payload, language: profileLanguage() });
+  if (contactRequired.value) {
+    const missing = t('register.contactRequired');
+    if (!form.phone.trim()) fieldErrors.phone = missing;
+    if (!form.country) fieldErrors.country = missing;
+    if (!form.address.trim()) fieldErrors.address = missing;
+    if (fieldErrors.phone || fieldErrors.country || fieldErrors.address) return null;
+  }
+  const { confirm_password, phone: rawPhone, country: rawCountry, address: rawAddress, ...payload } = form;
+  // Contatti inviati solo per inserzionisti e club (i campi sono nascosti per gli altri).
+  const contact = contactRequired.value
+    ? { phone: rawPhone.trim(), country: rawCountry, address: rawAddress.trim() }
+    : {};
+  const result = RegistrationRegisterParamsSchema.safeParse({ ...payload, ...contact, language: profileLanguage() });
   if (!result.success) {
     const flattened = result.error.flatten().fieldErrors;
     for (const key of Object.keys(flattened) as (keyof registration.RegisterParams)[]) {
@@ -262,6 +317,9 @@ function clearFieldErrors() {
   fieldErrors.avatar_url = '';
   fieldErrors.name = '';
   fieldErrors.member_type = '';
+  fieldErrors.phone = '';
+  fieldErrors.country = '';
+  fieldErrors.address = '';
   fieldErrors.accept_terms = '';
 }
 
@@ -273,6 +331,9 @@ function resetForm() {
   form.avatar_url = '';
   form.name = '';
   form.member_type = 'visitor';
+  form.phone = '';
+  form.country = '';
+  form.address = '';
   form.newsletter = false;
   form.accept_terms = false;
 }

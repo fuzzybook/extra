@@ -226,7 +226,7 @@ export const RegistrationRegisterParamsSchema = z.object({
   avatar_url: z.string(),
   password: z.string().min(8),
   language: z.enum(['en', 'it', 'fr', 'de']),
-  member_type: z.enum(['visitor', 'broadcaster', 'affiliate', 'advertiser']),
+  member_type: z.enum(['visitor', 'broadcaster', 'affiliate', 'advertiser', 'club']),
   name: z.string().trim().min(1).max(120),
   phone: z.string().regex(/^\+?[0-9 ()./-]{5,30}$/).optional(),
   country: z.string().regex(/^[A-Za-z]{2}$/).optional(),

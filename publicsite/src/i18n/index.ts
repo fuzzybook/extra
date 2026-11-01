@@ -37,10 +37,14 @@ export interface MessageSchema {
   clubs: {
     title: string;
     subtitle: string;
+    empty: string;
+    error: string;
   };
   soft: {
     title: string;
     subtitle: string;
+    empty: string;
+    error: string;
   };
   webcam: {
     title: string;
@@ -98,11 +102,14 @@ export interface MessageSchema {
     statusRequired: string;
     phoneInvalid: string;
     broadcasterHint: string;
+    contactHint: string;
+    contactRequired: string;
     memberTypes: {
       visitor: string;
       broadcaster: string;
       affiliate: string;
       advertiser: string;
+      club: string;
     };
   };
   terms: {
@@ -208,10 +215,14 @@ const it: MessageSchema = {
   clubs: {
     title: 'Clubs',
     subtitle: 'Sezione Clubs del portale pubblico.',
+    empty: 'Nessun broadcaster da mostrare.',
+    error: 'Impossibile caricare i broadcaster.',
   },
   soft: {
     title: 'Soft',
     subtitle: 'Sezione Soft del portale pubblico.',
+    empty: 'Nessun broadcaster da mostrare.',
+    error: 'Impossibile caricare i broadcaster.',
   },
   webcam: {
     title: 'Webcam',
@@ -269,11 +280,14 @@ const it: MessageSchema = {
     statusRequired: 'Scegli il tuo status.',
     phoneInvalid: 'Numero di telefono non valido.',
     broadcasterHint: "Il profilo broadcaster viene abilitato dopo l'approvazione di un amministratore.",
+    contactHint: 'Per inserzionisti e club telefono, paese e indirizzo sono obbligatori.',
+    contactRequired: 'Inserisci telefono, paese e indirizzo.',
     memberTypes: {
       visitor: 'Visitatore',
       broadcaster: 'Broadcaster',
       affiliate: 'Affiliato',
       advertiser: 'Inserzionista',
+      club: 'Club',
     },
   },
   terms: {
@@ -379,10 +393,14 @@ const fr: MessageSchema = {
   clubs: {
     title: 'Clubs',
     subtitle: 'Section Clubs du portail public.',
+    empty: 'Aucun broadcaster à afficher.',
+    error: 'Impossible de charger les broadcasters.',
   },
   soft: {
     title: 'Soft',
     subtitle: 'Section Soft du portail public.',
+    empty: 'Aucun broadcaster à afficher.',
+    error: 'Impossible de charger les broadcasters.',
   },
   webcam: {
     title: 'Webcam',
@@ -440,11 +458,14 @@ const fr: MessageSchema = {
     statusRequired: 'Choisissez votre statut.',
     phoneInvalid: 'Numéro de téléphone non valide.',
     broadcasterHint: "Le profil broadcaster est activé après l'approbation d'un administrateur.",
+    contactHint: "Pour les annonceurs et les clubs, le téléphone, le pays et l'adresse sont obligatoires.",
+    contactRequired: "Indiquez le téléphone, le pays et l'adresse.",
     memberTypes: {
       visitor: 'Visiteur',
       broadcaster: 'Broadcaster',
       affiliate: 'Affilié',
       advertiser: 'Annonceur',
+      club: 'Club',
     },
   },
   terms: {
@@ -550,10 +571,14 @@ const de: MessageSchema = {
   clubs: {
     title: 'Clubs',
     subtitle: 'Clubs-Bereich des öffentlichen Portals.',
+    empty: 'Keine Broadcaster vorhanden.',
+    error: 'Broadcaster konnten nicht geladen werden.',
   },
   soft: {
     title: 'Soft',
     subtitle: 'Soft-Bereich des öffentlichen Portals.',
+    empty: 'Keine Broadcaster vorhanden.',
+    error: 'Broadcaster konnten nicht geladen werden.',
   },
   webcam: {
     title: 'Webcam',
@@ -611,11 +636,14 @@ const de: MessageSchema = {
     statusRequired: 'Wählen Sie Ihren Status.',
     phoneInvalid: 'Ungültige Telefonnummer.',
     broadcasterHint: 'Das Broadcaster-Profil wird nach Freigabe durch einen Administrator aktiviert.',
+    contactHint: 'Für Werbetreibende und Clubs sind Telefon, Land und Adresse Pflichtfelder.',
+    contactRequired: 'Geben Sie Telefon, Land und Adresse an.',
     memberTypes: {
       visitor: 'Besucher',
       broadcaster: 'Broadcaster',
       affiliate: 'Affiliate',
       advertiser: 'Werbetreibender',
+      club: 'Club',
     },
   },
   terms: {
@@ -721,10 +749,14 @@ const en: MessageSchema = {
   clubs: {
     title: 'Clubs',
     subtitle: 'Clubs section of the public portal.',
+    empty: 'No broadcasters to show.',
+    error: 'Unable to load broadcasters.',
   },
   soft: {
     title: 'Soft',
     subtitle: 'Soft section of the public portal.',
+    empty: 'No broadcasters to show.',
+    error: 'Unable to load broadcasters.',
   },
   webcam: {
     title: 'Webcam',
@@ -782,11 +814,14 @@ const en: MessageSchema = {
     statusRequired: 'Choose your status.',
     phoneInvalid: 'Invalid phone number.',
     broadcasterHint: 'The broadcaster profile is enabled after an administrator approves it.',
+    contactHint: 'Phone, country and address are required for advertisers and clubs.',
+    contactRequired: 'Enter your phone, country and address.',
     memberTypes: {
       visitor: 'Visitor',
       broadcaster: 'Broadcaster',
       affiliate: 'Affiliate',
       advertiser: 'Advertiser',
+      club: 'Club',
     },
   },
   terms: {

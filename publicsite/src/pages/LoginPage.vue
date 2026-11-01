@@ -92,12 +92,16 @@
               <option v-for="lang in LANGUAGES" :key="lang.value" :value="lang.value">{{ lang.label }}</option>
             </select>
 
-            <label class="account-label" for="register-status">{{ t('login.statusLabel') }}</label>
-            <select id="register-status" v-model="registerStatus" class="account-input account-select" required>
-              <option value="" disabled hidden></option>
-              <option v-for="type in MEMBER_TYPES" :key="type" :value="type">{{ t(`login.memberTypes.${type}`) }}</option>
-            </select>
+            <!-- Status: tutte le opzioni visibili -->
+            <fieldset class="account-radios">
+              <legend class="account-label">{{ t('login.statusLabel') }}</legend>
+              <label v-for="type in MEMBER_TYPES" :key="type" class="account-check account-radio">
+                <input v-model="registerStatus" type="radio" name="register-status" :value="type" required />
+                <span>{{ t(`login.memberTypes.${type}`) }}</span>
+              </label>
+            </fieldset>
             <p v-if="registerStatus === 'broadcaster'" class="account-field-hint">{{ t('login.broadcasterHint') }}</p>
+            <p v-else-if="contactRequired" class="account-field-hint">{{ t('login.contactHint') }}</p>
 
             <label class="account-label" for="register-nickname">{{ t('login.nicknameLabel') }}</label>
             <input
@@ -143,7 +147,7 @@
             />
 
             <label class="account-label" for="register-phone">
-              {{ t('login.phoneLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+              {{ t('login.phoneLabel') }} <span v-if="!contactRequired" class="account-optional">{{ t('login.optional') }}</span>
             </label>
             <input
               id="register-phone"
@@ -152,18 +156,25 @@
               type="tel"
               autocomplete="tel"
               maxlength="30"
+              :required="contactRequired"
             />
 
             <label class="account-label" for="register-country">
-              {{ t('login.countryLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+              {{ t('login.countryLabel') }} <span v-if="!contactRequired" class="account-optional">{{ t('login.optional') }}</span>
             </label>
-            <select id="register-country" v-model="registerCountry" class="account-input account-select" autocomplete="country">
+            <select
+              id="register-country"
+              v-model="registerCountry"
+              class="account-input account-select"
+              autocomplete="country"
+              :required="contactRequired"
+            >
               <option value=""></option>
               <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
             </select>
 
             <label class="account-label" for="register-address">
-              {{ t('login.addressLabel') }} <span class="account-optional">{{ t('login.optional') }}</span>
+              {{ t('login.addressLabel') }} <span v-if="!contactRequired" class="account-optional">{{ t('login.optional') }}</span>
             </label>
             <textarea
               id="register-address"
@@ -172,6 +183,7 @@
               autocomplete="street-address"
               maxlength="500"
               rows="3"
+              :required="contactRequired"
             />
 
             <label class="account-check">
@@ -311,7 +323,9 @@ const LANGUAGES = [
   { value: 'fr', label: 'Français' },
   { value: 'de', label: 'Deutsch' },
 ] as const;
-const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser'] as const;
+const MEMBER_TYPES = ['visitor', 'broadcaster', 'affiliate', 'advertiser', 'club'] as const;
+// Inserzionisti e club devono indicare telefono, paese e indirizzo.
+const CONTACT_REQUIRED_TYPES: readonly string[] = ['advertiser', 'club'];
 const PHONE_PATTERN = /^\+?[0-9 ()./-]{5,30}$/;
 
 const siteLanguage = computed(() => {
@@ -334,6 +348,7 @@ const registerAddress = ref('');
 const registerNewsletter = ref(false);
 const registerTerms = ref(false);
 const registerDetails = ref(false);
+const contactRequired = computed(() => CONTACT_REQUIRED_TYPES.includes(registerStatus.value));
 const registerLoading = ref(false);
 const registerError = ref('');
 const registerDone = ref(false);
@@ -343,6 +358,9 @@ const registerLanguageInput = ref<HTMLSelectElement | null>(null);
 function registerFormError(): string {
   if (!registerStatus.value) return t('login.statusRequired');
   if (registerPassword.value !== registerConfirm.value) return t('login.passwordMismatch');
+  if (contactRequired.value && (!registerPhone.value || !registerCountry.value || !registerAddress.value.trim())) {
+    return t('login.contactRequired');
+  }
   if (registerPhone.value && !PHONE_PATTERN.test(registerPhone.value)) return t('login.phoneInvalid');
   if (!registerTerms.value) return t('login.termsRequired');
   return '';
@@ -536,6 +554,32 @@ async function onRegister() {
 
 .account-check span {
   padding-top: 3px;
+}
+
+.account-radios {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.account-radios legend {
+  padding: 0;
+}
+
+.account-radio {
+  margin-bottom: 10px;
+}
+
+.account-radio input {
+  border-radius: 50%;
+}
+
+.account-radio input:checked {
+  background-image: none;
+  box-shadow: inset 0 0 0 6px #1a1a1a;
+  background-color: #ffffff;
 }
 
 .account-inline-link {

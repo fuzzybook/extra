@@ -29,6 +29,7 @@ const (
 	MemberTypeVisitor     = "visitor"
 	MemberTypeAffiliate   = "affiliate"
 	MemberTypeAdvertiser  = "advertiser"
+	MemberTypeClub        = "club"
 	MemberTypeAdmin       = "admin"
 )
 
@@ -43,13 +44,14 @@ func MemberTypes() []MemberTypeOption {
 		{Name: "Visitor", Value: MemberTypeVisitor},
 		{Name: "Affiliate", Value: MemberTypeAffiliate},
 		{Name: "Advertiser", Value: MemberTypeAdvertiser},
+		{Name: "Club", Value: MemberTypeClub},
 		{Name: "Admin", Value: MemberTypeAdmin},
 	}
 }
 
 func IsValidMemberType(value string) bool {
 	switch value {
-	case MemberTypeBroadcaster, MemberTypeVisitor, MemberTypeAffiliate, MemberTypeAdvertiser, MemberTypeAdmin:
+	case MemberTypeBroadcaster, MemberTypeVisitor, MemberTypeAffiliate, MemberTypeAdvertiser, MemberTypeClub, MemberTypeAdmin:
 		return true
 	default:
 		return false
@@ -103,7 +105,15 @@ var Languages = []string{"en", "it", "fr", "de"}
 
 // SignupMemberTypes sono i tipi di membro che si possono richiedere alla
 // registrazione (non admin).
-var SignupMemberTypes = []string{MemberTypeVisitor, MemberTypeBroadcaster, MemberTypeAffiliate, MemberTypeAdvertiser}
+var SignupMemberTypes = []string{MemberTypeVisitor, MemberTypeBroadcaster, MemberTypeAffiliate, MemberTypeAdvertiser, MemberTypeClub}
+
+// contactRequiredMemberTypes devono indicare telefono, paese e indirizzo.
+var contactRequiredMemberTypes = []string{MemberTypeAdvertiser, MemberTypeClub}
+
+// signupCountries sono i paesi accettati alla registrazione: gli stati
+// europei (ISO 3166-1 alpha-2, più XK per il Kosovo).
+var signupCountries = strings.Fields(`AD AL AT BA BE BG BY CH CY CZ DE DK EE ES FI FR GB GR HR HU IE IS IT LI LT LU
+	LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SK SM UA VA XK`)
 
 var (
 	phonePattern   = regexp.MustCompile(`^\+?[0-9 ()./-]{5,30}$`)
@@ -151,6 +161,9 @@ func (p *SignupPersonal) validate() error {
 	if p.Country != "" && !countryPattern.MatchString(p.Country) {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "country must be a 2-letter code"}
 	}
+	if p.Country != "" && !contains(signupCountries, p.Country) {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "country must be a European state"}
+	}
 	if utf8.RuneCountInString(p.Address) > maxAddressLength {
 		return &errs.Error{Code: errs.InvalidArgument, Message: "address is too long"}
 	}
@@ -187,6 +200,11 @@ func (p *RegisterParams) Validate() error {
 	if p.Personal != nil {
 		if err := p.Personal.validate(); err != nil {
 			return err
+		}
+	}
+	if contains(contactRequiredMemberTypes, p.RequestedMemberType) {
+		if p.Personal == nil || p.Personal.Phone == "" || p.Personal.Country == "" || p.Personal.Address == "" {
+			return &errs.Error{Code: errs.InvalidArgument, Message: "phone, country and address are required for advertisers and clubs"}
 		}
 	}
 	return authsvc.ValidatePassword(p.Password)
