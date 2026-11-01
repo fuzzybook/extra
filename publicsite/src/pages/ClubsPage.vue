@@ -1,5 +1,5 @@
 <template>
-  <CategorySection section="clubs" category="club" color="#bf5af2" />
+  <CategorySection section="clubs" category="Clubs" color="#bf5af2" />
 </template>
 
 <script setup lang="ts">

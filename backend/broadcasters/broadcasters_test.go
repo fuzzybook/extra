@@ -138,15 +138,15 @@ func TestGetCategoriesFromSiteConfig(t *testing.T) {
 	if len(resp.Categories) == 0 {
 		t.Errorf("expected at least 1 category from SiteConfig, got 0")
 	}
-	foundGeneral := false
+	// Le sezioni del sito pubblico (Elite, Clubs, Soft) usano questi nomi.
+	found := map[string]bool{}
 	for _, c := range resp.Categories {
-		if c.Name == "General" {
-			foundGeneral = true
-			break
-		}
+		found[c.Name] = true
 	}
-	if !foundGeneral {
-		t.Errorf("expected to find General category in SiteConfig")
+	for _, name := range []string{"Elite", "Clubs", "Soft"} {
+		if !found[name] {
+			t.Errorf("expected to find %s category in SiteConfig", name)
+		}
 	}
 }
 
@@ -519,6 +519,29 @@ func TestUpdateBroadcasterVisibilityByOwner(t *testing.T) {
 	}
 	if _, err := GetBroadcasterByShortID(ctx, b.ShortID); err != nil {
 		t.Fatalf("visible profile not public: %v", err)
+	}
+}
+
+func TestListBroadcastersCategoryIgnoresCase(t *testing.T) {
+	ctx := context.Background()
+	for _, category := range []string{"casetest", "CaseTest", "other"} {
+		id, _ := uuid.NewV4()
+		userID, _ := uuid.NewV4()
+		if _, err := db.Exec(ctx, `INSERT INTO broadcasters (id, user_id, display_name, category, enabled) VALUES ($1, $2, 'Case test', $3, TRUE)`, id, userID, category); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	res, err := ListBroadcasters(ctx, &ListBroadcastersParams{Category: "CASETEST"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Broadcasters) != 2 {
+		t.Fatalf("category filter returned %d broadcasters, want 2", len(res.Broadcasters))
+	}
+	for _, b := range res.Broadcasters {
+		if !strings.EqualFold(b.Category, "casetest") {
+			t.Errorf("unexpected category %q", b.Category)
+		}
 	}
 }
 

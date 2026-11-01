@@ -23,7 +23,8 @@ import { api } from '@/encore/api';
 import BroadcasterGrid from '@/components/BroadcasterGrid.vue';
 
 // Sezione del sito con i broadcaster di una categoria: il nome della sezione
-// (chiave i18n) e la categoria salvata sul profilo del broadcaster.
+// (chiave i18n) e la categoria come in config.SiteConfig (Elite, Clubs, Soft);
+// il backend la confronta senza distinguere maiuscole e minuscole.
 const props = defineProps<{ section: 'elite' | 'clubs' | 'soft'; category: string; color: string }>();
 
 const { t } = useI18n();

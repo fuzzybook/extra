@@ -572,7 +572,10 @@ func ListBroadcasters(ctx context.Context, p *ListBroadcastersParams) (*ListBroa
 
 	if p != nil {
 		if cat := strings.TrimSpace(p.Category); cat != "" {
-			whereClauses = append(whereClauses, fmt.Sprintf("category = $%d", argIdx))
+			// Senza distinzione tra maiuscole e minuscole: le sezioni del sito
+			// usano i nomi di config.SiteConfig (es. "Elite"), i profili più
+			// vecchi possono averli salvati in minuscolo.
+			whereClauses = append(whereClauses, fmt.Sprintf("LOWER(category) = LOWER($%d)", argIdx))
 			args = append(args, cat)
 			argIdx++
 		}

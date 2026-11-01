@@ -17,20 +17,16 @@ type Config struct {
 var SiteConfig = Config{
 	Categories: []Category{
 		{
-			Name:  "General",
-			Color: "#63f18eff",
+			Name:  "Elite",
+			Color: "#ff9500",
 		},
 		{
-			Name:  "Music",
-			Color: "#f16365ff",
+			Name:  "Clubs",
+			Color: "#bf5af2",
 		},
 		{
-			Name:  "Beauty",
-			Color: "#6366f1",
-		},
-		{
-			Name:  "test",
-			Color: "#ecf163ff",
+			Name:  "Soft",
+			Color: "#30d158",
 		},
 	},
 	BroadcasterAttributes: []string{
