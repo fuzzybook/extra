@@ -4,7 +4,7 @@
       <router-link :to="profileRoute" class="live-back">‹ {{ t('live.backToProfile') }}</router-link>
       <h1>
         {{ status?.display_name || t('live.liveNow') }}
-        <span v-if="live.videos.value.length" class="live-badge">● {{ t('live.liveNow') }}</span>
+        <LiveStatusIcons :status="roomStatus" size="24px" class="live-icons" />
       </h1>
     </header>
 
@@ -15,46 +15,59 @@
       <router-link :to="homeRoute" class="live-link">{{ t('broadcaster.backHome') }}</router-link>
     </div>
 
-    <div v-else class="live-layout">
-      <section class="live-stage" :aria-label="t('live.liveNow')">
-        <div v-if="live.reconnecting.value" class="live-banner">{{ t('live.reconnecting') }}</div>
-        <div v-if="live.needsAudio.value" class="live-banner">
-          {{ t('live.audioHint') }}
-          <button type="button" class="live-button" @click="live.startAudio">{{ t('live.enableAudio') }}</button>
-        </div>
-        <div v-if="loadError || live.error.value" class="live-banner live-banner--error" role="alert">
-          {{ t('live.error') }}
-          <button type="button" class="live-button" @click="refresh">{{ t('live.retry') }}</button>
-        </div>
+    <!-- Video e chat divisi da uno splitter trascinabile, come nello studio -->
+    <q-splitter
+      v-else
+      v-model="splitter"
+      :limits="[25, 85]"
+      :horizontal="$q.screen.lt.md"
+      class="live-splitter"
+      separator-class="live-splitter-separator"
+      @update:model-value="saveSplitter"
+    >
+      <template #before>
+        <section class="live-stage" :aria-label="t('live.liveNow')">
+          <div v-if="live.reconnecting.value" class="live-banner">{{ t('live.reconnecting') }}</div>
+          <div v-if="live.needsAudio.value" class="live-banner">
+            {{ t('live.audioHint') }}
+            <button type="button" class="live-button" @click="live.startAudio">{{ t('live.enableAudio') }}</button>
+          </div>
+          <div v-if="loadError || live.error.value" class="live-banner live-banner--error" role="alert">
+            {{ t('live.error') }}
+            <button type="button" class="live-button" @click="refresh">{{ t('live.retry') }}</button>
+          </div>
 
-        <LiveStage :videos="live.videos.value" :audios="live.audios.value" :resizable="false" :captions="false">
-          <template #placeholder>
-            <q-icon name="live_tv" size="56px" />
-            <p v-if="live.connecting.value">{{ t('live.connecting') }}</p>
-            <p v-else-if="live.connected.value">{{ t('webchat.waiting') }}</p>
-            <p v-else-if="live.ended.value">{{ t('live.ended') }}</p>
-            <p v-else>{{ t('live.offline', { name: status?.display_name || '' }) }}</p>
-          </template>
-        </LiveStage>
-      </section>
+          <LiveStage :videos="live.videos.value" :audios="live.audios.value" :resizable="false" :captions="false">
+            <template #placeholder>
+              <q-icon name="live_tv" size="56px" />
+              <p v-if="live.connecting.value">{{ t('live.connecting') }}</p>
+              <p v-else-if="live.connected.value">{{ t('webchat.waiting') }}</p>
+              <p v-else-if="live.ended.value">{{ t('live.ended') }}</p>
+              <p v-else>{{ t('live.offline', { name: status?.display_name || '' }) }}</p>
+            </template>
+          </LiveStage>
+        </section>
+      </template>
 
-      <!-- Chat: chi ha fatto login scrive, i visitatori leggono soltanto -->
-      <aside class="live-chat">
-        <ChatPanel
-          :messages="chat.messages.value"
-          :self-id="chatUser?.id"
-          :loading="chat.loading.value"
-          :sending="chat.sending.value"
-          :can-write="!!chatUser"
-          :disabled="!live.connected.value"
-          :send="chat.send"
-        >
-          <template #readonly>
-            <router-link :to="loginRoute" class="live-link">{{ t('live.loginToChat') }}</router-link>
-          </template>
-        </ChatPanel>
-      </aside>
-    </div>
+      <template #after>
+        <!-- Chat: chi ha fatto login scrive, i visitatori leggono soltanto -->
+        <aside class="live-chat">
+          <ChatPanel
+            :messages="chat.messages.value"
+            :self-id="chatUser?.id"
+            :loading="chat.loading.value"
+            :sending="chat.sending.value"
+            :can-write="!!chatUser"
+            :disabled="!live.connected.value"
+            :send="chat.send"
+          >
+            <template #readonly>
+              <router-link :to="loginRoute" class="live-link">{{ t('live.loginToChat') }}</router-link>
+            </template>
+          </ChatPanel>
+        </aside>
+      </template>
+    </q-splitter>
   </q-page>
 </template>
 
@@ -66,6 +79,8 @@ import { useI18n } from 'vue-i18n';
 import { ChatPanel, LiveStage, useLiveRoom, useRoomChat, type ChatUser } from '@extra/webchat';
 import { APIError, ErrCode, type profiles, type videochat } from '@/encore/client';
 import { api } from '@/encore/api';
+import LiveStatusIcons from '@/components/LiveStatusIcons.vue';
+import { useLiveStatus, type LiveStatus } from '@/composables/useLiveStatus';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -87,6 +102,36 @@ useMeta(() => ({
 }));
 
 const live = useLiveRoom();
+const liveStatus = useLiveStatus();
+
+// Collegati alla stanza: stato in tempo reale dalle tracce ricevute (quelle in
+// muto sono escluse); altrimenti lo stesso stato delle foto, aggiornato col polling.
+const roomStatus = computed<LiveStatus>(() => {
+  if (live.connected.value && !live.ended.value) {
+    return { open: true, video: live.videos.value.length > 0, audio: live.audios.value.length > 0 };
+  }
+  return liveStatus.liveStatus(shortId.value) ?? { open: false, video: false, audio: false };
+});
+
+// Proporzione video/chat dello splitter, ricordata nel browser.
+const splitterKey = 'live_splitter_ratio';
+function loadSplitter(): number {
+  try {
+    const saved = Number(localStorage.getItem(splitterKey));
+    if (saved >= 25 && saved <= 85) return saved;
+  } catch {
+    // localStorage non disponibile
+  }
+  return 70;
+}
+const splitter = ref(loadSplitter());
+function saveSplitter(value: number) {
+  try {
+    localStorage.setItem(splitterKey, String(value));
+  } catch {
+    // localStorage non disponibile
+  }
+}
 
 const chatUser = computed<ChatUser | null>(() =>
   me.value ? { id: me.value.user_id, name: me.value.display_name || t('webchat.user'), avatar: me.value.avatar_url || undefined } : null,
@@ -238,14 +283,10 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
 }
 
-.live-badge {
-  padding: 2px 10px;
+.live-icons {
+  padding: 4px 12px;
   border-radius: 4px;
-  background: #d32f2f;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
+  background: #161616;
 }
 
 .live-status {
@@ -253,20 +294,28 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.live-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 16px;
-  align-items: stretch;
+.live-splitter {
+  height: calc(100vh - 260px);
+  min-height: 480px;
 }
 
 .live-stage {
   min-width: 0;
+  padding-right: 12px;
+}
+
+:deep(.live-splitter-separator) {
+  background-color: #252525;
+  transition: background-color 0.2s ease;
+}
+
+:deep(.live-splitter-separator:hover) {
+  background-color: #f4cf00;
 }
 
 .live-chat {
-  height: min(70vh, 640px);
-  min-height: 360px;
+  height: 100%;
+  margin-left: 12px;
   overflow: hidden;
   border: 1px solid #252525;
   border-radius: 4px;
@@ -305,13 +354,18 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 
-@media (max-width: 900px) {
-  .live-layout {
-    grid-template-columns: 1fr;
+/* Schermi stretti: splitter orizzontale, video sopra e chat sotto */
+@media (max-width: 1023px) {
+  .live-splitter {
+    height: 900px;
+  }
+
+  .live-stage {
+    padding: 0 0 12px;
   }
 
   .live-chat {
-    height: 420px;
+    margin: 12px 0 0;
   }
 
   .live-header h1 {

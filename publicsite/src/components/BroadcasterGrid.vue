@@ -17,11 +17,14 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import type { advertising, broadcasters } from '@/encore/client';
 import PromoBroadcaster from '@/components/PromoBroadcaster.vue';
+import { useLiveStatus } from '@/composables/useLiveStatus';
 
-// Profili già filtrati dalla pagina (abilitati e con short_id).
-const props = defineProps<{ broadcasters: broadcasters.Broadcaster[] }>();
+// Profili già filtrati dalla pagina (abilitati e con short_id). Con
+// liveWhenOpen la foto porta alla diretta quando la stanza è aperta.
+const props = defineProps<{ broadcasters: broadcasters.Broadcaster[]; liveWhenOpen?: boolean }>();
 
 const route = useRoute();
+const { liveStatus } = useLiveStatus();
 
 type Card = advertising.PromoBroadcaster & { category: string };
 
@@ -43,7 +46,8 @@ const cards = computed<Card[]>(() =>
 
 function broadcasterRoute(shortId: string): string {
   const locale = route.params.locale ? `/${String(route.params.locale)}` : '';
-  return `${locale}/br/${shortId}`;
+  const live = props.liveWhenOpen && liveStatus(shortId)?.open;
+  return `${locale}/br/${shortId}${live ? '/live' : ''}`;
 }
 </script>
 

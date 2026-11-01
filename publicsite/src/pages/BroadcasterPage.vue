@@ -23,7 +23,6 @@
             <button class="br-nav br-nav--prev" type="button" :aria-label="t('broadcaster.prevPhoto')" @click="show(current - 1)">‹</button>
             <button class="br-nav br-nav--next" type="button" :aria-label="t('broadcaster.nextPhoto')" @click="show(current + 1)">›</button>
           </template>
-          <LiveStatusBadge :short-id="broadcaster.short_id" />
         </div>
 
         <div v-if="photos.length > 1" class="br-thumbs">
@@ -49,9 +48,14 @@
             {{ broadcaster.category }}
             <span v-if="broadcaster.certified" class="br-certified">✓ {{ t('broadcaster.certified') }}</span>
           </div>
-          <router-link v-if="isLive" :to="liveRoute" class="br-live">
-            <span class="br-live__dot">●</span> {{ t('live.liveNow') }} · {{ t('live.watch') }}
-          </router-link>
+          <!-- Solo per i broadcaster abilitati al broadcasting: stato della stanza
+               e, se è aperta, il collegamento alla diretta. -->
+          <div v-if="roomStatus" class="br-live-status">
+            <LiveStatusIcons :status="roomStatus" size="22px" class="br-live-icons" />
+            <router-link v-if="roomStatus.open" :to="liveRoute" class="br-live">
+              <q-icon name="play_arrow" size="18px" /> {{ t('live.watch') }}
+            </router-link>
+          </div>
         </header>
 
         <section v-if="broadcaster.bio">
@@ -103,7 +107,8 @@ import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { broadcasters } from '@/encore/client';
 import { api } from '@/encore/api';
-import LiveStatusBadge from '@/components/LiveStatusBadge.vue';
+import LiveStatusIcons from '@/components/LiveStatusIcons.vue';
+import { useLiveStatus } from '@/composables/useLiveStatus';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -112,7 +117,8 @@ const broadcaster = ref<broadcasters.Broadcaster | null>(null);
 const loading = ref(true);
 const current = ref(0);
 
-const isLive = ref(false);
+const { liveStatus } = useLiveStatus();
+const roomStatus = computed(() => liveStatus(String(route.params.shortId || '')));
 
 const homeRoute = computed(() => (route.params.locale ? `/${String(route.params.locale)}` : '/'));
 const liveRoute = computed(
@@ -134,14 +140,6 @@ async function load() {
   const shortId = String(route.params.shortId || '').toLowerCase();
   loading.value = true;
   current.value = 0;
-  isLive.value = false;
-  // Lo stato della diretta è facoltativo: se non arriva la pagina resta uguale.
-  void api.videochat
-    .GetLive(shortId)
-    .then((status) => {
-      if (String(route.params.shortId || '').toLowerCase() === shortId) isLive.value = status.live;
-    })
-    .catch(() => {});
   try {
     broadcaster.value = await api.broadcasters.GetBroadcasterByShortID(shortId);
   } catch {
@@ -312,9 +310,24 @@ h1 {
   font-size: 22px;
 }
 
-.br-live {
-  display: inline-block;
+.br-live-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   margin-top: 10px;
+}
+
+.br-live-icons {
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #161616;
+}
+
+.br-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 12px;
   border-radius: 4px;
   background: #d32f2f;
@@ -328,22 +341,6 @@ h1 {
 .br-live:focus-visible {
   background: #b71c1c;
   outline: none;
-}
-
-.br-live__dot {
-  animation: br-blink 1.4s ease-in-out infinite;
-}
-
-@keyframes br-blink {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .br-live__dot {
-    animation: none;
-  }
 }
 
 .br-certified {

@@ -8,7 +8,7 @@
       <p v-if="loading" class="webcam-status">{{ t('common.loading') }}</p>
       <p v-else-if="error" class="webcam-status">{{ t('webcam.error') }}</p>
       <p v-else-if="webcams.length === 0" class="webcam-status">{{ t('webcam.empty') }}</p>
-      <BroadcasterGrid v-else :broadcasters="webcams" />
+      <BroadcasterGrid v-else :broadcasters="webcams" live-when-open />
     </div>
   </q-page>
 </template>
