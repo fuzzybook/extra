@@ -45,7 +45,8 @@ export interface MessageSchema {
   webcam: {
     title: string;
     subtitle: string;
-    status: string;
+    empty: string;
+    error: string;
   };
   contact: {
     title: string;
@@ -213,7 +214,8 @@ const it: MessageSchema = {
   webcam: {
     title: 'Webcam',
     subtitle: 'Sezione Live Streaming e Webcam interattive.',
-    status: 'Canale Streaming Pronto',
+    empty: 'Nessun broadcaster abilitato alla webcam.',
+    error: 'Impossibile caricare i broadcaster.',
   },
   contact: {
     title: 'Contatti',
@@ -381,7 +383,8 @@ const fr: MessageSchema = {
   webcam: {
     title: 'Webcam',
     subtitle: 'Section Live Streaming et webcams interactives.',
-    status: 'Canal de streaming prêt',
+    empty: 'Aucun broadcaster activé pour la webcam.',
+    error: 'Impossible de charger les broadcasters.',
   },
   contact: {
     title: 'Contact',
@@ -549,7 +552,8 @@ const de: MessageSchema = {
   webcam: {
     title: 'Webcam',
     subtitle: 'Live-Streaming- und interaktive Webcam-Zone.',
-    status: 'Streaming-Kanal bereit',
+    empty: 'Keine für die Webcam freigeschalteten Broadcaster.',
+    error: 'Broadcaster konnten nicht geladen werden.',
   },
   contact: {
     title: 'Kontakt',
@@ -717,7 +721,8 @@ const en: MessageSchema = {
   webcam: {
     title: 'Webcam',
     subtitle: 'Live Streaming and interactive webcam section.',
-    status: 'Streaming Channel Ready',
+    empty: 'No broadcasters enabled for the webcam.',
+    error: 'Unable to load broadcasters.',
   },
   contact: {
     title: 'Contact',

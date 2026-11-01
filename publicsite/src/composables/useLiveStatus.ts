@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { api } from '@/encore/api';
 
 // Stato delle dirette condiviso fra tutte le foto della pagina: una sola
@@ -17,6 +17,7 @@ export interface LiveStatus {
 let users = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
 let pending: Promise<void> | null = null;
+let loadedAt = 0;
 
 function refresh(): Promise<void> {
   pending ??= api.videochat
@@ -26,6 +27,7 @@ function refresh(): Promise<void> {
       openIds.value = new Set(list.open);
       videoIds.value = new Set(list.video);
       audioIds.value = new Set(list.audio);
+      loadedAt = Date.now();
     })
     .catch(() => {
       // Stato precedente mantenuto: nuovo tentativo al prossimo giro.
@@ -40,7 +42,8 @@ export function useLiveStatus() {
   // Stato aggiornato a ogni caricamento o cambio di pagina: le foto montate
   // insieme condividono la stessa richiesta. Poi polling ogni 30 secondi.
   onMounted(() => {
-    void refresh();
+    // Le foto montate subito dopo una risposta (es. pagina Webcam) la riusano.
+    if (Date.now() - loadedAt > 2000) void refresh();
     if (users++ === 0) timer = setInterval(() => void refresh(), 30000);
   });
   onBeforeUnmount(() => {
@@ -58,5 +61,10 @@ export function useLiveStatus() {
     return { open: openIds.value.has(id), video: videoIds.value.has(id), audio: audioIds.value.has(id) };
   }
 
-  return { liveStatus, refresh };
+  return {
+    liveStatus,
+    refresh,
+    // true dopo la prima risposta: da lì liveStatus distingue abilitati e non.
+    ready: computed(() => enabledIds.value !== null),
+  };
 }

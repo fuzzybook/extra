@@ -1,46 +1,29 @@
 <template>
-  <q-page class="webcam-page flex flex-center">
-    <div class="text-center q-pa-xl content-card">
-      <div class="row items-center justify-center q-gutter-x-sm q-mb-md">
-        <span class="dot color-webcam">•</span>
-        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('webcam.title') }}</h1>
-      </div>
-      <p class="text-body1 text-grey-4 q-mb-lg">
-        {{ t('webcam.subtitle') }}
-      </p>
+  <q-page class="webcam-page">
+    <div class="webcam-container">
+      <!-- Titolo solo per screen reader e motori di ricerca: la sezione è già
+           evidenziata dal pulsante attivo nell'header. -->
+      <h1 class="visually-hidden">{{ t('webcam.title') }}</h1>
 
-      <div class="webcam-box q-mb-lg flex flex-center">
-        <q-icon name="videocam" size="64px" color="blue-4" />
-        <div class="text-caption text-grey-4 q-mt-sm">{{ t('webcam.status') }}</div>
-      </div>
-
-      <div class="row justify-center q-gutter-md">
-        <q-btn
-          to="/"
-          outline
-          color="white"
-          :label="t('common.backHome')"
-          icon="arrow_back"
-          class="rounded-borders"
-        />
-        <q-btn
-          to="/dashboard"
-          color="primary"
-          unelevated
-          :label="t('actions.goToDashboard')"
-          icon="dashboard"
-          class="rounded-borders"
-        />
-      </div>
+      <p v-if="loading" class="webcam-status">{{ t('common.loading') }}</p>
+      <p v-else-if="error" class="webcam-status">{{ t('webcam.error') }}</p>
+      <p v-else-if="webcams.length === 0" class="webcam-status">{{ t('webcam.empty') }}</p>
+      <BroadcasterGrid v-else :broadcasters="webcams" />
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
 import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import type { broadcasters } from '@/encore/client';
+import { api } from '@/encore/api';
+import BroadcasterGrid from '@/components/BroadcasterGrid.vue';
+import { useLiveStatus } from '@/composables/useLiveStatus';
 
 const { t } = useI18n();
+const { liveStatus, refresh, ready } = useLiveStatus();
 
 useMeta(() => ({
   title: `${t('webcam.title')} - PublicSite`,
@@ -51,6 +34,29 @@ useMeta(() => ({
     },
   },
 }));
+
+const list = ref<broadcasters.Broadcaster[]>([]);
+const loading = ref(true);
+const error = ref(false);
+
+// Come One, ma solo i broadcaster con il broadcasting abilitato nel personal
+// setup: la stessa richiesta dello stato della diretta dice quali sono.
+onMounted(async () => {
+  try {
+    const [res] = await Promise.all([
+      api.broadcasters.ListBroadcasters({ category: '', certified: false, availability: '', search: '' }),
+      refresh(),
+    ]);
+    list.value = res.broadcasters;
+    error.value = !ready.value;
+  } catch {
+    error.value = true;
+  } finally {
+    loading.value = false;
+  }
+});
+
+const webcams = computed(() => list.value.filter((b) => b.enabled && b.short_id && liveStatus(b.short_id) !== null));
 </script>
 
 <style scoped>
@@ -60,29 +66,23 @@ useMeta(() => ({
   color: #ffffff;
 }
 
-.content-card {
-  max-width: 650px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
+.webcam-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
 }
 
-.webcam-box {
-  width: 100%;
-  height: 220px;
-  background: #111118;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  flex-direction: column;
+.webcam-status {
+  color: #bdbdbd;
+  text-align: center;
 }
 
-.dot {
-  font-size: 32px;
-  line-height: 1;
-}
-
-.color-webcam {
-  color: #0a84ff;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 </style>
