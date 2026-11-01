@@ -31,6 +31,15 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 		}
 		return &broadcasters.LiveOwner{UserID: ownerID, DisplayName: "Alicia"}, nil
 	})
+	et.MockEndpoint(broadcasters.ShortIDsByUsers, func(ctx context.Context, p *broadcasters.ShortIDsByUsersParams) (*broadcasters.ShortIDsByUsersResponse, error) {
+		resp := &broadcasters.ShortIDsByUsersResponse{ShortIDs: map[string]string{}}
+		for _, id := range p.UserIDs {
+			if id == ownerID {
+				resp.ShortIDs[id] = "abc123"
+			}
+		}
+		return resp, nil
+	})
 
 	publishing := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +56,10 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 			_ = proto.Unmarshal(body, &request)
 			owner := &livekit.ParticipantInfo{Identity: ownerID}
 			if publishing {
-				owner.Tracks = []*livekit.TrackInfo{{Sid: "TR_cam"}}
+				owner.Tracks = []*livekit.TrackInfo{
+					{Sid: "TR_cam", Type: livekit.TrackType_VIDEO},
+					{Sid: "TR_mic", Type: livekit.TrackType_AUDIO, Muted: true},
+				}
 			}
 			result := &livekit.ListParticipantsResponse{}
 			if request.Room == "alicia-room" {
@@ -90,7 +102,29 @@ func TestLiveStatusGuestTokenAndMessages(t *testing.T) {
 		t.Fatalf("offline messages: %+v %v", list, err)
 	}
 
+	// Lo stato si mostra solo per i broadcaster con can_broadcast nel personal setup.
 	publishing = true
+	if list, err := ListLive(ctx); err != nil || len(list.Enabled) != 0 || len(list.Open) != 0 || len(list.Video) != 0 {
+		t.Fatalf("ListLive without personal setup = %+v, %v", list, err)
+	}
+	publishing = false
+	if _, err := profilesDB.Exec(ctx, `INSERT INTO user_profiles (user_id, display_name, email) VALUES ($1, 'Alicia', 'alicia@example.invalid')`, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := profilesDB.Exec(ctx, `INSERT INTO personal_setup (user_id, can_broadcast, room_name) VALUES ($1, TRUE, 'alicia-room')`, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	// Proprietario collegato senza tracce: stanza aperta, camera e microfono spenti.
+	if list, err := ListLive(ctx); err != nil || len(list.Enabled) != 1 || list.Enabled[0] != "abc123" ||
+		len(list.Open) != 1 || list.Open[0] != "abc123" || len(list.Video) != 0 || len(list.Audio) != 0 {
+		t.Fatalf("offline ListLive = %+v, %v", list, err)
+	}
+
+	publishing = true
+	// Camera accesa, microfono in muto.
+	if list, err := ListLive(ctx); err != nil || len(list.Open) != 1 || len(list.Video) != 1 || list.Video[0] != "abc123" || len(list.Audio) != 0 {
+		t.Fatalf("live ListLive = %+v, %v", list, err)
+	}
 	status, err = GetLive(ctx, "abc123")
 	if err != nil {
 		t.Fatal(err)

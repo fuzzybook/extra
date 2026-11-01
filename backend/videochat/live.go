@@ -84,6 +84,111 @@ func GetLive(ctx context.Context, shortID string) (*LiveStatus, error) {
 	return status, nil
 }
 
+// LiveList dice al sito pubblico per quali broadcaster mostrare lo stato
+// della diretta e, per ciascuno, se la stanza è aperta e cosa trasmette.
+type LiveList struct {
+	// Enabled: short_id dei broadcaster con il broadcasting abilitato nel
+	// personal setup (personal_setup.can_broadcast); solo per loro il sito
+	// mostra lo stato.
+	Enabled []string `json:"enabled"`
+	// Open: broadcaster abilitati collegati alla propria stanza.
+	Open []string `json:"open"`
+	// Video e Audio: broadcaster con la camera o il microfono accesi
+	// (traccia pubblicata e non in muto).
+	Video []string `json:"video"`
+	Audio []string `json:"audio"`
+}
+
+// ListLive restituisce i broadcaster abilitati al broadcasting e, per le foto
+// del sito pubblico, quali hanno la stanza aperta, la camera e il microfono
+// accesi. Non richiede login.
+//
+//encore:api public method=GET path=/videochat/live
+func ListLive(ctx context.Context) (*LiveList, error) {
+	list := &LiveList{Enabled: []string{}, Open: []string{}, Video: []string{}, Audio: []string{}}
+	rows, err := profilesDB.Query(ctx, `SELECT user_id::text FROM personal_setup WHERE can_broadcast = TRUE`)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to read personal setups")
+	}
+	defer rows.Close()
+	var userIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "failed to read personal setup")
+		}
+		userIDs = append(userIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "failed to read personal setups")
+	}
+	if len(userIDs) == 0 {
+		return list, nil
+	}
+	ids, err := broadcasters.ShortIDsByUsers(ctx, &broadcasters.ShortIDsByUsersParams{UserIDs: userIDs})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range userIDs {
+		if shortID, ok := ids.ShortIDs[id]; ok {
+			list.Enabled = append(list.Enabled, shortID)
+		}
+	}
+	if len(list.Enabled) == 0 {
+		return list, nil
+	}
+
+	client, _, err := liveKitClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
+	defer cancel()
+	result, err := client.ListRooms(ctx, &livekit.ListRoomsRequest{})
+	if err != nil {
+		return nil, liveKitError(err)
+	}
+	seen := map[string]bool{}
+	for _, room := range result.Rooms {
+		metadata, ok := readBroadcast(room)
+		shortID, enabled := ids.ShortIDs[metadata.OwnerID]
+		if !ok || !enabled || seen[shortID] {
+			continue
+		}
+		participants, err := client.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: room.Name})
+		if err != nil {
+			return nil, liveKitError(err)
+		}
+		for _, p := range participants.Participants {
+			if p.Identity != metadata.OwnerID {
+				continue
+			}
+			seen[shortID] = true
+			list.Open = append(list.Open, shortID)
+			video, audio := false, false
+			for _, track := range p.Tracks {
+				if track.Muted {
+					continue
+				}
+				switch track.Type {
+				case livekit.TrackType_VIDEO:
+					video = true
+				case livekit.TrackType_AUDIO:
+					audio = true
+				}
+			}
+			if video {
+				list.Video = append(list.Video, shortID)
+			}
+			if audio {
+				list.Audio = append(list.Audio, shortID)
+			}
+			break
+		}
+	}
+	return list, nil
+}
+
 // CreateGuestToken permette a un visitatore senza login di guardare una
 // diretta: può solo ricevere audio, video e messaggi, non pubblica nulla, non
 // scrive in chat ed è nascosto agli altri partecipanti.

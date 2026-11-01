@@ -133,6 +133,13 @@ export interface MessageSchema {
     watch: string;
     title: string;
     offline: string;
+    offAir: string;
+    roomOpen: string;
+    roomClosed: string;
+    videoOn: string;
+    videoOff: string;
+    audioOn: string;
+    audioOff: string;
     backToProfile: string;
     connecting: string;
     error: string;
@@ -294,6 +301,13 @@ const it: MessageSchema = {
     watch: 'Guarda la diretta',
     title: '{name} in diretta',
     offline: '{name} non è in diretta in questo momento.',
+    offAir: 'Offline',
+    roomOpen: 'Stanza aperta',
+    roomClosed: 'Stanza chiusa',
+    videoOn: 'Video acceso',
+    videoOff: 'Video spento',
+    audioOn: 'Microfono acceso',
+    audioOff: 'Microfono spento',
     backToProfile: 'Torna al profilo',
     connecting: 'Collegamento alla diretta…',
     error: 'Impossibile collegarsi alla diretta.',
@@ -455,6 +469,13 @@ const fr: MessageSchema = {
     watch: 'Regarder le direct',
     title: '{name} en direct',
     offline: '{name} n\'est pas en direct pour le moment.',
+    offAir: 'Hors ligne',
+    roomOpen: 'Salon ouvert',
+    roomClosed: 'Salon fermé',
+    videoOn: 'Vidéo activée',
+    videoOff: 'Vidéo désactivée',
+    audioOn: 'Micro activé',
+    audioOff: 'Micro désactivé',
     backToProfile: 'Retour au profil',
     connecting: 'Connexion au direct…',
     error: 'Impossible de se connecter au direct.',
@@ -616,6 +637,13 @@ const de: MessageSchema = {
     watch: 'Live ansehen',
     title: '{name} live',
     offline: '{name} ist gerade nicht live.',
+    offAir: 'Offline',
+    roomOpen: 'Raum geöffnet',
+    roomClosed: 'Raum geschlossen',
+    videoOn: 'Video an',
+    videoOff: 'Video aus',
+    audioOn: 'Mikrofon an',
+    audioOff: 'Mikrofon aus',
     backToProfile: 'Zurück zum Profil',
     connecting: 'Verbindung zur Übertragung…',
     error: 'Verbindung zur Übertragung nicht möglich.',
@@ -777,6 +805,13 @@ const en: MessageSchema = {
     watch: 'Watch the live',
     title: '{name} live',
     offline: '{name} is not live right now.',
+    offAir: 'Offline',
+    roomOpen: 'Room open',
+    roomClosed: 'Room closed',
+    videoOn: 'Video on',
+    videoOff: 'Video off',
+    audioOn: 'Microphone on',
+    audioOff: 'Microphone off',
     backToProfile: 'Back to the profile',
     connecting: 'Connecting to the live…',
     error: 'Could not connect to the live.',

@@ -23,6 +23,7 @@
             <button class="br-nav br-nav--prev" type="button" :aria-label="t('broadcaster.prevPhoto')" @click="show(current - 1)">‹</button>
             <button class="br-nav br-nav--next" type="button" :aria-label="t('broadcaster.nextPhoto')" @click="show(current + 1)">›</button>
           </template>
+          <LiveStatusBadge :short-id="broadcaster.short_id" />
         </div>
 
         <div v-if="photos.length > 1" class="br-thumbs">
@@ -102,6 +103,7 @@ import { useMeta } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { broadcasters } from '@/encore/client';
 import { api } from '@/encore/api';
+import LiveStatusBadge from '@/components/LiveStatusBadge.vue';
 
 const { t } = useI18n();
 const route = useRoute();

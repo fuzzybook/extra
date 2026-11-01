@@ -733,6 +733,47 @@ func GetLiveOwnerByUser(ctx context.Context, userID uuid.UUID) (*LiveOwner, erro
 	return &owner, nil
 }
 
+type ShortIDsByUsersParams struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+type ShortIDsByUsersResponse struct {
+	// ShortIDs: user_id -> short_id, solo per i broadcaster abilitati.
+	ShortIDs map[string]string `json:"short_ids"`
+}
+
+// ShortIDsByUsers restituisce gli short_id dei broadcaster abilitati degli
+// utenti indicati. Privato: la videochat lo usa per dire al sito pubblico chi
+// è in diretta senza esporre gli user_id.
+//
+//encore:api private method=POST path=/broadcasters/internal/short-ids-by-users
+func ShortIDsByUsers(ctx context.Context, p *ShortIDsByUsersParams) (*ShortIDsByUsersResponse, error) {
+	resp := &ShortIDsByUsersResponse{ShortIDs: map[string]string{}}
+	if p == nil || len(p.UserIDs) == 0 {
+		return resp, nil
+	}
+	rows, err := db.Query(ctx, `
+		SELECT user_id::text, short_id
+		FROM broadcasters
+		WHERE user_id::text = ANY($1) AND enabled = TRUE
+	`, p.UserIDs)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userID, shortID string
+		if err := rows.Scan(&userID, &shortID); err != nil {
+			return nil, errs.WrapCode(err, errs.Internal, "errore durante la lettura del broadcaster")
+		}
+		resp.ShortIDs[userID] = shortID
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.WrapCode(err, errs.Internal, "impossibile recuperare i broadcaster")
+	}
+	return resp, nil
+}
+
 // GetBroadcasterByShortID restituisce il profilo broadcaster dato il suo
 // short_id: è la pagina pubblica /br/:shortID del sito. Stesse regole di
 // visibilità di GetBroadcaster (profili disabilitati, telefono e user_id solo

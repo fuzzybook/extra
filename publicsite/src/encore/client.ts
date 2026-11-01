@@ -1624,6 +1624,32 @@ export namespace videochat {
     }
 
     /**
+     * LiveList dice al sito pubblico per quali broadcaster mostrare lo stato
+     * della diretta e, per ciascuno, se la stanza è aperta e cosa trasmette.
+     */
+    export interface LiveList {
+        /**
+         * Enabled: short_id dei broadcaster con il broadcasting abilitato nel
+         * personal setup (personal_setup.can_broadcast); solo per loro il sito
+         * mostra lo stato.
+         */
+        enabled: string[]
+
+        /**
+         * Open: broadcaster abilitati collegati alla propria stanza.
+         */
+        open: string[]
+
+        /**
+         * Video e Audio: broadcaster con la camera o il microfono accesi
+         * (traccia pubblicata e non in muto).
+         */
+        video: string[]
+
+        audio: string[]
+    }
+
+    /**
      * LiveStatus dice se il broadcaster della pagina pubblica /br/:shortID è in
      * diretta. RoomName serve a chi ha fatto login per chiedere un token con
      * CreateToken; RoomSID è la chiave della chat della diretta.
@@ -1763,6 +1789,7 @@ export namespace videochat {
             this.GetLive = this.GetLive.bind(this)
             this.GetMyLive = this.GetMyLive.bind(this)
             this.GetSpeakerState = this.GetSpeakerState.bind(this)
+            this.ListLive = this.ListLive.bind(this)
             this.ListLiveMessages = this.ListLiveMessages.bind(this)
             this.ListMessages = this.ListMessages.bind(this)
             this.ListParticipants = this.ListParticipants.bind(this)
@@ -1867,6 +1894,17 @@ export namespace videochat {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/videochat/rooms/${encodeURIComponent(roomName)}/speaker-state`)
             return await resp.json() as SpeakerStateResponse
+        }
+
+        /**
+         * ListLive restituisce i broadcaster abilitati al broadcasting e, per le foto
+         * del sito pubblico, quali hanno la stanza aperta, la camera e il microfono
+         * accesi. Non richiede login.
+         */
+        public async ListLive(): Promise<LiveList> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI("GET", `/videochat/live`)
+            return await resp.json() as LiveList
         }
 
         /**

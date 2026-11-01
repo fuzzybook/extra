@@ -478,6 +478,10 @@ func TestGetBroadcasterByShortIDHidesDisabledAndPhone(t *testing.T) {
 	if err := db.QueryRow(ctx, `SELECT user_id FROM broadcasters WHERE short_id = $1`, disabled).Scan(&disabledUser); err != nil {
 		t.Fatalf("select disabled user: %v", err)
 	}
+	ids, err := ShortIDsByUsers(ctx, &ShortIDsByUsersParams{UserIDs: []string{owner.UserID, disabledUser.String(), "bad"}})
+	if err != nil || len(ids.ShortIDs) != 1 || ids.ShortIDs[owner.UserID] != enabled {
+		t.Fatalf("ShortIDsByUsers = %+v, %v; want only the enabled broadcaster", ids, err)
+	}
 	for _, id := range []uuid.UUID{disabledUser, uuid.Must(uuid.NewV4())} {
 		if _, err := GetLiveOwnerByUser(ctx, id); errs.Code(err) != errs.NotFound {
 			t.Errorf("GetLiveOwnerByUser(%s) = %v, want not found", id, err)
