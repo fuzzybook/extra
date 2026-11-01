@@ -1,14 +1,14 @@
 <template>
-  <q-page class="one-page">
-    <div class="one-container">
+  <q-page class="elite-page">
+    <div class="elite-container">
       <div class="row items-center justify-center q-gutter-x-sm q-mb-md">
         <span class="dot color-elite">•</span>
-        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('one.title') }}</h1>
+        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('elite.title') }}</h1>
       </div>
 
-      <p v-if="loading" class="one-status">{{ t('common.loading') }}</p>
-      <p v-else-if="error" class="one-status">{{ t('one.error') }}</p>
-      <p v-else-if="enabled.length === 0" class="one-status">{{ t('one.empty') }}</p>
+      <p v-if="loading" class="elite-status">{{ t('common.loading') }}</p>
+      <p v-else-if="error" class="elite-status">{{ t('elite.error') }}</p>
+      <p v-else-if="enabled.length === 0" class="elite-status">{{ t('elite.empty') }}</p>
       <BroadcasterGrid v-else :broadcasters="enabled" />
     </div>
   </q-page>
@@ -25,11 +25,11 @@ import BroadcasterGrid from '@/components/BroadcasterGrid.vue';
 const { t } = useI18n();
 
 useMeta(() => ({
-  title: `${t('one.title')} - PublicSite`,
+  title: `${t('elite.title')} - PublicSite`,
   meta: {
     description: {
       name: 'description',
-      content: t('one.subtitle'),
+      content: t('elite.subtitle'),
     },
   },
 }));
@@ -54,19 +54,19 @@ const enabled = computed(() => list.value.filter((b) => b.enabled && b.short_id)
 </script>
 
 <style scoped>
-.one-page {
+.elite-page {
   min-height: calc(100vh - 180px);
   background-color: #0b0b0e;
   color: #ffffff;
 }
 
-.one-container {
+.elite-container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 32px 16px 64px;
 }
 
-.one-status {
+.elite-status {
   color: #bdbdbd;
   text-align: center;
 }

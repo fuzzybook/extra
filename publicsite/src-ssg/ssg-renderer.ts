@@ -35,7 +35,7 @@ import routes from '@/router/routes';
 export const getSsgPages = defineSsgGetPages(
   async () => {
     const locales = ['it', 'fr', 'de', 'en'];
-    const sections = ['', 'one', 'two', 'three', 'webcam', 'contact', 'advertise', 'login', 'terms'];
+    const sections = ['', 'elite', 'clubs', 'soft', 'webcam', 'contact', 'advertise', 'login', 'terms'];
     const ssgPages: { route: string }[] = [];
 
     // Rotte root senza prefisso lingua

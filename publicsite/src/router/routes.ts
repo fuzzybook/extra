@@ -25,19 +25,19 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/IndexPage.vue'),
       },
       {
-        path: 'one',
-        name: 'one',
-        component: () => import('@/pages/OnePage.vue'),
+        path: 'elite',
+        name: 'elite',
+        component: () => import('@/pages/ElitePage.vue'),
       },
       {
-        path: 'two',
-        name: 'two',
-        component: () => import('@/pages/TwoPage.vue'),
+        path: 'clubs',
+        name: 'clubs',
+        component: () => import('@/pages/ClubsPage.vue'),
       },
       {
-        path: 'three',
-        name: 'three',
-        component: () => import('@/pages/ThreePage.vue'),
+        path: 'soft',
+        name: 'soft',
+        component: () => import('@/pages/SoftPage.vue'),
       },
       {
         path: 'webcam',

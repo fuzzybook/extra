@@ -39,7 +39,7 @@ const list = ref<broadcasters.Broadcaster[]>([]);
 const loading = ref(true);
 const error = ref(false);
 
-// Come One, ma solo i broadcaster con il broadcasting abilitato nel personal
+// Come Elite, ma solo i broadcaster con il broadcasting abilitato nel personal
 // setup: la stessa richiesta dello stato della diretta dice quali sono.
 onMounted(async () => {
   try {

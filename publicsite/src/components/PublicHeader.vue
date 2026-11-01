@@ -63,24 +63,24 @@
         </router-link>
       </div>
 
-      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('one') }">
-        <router-link class="menu__link" :to="getMenuRoute('one')">
+      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('elite') }">
+        <router-link class="menu__link" :to="getMenuRoute('elite')">
           <span class="menu__dot color-elite">•</span>
-          <span class="menu__text">{{ t('menu.one') }}</span>
+          <span class="menu__text">{{ t('menu.elite') }}</span>
         </router-link>
       </div>
 
-      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('two') }">
-        <router-link class="menu__link" :to="getMenuRoute('two')">
+      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('clubs') }">
+        <router-link class="menu__link" :to="getMenuRoute('clubs')">
           <span class="menu__dot color-parlors">•</span>
-          <span class="menu__text">{{ t('menu.two') }}</span>
+          <span class="menu__text">{{ t('menu.clubs') }}</span>
         </router-link>
       </div>
 
-      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('three') }">
-        <router-link class="menu__link" :to="getMenuRoute('three')">
+      <div class="menu__item" :class="{ 'menu__item--active': isSectionActive('soft') }">
+        <router-link class="menu__link" :to="getMenuRoute('soft')">
           <span class="menu__dot color-private">•</span>
-          <span class="menu__text">{{ t('menu.three') }}</span>
+          <span class="menu__text">{{ t('menu.soft') }}</span>
         </router-link>
       </div>
 

@@ -1,12 +1,12 @@
 <template>
-  <q-page class="three-page flex flex-center">
+  <q-page class="soft-page flex flex-center">
     <div class="text-center q-pa-xl content-card">
       <div class="row items-center justify-center q-gutter-x-sm q-mb-md">
         <span class="dot color-private">•</span>
-        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('three.title') }}</h1>
+        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('soft.title') }}</h1>
       </div>
       <p class="text-body1 text-grey-4 q-mb-lg">
-        {{ t('three.subtitle') }}
+        {{ t('soft.subtitle') }}
       </p>
       <div class="row justify-center q-gutter-md">
         <q-btn
@@ -37,18 +37,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
 useMeta(() => ({
-  title: `${t('three.title')} - PublicSite`,
+  title: `${t('soft.title')} - PublicSite`,
   meta: {
     description: {
       name: 'description',
-      content: t('three.subtitle'),
+      content: t('soft.subtitle'),
     },
   },
 }));
 </script>
 
 <style scoped>
-.three-page {
+.soft-page {
   min-height: calc(100vh - 180px);
   background-color: #0b0b0e;
   color: #ffffff;

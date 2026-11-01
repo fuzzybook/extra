@@ -11,9 +11,9 @@ export interface MessageSchema {
   };
   menu: {
     home: string;
-    one: string;
-    two: string;
-    three: string;
+    elite: string;
+    clubs: string;
+    soft: string;
     webcam: string;
     contact: string;
   };
@@ -28,17 +28,17 @@ export interface MessageSchema {
     title: string;
     subtitle: string;
   };
-  one: {
+  elite: {
     title: string;
     subtitle: string;
     empty: string;
     error: string;
   };
-  two: {
+  clubs: {
     title: string;
     subtitle: string;
   };
-  three: {
+  soft: {
     title: string;
     subtitle: string;
   };
@@ -180,9 +180,9 @@ const it: MessageSchema = {
   },
   menu: {
     home: 'Home',
-    one: 'ONE',
-    two: 'TWO',
-    three: 'THREE',
+    elite: 'Elite',
+    clubs: 'Clubs',
+    soft: 'Soft',
     webcam: 'Webcam',
     contact: 'Contatti',
   },
@@ -197,19 +197,19 @@ const it: MessageSchema = {
     title: 'PublicSite',
     subtitle: 'Pagina pubblica statica (SSG) in modalità ibrida.',
   },
-  one: {
-    title: 'ONE',
-    subtitle: 'Sezione esclusiva ONE del portale pubblico.',
+  elite: {
+    title: 'Elite',
+    subtitle: 'Sezione esclusiva Elite del portale pubblico.',
     empty: 'Nessun broadcaster da mostrare.',
     error: 'Impossibile caricare i broadcaster.',
   },
-  two: {
-    title: 'TWO',
-    subtitle: 'Sezione TWO del portale pubblico.',
+  clubs: {
+    title: 'Clubs',
+    subtitle: 'Sezione Clubs del portale pubblico.',
   },
-  three: {
-    title: 'THREE',
-    subtitle: 'Sezione THREE del portale pubblico.',
+  soft: {
+    title: 'Soft',
+    subtitle: 'Sezione Soft del portale pubblico.',
   },
   webcam: {
     title: 'Webcam',
@@ -349,9 +349,9 @@ const fr: MessageSchema = {
   },
   menu: {
     home: 'Accueil',
-    one: 'ONE',
-    two: 'TWO',
-    three: 'THREE',
+    elite: 'Elite',
+    clubs: 'Clubs',
+    soft: 'Soft',
     webcam: 'Webcam',
     contact: 'Contact',
   },
@@ -366,19 +366,19 @@ const fr: MessageSchema = {
     title: 'PublicSite',
     subtitle: 'Page publique statique (SSG) en architecture hybride.',
   },
-  one: {
-    title: 'ONE',
-    subtitle: 'Section exclusive ONE du portail public.',
+  elite: {
+    title: 'Elite',
+    subtitle: 'Section exclusive Elite du portail public.',
     empty: 'Aucun broadcaster à afficher.',
     error: 'Impossible de charger les broadcasters.',
   },
-  two: {
-    title: 'TWO',
-    subtitle: 'Section TWO du portail public.',
+  clubs: {
+    title: 'Clubs',
+    subtitle: 'Section Clubs du portail public.',
   },
-  three: {
-    title: 'THREE',
-    subtitle: 'Section THREE du portail public.',
+  soft: {
+    title: 'Soft',
+    subtitle: 'Section Soft du portail public.',
   },
   webcam: {
     title: 'Webcam',
@@ -518,9 +518,9 @@ const de: MessageSchema = {
   },
   menu: {
     home: 'Startseite',
-    one: 'ONE',
-    two: 'TWO',
-    three: 'THREE',
+    elite: 'Elite',
+    clubs: 'Clubs',
+    soft: 'Soft',
     webcam: 'Webcam',
     contact: 'Kontakt',
   },
@@ -535,19 +535,19 @@ const de: MessageSchema = {
     title: 'PublicSite',
     subtitle: 'Öffentliche statische Seite (SSG) in hybrider Architektur.',
   },
-  one: {
-    title: 'ONE',
-    subtitle: 'Exklusiver ONE-Bereich des öffentlichen Portals.',
+  elite: {
+    title: 'Elite',
+    subtitle: 'Exklusiver Elite-Bereich des öffentlichen Portals.',
     empty: 'Keine Broadcaster vorhanden.',
     error: 'Broadcaster konnten nicht geladen werden.',
   },
-  two: {
-    title: 'TWO',
-    subtitle: 'TWO-Bereich des öffentlichen Portals.',
+  clubs: {
+    title: 'Clubs',
+    subtitle: 'Clubs-Bereich des öffentlichen Portals.',
   },
-  three: {
-    title: 'THREE',
-    subtitle: 'THREE-Bereich des öffentlichen Portals.',
+  soft: {
+    title: 'Soft',
+    subtitle: 'Soft-Bereich des öffentlichen Portals.',
   },
   webcam: {
     title: 'Webcam',
@@ -687,9 +687,9 @@ const en: MessageSchema = {
   },
   menu: {
     home: 'Home',
-    one: 'ONE',
-    two: 'TWO',
-    three: 'THREE',
+    elite: 'Elite',
+    clubs: 'Clubs',
+    soft: 'Soft',
     webcam: 'Webcam',
     contact: 'Contact',
   },
@@ -704,19 +704,19 @@ const en: MessageSchema = {
     title: 'PublicSite',
     subtitle: 'Public static page (SSG) in hybrid architecture.',
   },
-  one: {
-    title: 'ONE',
-    subtitle: 'Exclusive ONE section of the public portal.',
+  elite: {
+    title: 'Elite',
+    subtitle: 'Exclusive Elite section of the public portal.',
     empty: 'No broadcasters to show.',
     error: 'Unable to load broadcasters.',
   },
-  two: {
-    title: 'TWO',
-    subtitle: 'TWO section of the public portal.',
+  clubs: {
+    title: 'Clubs',
+    subtitle: 'Clubs section of the public portal.',
   },
-  three: {
-    title: 'THREE',
-    subtitle: 'THREE section of the public portal.',
+  soft: {
+    title: 'Soft',
+    subtitle: 'Soft section of the public portal.',
   },
   webcam: {
     title: 'Webcam',

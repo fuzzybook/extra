@@ -1,12 +1,12 @@
 <template>
-  <q-page class="two-page flex flex-center">
+  <q-page class="clubs-page flex flex-center">
     <div class="text-center q-pa-xl content-card">
       <div class="row items-center justify-center q-gutter-x-sm q-mb-md">
         <span class="dot color-parlors">•</span>
-        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('two.title') }}</h1>
+        <h1 class="text-h4 text-weight-bold text-white q-my-none">{{ t('clubs.title') }}</h1>
       </div>
       <p class="text-body1 text-grey-4 q-mb-lg">
-        {{ t('two.subtitle') }}
+        {{ t('clubs.subtitle') }}
       </p>
       <div class="row justify-center q-gutter-md">
         <q-btn
@@ -37,18 +37,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
 useMeta(() => ({
-  title: `${t('two.title')} - PublicSite`,
+  title: `${t('clubs.title')} - PublicSite`,
   meta: {
     description: {
       name: 'description',
-      content: t('two.subtitle'),
+      content: t('clubs.subtitle'),
     },
   },
 }));
 </script>
 
 <style scoped>
-.two-page {
+.clubs-page {
   min-height: calc(100vh - 180px);
   background-color: #0b0b0e;
   color: #ffffff;
