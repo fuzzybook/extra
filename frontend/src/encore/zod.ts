@@ -235,6 +235,10 @@ export const RegistrationRegisterParamsSchema = z.object({
   accept_terms: z.literal(true),
 });
 
+export const VideochatCloseMyLiveParamsSchema = z.object({
+  room_sid: z.string(),
+});
+
 export const VideochatCreateRoomParamsSchema = z.object({
   name: z.string(),
   max_participants: z.number(),

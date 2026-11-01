@@ -17,6 +17,13 @@
       <p>{{ t('studio.disabledText') }}</p>
     </div>
 
+    <!-- Diretta terminata: stanza chiusa, si può riaprire -->
+    <div v-else-if="ended" class="studio-status" role="status">
+      <q-icon name="stop_circle" size="48px" />
+      <p>{{ t('studio.ended') }}</p>
+      <button type="button" class="studio-button studio-button--center" :disabled="opening" @click="reopen">{{ t('studio.reopen') }}</button>
+    </div>
+
     <!-- Stanza spostata in una finestra separata: qui resta solo l'avviso -->
     <div v-else-if="movedToWindow" class="studio-status" role="status">
       <q-icon name="open_in_new" size="48px" />
@@ -82,7 +89,7 @@
             >
               <q-icon name="tune" size="18px" />
             </button>
-            <button v-if="onAir" type="button" class="studio-button" :disabled="mediaBusy" @click="stop">
+            <button v-if="live.connected.value" type="button" class="studio-button" :disabled="mediaBusy" @click="stop">
               <q-icon name="stop" size="18px" />
               {{ t('studio.stop') }}
             </button>
@@ -119,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMeta, useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -139,6 +146,7 @@ import {
 } from '@extra/webchat';
 import { APIError, ErrCode, type videochat } from '@/encore/client';
 import { api } from '@/encore/api';
+import { API_BASE_URL } from '@/encore/base-url';
 import { useSession } from '@/composables/useSession';
 
 const { t } = useI18n();
@@ -154,6 +162,9 @@ const mine = ref<videochat.MyLive | null>(null);
 // Studio aperto con "Apri in finestra" (rotta senza header): il bottone non serve.
 const inWindow = route.name === 'studio-window';
 const movedToWindow = ref(false);
+const ended = ref(false);
+// La stanza aperta da questa pagina: va chiusa quando si esce.
+let ownedRoomSid = '';
 let studioWindow: Window | null = null;
 const opening = ref(true);
 const mediaBusy = ref(false);
@@ -234,6 +245,7 @@ async function open() {
     const room = await api.videochat.OpenMyLive();
     mine.value = room;
     await live.join(() => api.videochat.CreateToken({ room_name: room.room_name ?? '' }));
+    if (live.connected.value) ownedRoomSid = room.room_sid ?? '';
   } catch (reason) {
     // Broadcasting disabilitato nel frattempo: lo stato aggiornato mostra l'avviso.
     if (reason instanceof APIError && reason.code === ErrCode.PermissionDenied) await session.refresh();
@@ -267,10 +279,14 @@ async function toggle(kind: 'camera' | 'microphone') {
   }
 }
 
+// Termina la diretta: spegne camera e microfono, chiude la stanza (gli
+// spettatori vengono disconnessi) ed esce.
 async function stop() {
   const current = live.room.value;
+  const roomSid = mine.value?.room_sid;
   if (!current || mediaBusy.value) return;
   mediaBusy.value = true;
+  mediaError.value = '';
   try {
     if (live.cameraOn.value) {
       await current.localParticipant.setCameraEnabled(false);
@@ -280,12 +296,38 @@ async function stop() {
       await current.localParticipant.setMicrophoneEnabled(false);
       logMediaEvent('MIC_OFF');
     }
-    if (live.room.value === current) live.sync();
+    if (roomSid) await api.videochat.CloseMyLive({ room_sid: roomSid });
+    ownedRoomSid = '';
+    await live.leave();
+    ended.value = true;
   } catch (reason) {
     mediaError.value = errorMessage(reason);
   } finally {
     mediaBusy.value = false;
   }
+}
+
+async function reopen() {
+  ended.value = false;
+  await open();
+}
+
+// Uscita dalla pagina (cambio pagina, ricarica, chiusura della scheda o della
+// finestra separata) con la stanza aperta: la diretta termina. keepalive fa
+// partire la richiesta anche mentre la pagina viene chiusa.
+function closeOnExit() {
+  const roomSid = ownedRoomSid;
+  if (!roomSid) return;
+  // Riportata nella pagina di origine con "Riporta qui": la stanza resta aperta.
+  if ((window as Window & { studioHandover?: boolean }).studioHandover) return;
+  void fetch(`${API_BASE_URL}/videochat/my-live/close`, {
+    method: 'POST',
+    keepalive: true,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ room_sid: roomSid }),
+  }).catch(() => {});
+  ownedRoomSid = '';
 }
 
 // Salva le impostazioni e, se la camera è accesa, la ripubblica subito.
@@ -330,18 +372,24 @@ function openInWindow() {
     return;
   }
   movedToWindow.value = true;
+  ownedRoomSid = '';
   void live.leave();
 }
 
 // Riporta la stanza in questa pagina chiudendo la finestra separata.
 async function bringBack() {
-  studioWindow?.close();
+  if (studioWindow && !studioWindow.closed) {
+    // Stessa origine: la finestra vede il segnale e non chiude la stanza.
+    (studioWindow as Window & { studioHandover?: boolean }).studioHandover = true;
+    studioWindow.close();
+  }
   studioWindow = null;
   movedToWindow.value = false;
   await open();
 }
 
 onMounted(async () => {
+  window.addEventListener('pagehide', closeOnExit);
   await session.refresh();
   if (!session.me.value) {
     await router.replace(`${localePrefix.value}/login?redirect=${encodeURIComponent(route.fullPath)}`);
@@ -349,6 +397,11 @@ onMounted(async () => {
   }
   if (session.canBroadcast.value) await open();
   else opening.value = false;
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', closeOnExit);
+  closeOnExit();
 });
 </script>
 

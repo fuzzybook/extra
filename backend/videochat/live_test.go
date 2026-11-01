@@ -185,7 +185,7 @@ func TestOpenMyLiveUsesPersonalSetup(t *testing.T) {
 	})
 
 	var rooms []*livekit.Room
-	created := 0
+	created, deleted := 0, 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var response proto.Message
 		switch r.URL.Path {
@@ -199,6 +199,19 @@ func TestOpenMyLiveUsesPersonalSetup(t *testing.T) {
 			room := &livekit.Room{Sid: "RM_new", Name: request.Name, Metadata: request.Metadata}
 			rooms = append(rooms, room)
 			response = room
+		case "/twirp/livekit.RoomService/DeleteRoom":
+			body, _ := io.ReadAll(r.Body)
+			var request livekit.DeleteRoomRequest
+			_ = proto.Unmarshal(body, &request)
+			deleted++
+			kept := rooms[:0]
+			for _, room := range rooms {
+				if room.Name != request.Room {
+					kept = append(kept, room)
+				}
+			}
+			rooms = kept
+			response = &livekit.DeleteRoomResponse{}
 		default:
 			t.Errorf("unexpected LiveKit operation: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -269,6 +282,23 @@ func TestOpenMyLiveUsesPersonalSetup(t *testing.T) {
 	token, err := CreateToken(ownerCtx, &TokenParams{RoomName: "Sala Bruna"})
 	if err != nil || token.Role != "owner" {
 		t.Fatalf("owner token = %+v, %v", token, err)
+	}
+
+	// Fine diretta: solo il proprietario chiude la stanza, e solo quella con il SID indicato.
+	if err := CloseMyLive(visitorCtx, &CloseMyLiveParams{RoomSID: "RM_new"}); errs.Code(err) != errs.PermissionDenied {
+		t.Fatalf("visitor CloseMyLive: %v", err)
+	}
+	if err := CloseMyLive(ownerCtx, &CloseMyLiveParams{RoomSID: "RM_old"}); err != nil || deleted != 0 {
+		t.Fatalf("stale CloseMyLive: %v, deleted %d", err, deleted)
+	}
+	if err := CloseMyLive(ownerCtx, &CloseMyLiveParams{RoomSID: "RM_new"}); err != nil || deleted != 1 || len(rooms) != 0 {
+		t.Fatalf("CloseMyLive: %v, deleted %d, rooms %d", err, deleted, len(rooms))
+	}
+	if err := CloseMyLive(ownerCtx, &CloseMyLiveParams{RoomSID: "RM_new"}); err != nil || deleted != 1 {
+		t.Fatalf("CloseMyLive on a closed room: %v, deleted %d", err, deleted)
+	}
+	if _, err := OpenMyLive(ownerCtx); err != nil || created != 2 {
+		t.Fatalf("reopen after close: %v, created %d", err, created)
 	}
 
 	// Il nome configurato occupato da una stanza di un altro utente non viene riusato.

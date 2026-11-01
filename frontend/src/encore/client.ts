@@ -1583,6 +1583,14 @@ export namespace videochat {
         "created_at": string
     }
 
+    /**
+     * CloseMyLiveParams indica la stanza da chiudere con il suo SID: una richiesta
+     * in ritardo (es. dalla pagina appena chiusa) non tocca una stanza riaperta.
+     */
+    export interface CloseMyLiveParams {
+        "room_sid": string
+    }
+
     export interface CreateRoomParams {
         name: string
         "max_participants": number
@@ -1781,6 +1789,7 @@ export namespace videochat {
             this.baseClient = baseClient
             this.ApproveSpeakRequest = this.ApproveSpeakRequest.bind(this)
             this.CancelSpeakRequest = this.CancelSpeakRequest.bind(this)
+            this.CloseMyLive = this.CloseMyLive.bind(this)
             this.CreateGuestToken = this.CreateGuestToken.bind(this)
             this.CreateRoom = this.CreateRoom.bind(this)
             this.CreateSpeakRequest = this.CreateSpeakRequest.bind(this)
@@ -1820,6 +1829,15 @@ export namespace videochat {
          */
         public async CancelSpeakRequest(roomName: string, requestId: string): Promise<void> {
             await this.baseClient.callTypedAPI("DELETE", `/videochat/rooms/${encodeURIComponent(roomName)}/speak-requests/${encodeURIComponent(requestId)}`)
+        }
+
+        /**
+         * CloseMyLive termina la diretta del broadcaster collegato: chiude la stanza,
+         * disconnette gli spettatori e registra la chiusura. Se la stanza non esiste
+         * più non fa nulla.
+         */
+        public async CloseMyLive(params: CloseMyLiveParams): Promise<void> {
+            await this.baseClient.callTypedAPI("POST", `/videochat/my-live/close`, JSON.stringify(params))
         }
 
         /**

@@ -391,3 +391,48 @@ func OpenMyLive(ctx context.Context) (*MyLive, error) {
 	live.RoomSID = room.Sid
 	return live, nil
 }
+
+// CloseMyLiveParams indica la stanza da chiudere con il suo SID: una richiesta
+// in ritardo (es. dalla pagina appena chiusa) non tocca una stanza riaperta.
+type CloseMyLiveParams struct {
+	RoomSID string `json:"room_sid"`
+}
+
+// CloseMyLive termina la diretta del broadcaster collegato: chiude la stanza,
+// disconnette gli spettatori e registra la chiusura. Se la stanza non esiste
+// più non fa nulla.
+//
+//encore:api auth method=POST path=/videochat/my-live/close
+func CloseMyLive(ctx context.Context, p *CloseMyLiveParams) error {
+	uid, ok := auth.UserID()
+	if !ok {
+		return &errs.Error{Code: errs.Unauthenticated, Message: "must be logged in"}
+	}
+	if p.RoomSID == "" {
+		return &errs.Error{Code: errs.InvalidArgument, Message: "room_sid is required"}
+	}
+	client, _, err := liveKitClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
+	defer cancel()
+	result, err := client.ListRooms(ctx, &livekit.ListRoomsRequest{})
+	if err != nil {
+		return liveKitError(err)
+	}
+	for _, room := range result.Rooms {
+		if room.Sid != p.RoomSID {
+			continue
+		}
+		if metadata, ok := readBroadcast(room); !ok || metadata.OwnerID != string(uid) {
+			return &errs.Error{Code: errs.PermissionDenied, Message: "only the room owner can close it"}
+		}
+		if _, err := client.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: room.Name}); err != nil {
+			return liveKitError(err)
+		}
+		_ = logBroadcastSession(ctx, string(uid), room.Sid, room.Name, "CLOSE")
+		return nil
+	}
+	return nil
+}

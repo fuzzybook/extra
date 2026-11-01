@@ -165,6 +165,8 @@ export interface MessageSchema {
     openWindow: string;
     movedToWindow: string;
     bringBack: string;
+    ended: string;
+    reopen: string;
     popupBlocked: string;
     preview: string;
   };
@@ -334,6 +336,8 @@ const it: MessageSchema = {
     openWindow: 'Apri in finestra',
     movedToWindow: 'La stanza è aperta in un\'altra finestra.',
     bringBack: 'Riporta qui',
+    ended: 'La diretta è terminata e la stanza è chiusa.',
+    reopen: 'Riapri la stanza',
     popupBlocked: 'Il browser ha bloccato la finestra: consenti i popup per questo sito.',
     preview: 'Accendi la webcam per andare in diretta.',
   },
@@ -503,6 +507,8 @@ const fr: MessageSchema = {
     openWindow: 'Ouvrir dans une fenêtre',
     movedToWindow: 'La salle est ouverte dans une autre fenêtre.',
     bringBack: 'Ramener ici',
+    ended: 'Le direct est terminé et le salon est fermé.',
+    reopen: 'Rouvrir le salon',
     popupBlocked: 'Le navigateur a bloqué la fenêtre : autorisez les popups pour ce site.',
     preview: 'Allumez la webcam pour passer en direct.',
   },
@@ -672,6 +678,8 @@ const de: MessageSchema = {
     openWindow: 'In Fenster öffnen',
     movedToWindow: 'Der Raum ist in einem anderen Fenster geöffnet.',
     bringBack: 'Hierher zurückholen',
+    ended: 'Die Übertragung ist beendet und der Raum geschlossen.',
+    reopen: 'Raum wieder öffnen',
     popupBlocked: 'Der Browser hat das Fenster blockiert: Erlaube Pop-ups für diese Seite.',
     preview: 'Schalte die Webcam ein, um live zu gehen.',
   },
@@ -841,6 +849,8 @@ const en: MessageSchema = {
     openWindow: 'Open in window',
     movedToWindow: 'The room is open in another window.',
     bringBack: 'Bring it back here',
+    ended: 'The live has ended and the room is closed.',
+    reopen: 'Reopen the room',
     popupBlocked: 'The browser blocked the window: allow pop-ups for this site.',
     preview: 'Turn on the webcam to go live.',
   },
