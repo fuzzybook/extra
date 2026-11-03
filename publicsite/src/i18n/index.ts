@@ -201,6 +201,7 @@ export interface MessageSchema {
     openWindow: string;
     movedToWindow: string;
     bringBack: string;
+    closeWindow: string;
     ended: string;
     reopen: string;
     popupBlocked: string;
@@ -408,6 +409,7 @@ const it: MessageSchema = {
     openWindow: 'Apri in finestra',
     movedToWindow: 'La stanza è aperta in un\'altra finestra.',
     bringBack: 'Riporta qui',
+    closeWindow: 'Chiudi e torna',
     ended: 'La diretta è terminata e la stanza è chiusa.',
     reopen: 'Riapri la stanza',
     popupBlocked: 'Il browser ha bloccato la finestra: consenti i popup per questo sito.',
@@ -615,6 +617,7 @@ const fr: MessageSchema = {
     openWindow: 'Ouvrir dans une fenêtre',
     movedToWindow: 'La salle est ouverte dans une autre fenêtre.',
     bringBack: 'Ramener ici',
+    closeWindow: 'Fermer et revenir',
     ended: 'Le direct est terminé et le salon est fermé.',
     reopen: 'Rouvrir le salon',
     popupBlocked: 'Le navigateur a bloqué la fenêtre : autorisez les popups pour ce site.',
@@ -822,6 +825,7 @@ const de: MessageSchema = {
     openWindow: 'In Fenster öffnen',
     movedToWindow: 'Der Raum ist in einem anderen Fenster geöffnet.',
     bringBack: 'Hierher zurückholen',
+    closeWindow: 'Schließen und zurück',
     ended: 'Die Übertragung ist beendet und der Raum geschlossen.',
     reopen: 'Raum wieder öffnen',
     popupBlocked: 'Der Browser hat das Fenster blockiert: Erlaube Pop-ups für diese Seite.',
@@ -1029,6 +1033,7 @@ const en: MessageSchema = {
     openWindow: 'Open in window',
     movedToWindow: 'The room is open in another window.',
     bringBack: 'Bring it back here',
+    closeWindow: 'Close and go back',
     ended: 'The live has ended and the room is closed.',
     reopen: 'Reopen the room',
     popupBlocked: 'The browser blocked the window: allow pop-ups for this site.',

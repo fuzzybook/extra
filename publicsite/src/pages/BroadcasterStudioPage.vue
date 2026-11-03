@@ -97,6 +97,10 @@
               <q-icon name="open_in_new" size="18px" />
               {{ t('studio.openWindow') }}
             </button>
+            <button v-else type="button" class="studio-button studio-button--end" :disabled="mediaBusy" @click="returnFromWindow">
+              <q-icon name="close_fullscreen" size="18px" />
+              {{ t('studio.closeWindow') }}
+            </button>
           </div>
           <p v-if="settingsSaved" class="studio-note" role="status">{{ t('webchat.webcam.savedSuccess') }}</p>
         </section>
@@ -167,6 +171,15 @@ const ended = ref(false);
 // La stanza aperta da questa pagina: va chiusa quando si esce.
 let ownedRoomSid = '';
 let studioWindow: Window | null = null;
+// Passaggio della stanza tra questa pagina e la finestra separata: la diretta
+// continua, quindi niente eventi "camera/microfono spenti" nel registro.
+let handingOver = false;
+
+/** Camera e microfono da riaccendere dopo il passaggio tra pagina e finestra. */
+interface MediaState {
+  camera: boolean;
+  mic: boolean;
+}
 const opening = ref(true);
 const mediaBusy = ref(false);
 const mediaError = ref('');
@@ -211,7 +224,7 @@ function logMediaEvent(event: MediaEvent) {
 const live = useLiveRoom({
   // Uscita o chiusura della stanza con camera o microfono accesi.
   onLeave: (state) => {
-    if (!state.isOwner) return;
+    if (!state.isOwner || handingOver) return;
     if (state.cameraOn) logMediaEvent('VIDEO_OFF');
     if (state.micOn) logMediaEvent('MIC_OFF');
   },
@@ -359,14 +372,53 @@ async function applySettings(settings: WebcamSettings) {
   setTimeout(() => (settingsSaved.value = false), 4000);
 }
 
+function currentMedia(): MediaState {
+  return { camera: live.cameraOn.value, mic: live.micOn.value };
+}
+
+// Riaccende camera e microfono che erano attivi prima del passaggio (stesse
+// impostazioni della webcam), senza registrarli come nuovi eventi.
+async function restoreMedia(state: MediaState) {
+  const current = live.room.value;
+  if (!current || !live.connected.value || (!state.camera && !state.mic)) return;
+  mediaBusy.value = true;
+  try {
+    if (state.camera) {
+      const { captureOptions, publishOptions } = buildWebcamOptions(webcamSettings.value);
+      await current.localParticipant.setCameraEnabled(true, captureOptions, publishOptions);
+    }
+    if (state.mic) await current.localParticipant.setMicrophoneEnabled(true);
+    if (live.room.value === current) live.sync();
+  } catch (reason) {
+    mediaError.value = errorMessage(reason);
+  } finally {
+    mediaBusy.value = false;
+  }
+}
+
+// Lascia la stanza senza chiuderla, per passarla all'altra pagina.
+async function leaveForHandover() {
+  handingOver = true;
+  ownedRoomSid = '';
+  try {
+    await live.leave();
+  } finally {
+    handingOver = false;
+  }
+}
+
 // Sposta la stanza in una finestra separata, con il nome della stanza come
 // nome della finestra (un secondo clic riusa la stessa). Lo stesso utente non
-// può stare due volte nella stanza: questa pagina ne esce.
+// può stare due volte nella stanza: questa pagina ne esce, e la finestra
+// riaccende camera e microfono se erano attivi.
 function openInWindow() {
   const roomName = mine.value?.room_name;
   if (!roomName) return;
   const locale = route.params.locale ? { locale: String(route.params.locale) } : {};
-  const url = window.location.origin + router.resolve({ name: 'studio-window', params: locale }).href;
+  const media = currentMedia();
+  const url =
+    window.location.origin +
+    router.resolve({ name: 'studio-window', params: locale, query: { camera: media.camera ? '1' : '0', mic: media.mic ? '1' : '0' } }).href;
   // Stesse dimensioni della pagina di origine.
   studioWindow = window.open(
     url,
@@ -378,35 +430,95 @@ function openInWindow() {
     return;
   }
   movedToWindow.value = true;
-  ownedRoomSid = '';
-  void live.leave();
+  void leaveForHandover();
 }
 
-// Riporta la stanza in questa pagina chiudendo la finestra separata.
+type StudioMessage = { type: 'studio-return'; camera: boolean; mic: boolean } | { type: 'studio-request-return' };
+
+// Finestra separata: "Chiudi e torna" lascia la stanza, dice alla pagina di
+// partenza cosa riaccendere e si chiude. Senza pagina di partenza (finestra
+// aperta da sola) torna allo studio in questa stessa finestra.
+async function returnFromWindow() {
+  const media = currentMedia();
+  await leaveForHandover();
+  const opener = window.opener as Window | null;
+  if (opener && !opener.closed) {
+    // La pagina sta per chiudersi: niente chiusura della stanza all'uscita.
+    (window as Window & { studioHandover?: boolean }).studioHandover = true;
+    const message: StudioMessage = { type: 'studio-return', ...media };
+    opener.postMessage(message, window.location.origin);
+    window.close();
+    return;
+  }
+  const locale = route.params.locale ? { locale: String(route.params.locale) } : {};
+  await router.push({ name: 'studio', params: locale, query: { camera: media.camera ? '1' : '0', mic: media.mic ? '1' : '0' } });
+}
+
+// Pagina di partenza: "Riporta qui" chiede alla finestra di tornare con lo
+// stato della webcam; se la finestra non c'è più riapre la stanza qui.
+let bringBackTimer: ReturnType<typeof setTimeout> | undefined;
+
 async function bringBack() {
   if (studioWindow && !studioWindow.closed) {
-    // Stessa origine: la finestra vede il segnale e non chiude la stanza.
-    (studioWindow as Window & { studioHandover?: boolean }).studioHandover = true;
-    studioWindow.close();
+    const message: StudioMessage = { type: 'studio-request-return' };
+    studioWindow.postMessage(message, window.location.origin);
+    // Finestra che non risponde (es. bloccata): la si chiude come prima.
+    bringBackTimer = setTimeout(() => {
+      if (!movedToWindow.value) return;
+      if (studioWindow && !studioWindow.closed) {
+        (studioWindow as Window & { studioHandover?: boolean }).studioHandover = true;
+        studioWindow.close();
+      }
+      void returnHere({ camera: false, mic: false });
+    }, 4000);
+    return;
   }
+  await returnHere({ camera: false, mic: false });
+}
+
+async function returnHere(media: MediaState) {
+  clearTimeout(bringBackTimer);
   studioWindow = null;
   movedToWindow.value = false;
   await open();
+  await restoreMedia(media);
+}
+
+// Messaggi tra la pagina di partenza e la finestra separata (stessa origine).
+function onStudioMessage(event: MessageEvent) {
+  if (event.origin !== window.location.origin) return;
+  const data = event.data as StudioMessage | null;
+  if (data?.type === 'studio-return' && movedToWindow.value && event.source === studioWindow) {
+    void returnHere({ camera: Boolean(data.camera), mic: Boolean(data.mic) });
+  } else if (data?.type === 'studio-request-return' && inWindow && event.source === window.opener) {
+    void returnFromWindow();
+  }
 }
 
 onMounted(async () => {
   window.addEventListener('pagehide', closeOnExit);
+  window.addEventListener('message', onStudioMessage);
   await session.refresh();
   if (!session.me.value) {
     await router.replace(`${localePrefix.value}/login?redirect=${encodeURIComponent(route.fullPath)}`);
     return;
   }
-  if (session.canBroadcast.value) await open();
-  else opening.value = false;
+  if (session.canBroadcast.value) {
+    await open();
+    // Arrivo da un passaggio (finestra separata o ritorno): camera e microfono
+    // tornano come erano; i parametri si tolgono dall'indirizzo.
+    if (route.query.camera !== undefined || route.query.mic !== undefined) {
+      const media = { camera: route.query.camera === '1', mic: route.query.mic === '1' };
+      await router.replace({ query: {} });
+      await restoreMedia(media);
+    }
+  } else opening.value = false;
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', closeOnExit);
+  window.removeEventListener('message', onStudioMessage);
+  clearTimeout(bringBackTimer);
   closeOnExit();
 });
 </script>
